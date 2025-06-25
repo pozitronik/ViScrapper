@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session, joinedload
 from models.product import Product, Image, Size
 from schemas.product import ProductCreate
 from utils.logger import get_logger
+from utils.database import atomic_transaction, validate_product_constraints, bulk_create_relationships
 
 logger = get_logger(__name__)
 
@@ -28,7 +29,7 @@ def get_product_by_url(db: Session, url: str):
 
 def create_product(db: Session, product: ProductCreate):
     """
-    Create a new product with images and sizes.
+    Create a new product with images and sizes in a single atomic transaction with retry logic.
     
     Args:
         db: Database session
@@ -38,11 +39,17 @@ def create_product(db: Session, product: ProductCreate):
         Created product with relationships loaded
         
     Raises:
-        Exception: If database operation fails
+        ValueError: If product data validation fails
+        Exception: If database operation fails after retries
     """
     logger.info(f"Creating product: {product.name} ({product.product_url})")
     
-    try:
+    # Validate input data before attempting database operations
+    product_dict = product.model_dump()
+    validate_product_constraints(product_dict)
+    
+    # Use atomic transaction for consistency
+    with atomic_transaction(db):
         # Create the main product record
         db_product = Product(
             product_url=str(product.product_url),
@@ -58,40 +65,28 @@ def create_product(db: Session, product: ProductCreate):
         )
 
         db.add(db_product)
-        db.commit()
-        db.refresh(db_product)
+        # Flush to get the ID without committing the transaction
+        db.flush()
         logger.debug(f"Created product with ID: {db_product.id}")
 
-        # Add images
+        # Add images using bulk creation for better performance
         if product.all_image_urls:
             logger.info(f"Adding {len(product.all_image_urls)} images to product ID: {db_product.id}")
-            for i, image_url in enumerate(product.all_image_urls, 1):
-                image = Image(url=str(image_url), product_id=db_product.id)
-                db.add(image)
-                logger.debug(f"Added image {i}/{len(product.all_image_urls)}: {image_url}")
+            bulk_create_relationships(db, db_product.id, product.all_image_urls, Image, 'url')
 
-        # Add sizes
+        # Add sizes using bulk creation for better performance
         if product.available_sizes:
             logger.info(f"Adding {len(product.available_sizes)} sizes to product ID: {db_product.id}")
-            for i, size_name in enumerate(product.available_sizes, 1):
-                size = Size(name=size_name, product_id=db_product.id)
-                db.add(size)
-                logger.debug(f"Added size {i}/{len(product.available_sizes)}: {size_name}")
+            bulk_create_relationships(db, db_product.id, product.available_sizes, Size, 'name')
 
-        # Commit all changes
-        db.commit()
-        db.refresh(db_product)
+        # Transaction will be committed by the context manager
+        logger.debug("All product data prepared for atomic commit")
 
-        # Explicitly load the relationships after refresh
-        db_product = db.query(Product).options(
-            joinedload(Product.images), 
-            joinedload(Product.sizes)
-        ).filter(Product.id == db_product.id).first()
+    # After successful commit, load the complete product with relationships
+    db_product = db.query(Product).options(
+        joinedload(Product.images), 
+        joinedload(Product.sizes)
+    ).filter(Product.id == db_product.id).first()
 
-        logger.info(f"Successfully created product ID: {db_product.id} with {len(db_product.images)} images and {len(db_product.sizes)} sizes")
-        return db_product
-        
-    except Exception as e:
-        logger.error(f"Error creating product {product.name} ({product.product_url}): {e}")
-        db.rollback()
-        raise
+    logger.info(f"Successfully created product ID: {db_product.id} with {len(db_product.images)} images and {len(db_product.sizes)} sizes")
+    return db_product
