@@ -20,18 +20,14 @@ def create_product(db: Session, product: ProductCreate):
         item=product.item,
         comment=product.comment,
     )
-    db.add(db_product)
-    db.commit()
-    db.refresh(db_product)
 
     for image_url in product.all_image_urls:
-        db_image = Image(url=str(image_url), product_id=db_product.id)
-        db.add(db_image)
+        db_product.images.append(Image(url=str(image_url)))
 
     for size_name in product.available_sizes:
-        db_size = Size(name=size_name, product_id=db_product.id)
-        db.add(db_size)
+        db_product.sizes.append(Size(name=size_name))
 
+    db.add(db_product)
     db.commit()
     db.refresh(db_product)
     return db_product

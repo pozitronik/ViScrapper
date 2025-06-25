@@ -188,3 +188,93 @@ def test_create_product_with_sizes_and_no_images(db_session):
     assert db_product.name == "Product Sizes Only"
     assert len(db_product.images) == 0
     assert len(db_product.sizes) == 2
+
+
+def test_no_partial_creation_on_image_integrity_error(db_session):
+    image_url = "http://example.com/unique_image.jpg"
+    product1_in = ProductCreate(
+        product_url="http://example.com/product_with_image",
+        name="Product with Image",
+        sku="SKU-IMG-1",
+        all_image_urls=[image_url],
+    )
+    create_product(db_session, product1_in)
+
+    product2_url = "http://example.com/another_product"
+    product2_in = ProductCreate(
+        product_url=product2_url,
+        name="Another Product",
+        sku="SKU-IMG-2",
+        all_image_urls=[image_url],
+    )
+
+    with pytest.raises(IntegrityError):
+        create_product(db_session, product2_in)
+    db_session.rollback()
+
+    db_product = get_product_by_url(db_session, product2_url)
+    assert db_product is None
+
+
+def test_unique_constraints_are_case_sensitive(db_session):
+    # Test case-sensitivity for product_url
+    product_url = "http://example.com/case_sensitive_test"
+    product1_in = ProductCreate(
+        product_url=product_url,
+        name="Case Test Product 1",
+        sku="CASE-SKU-URL",
+    )
+    create_product(db_session, product1_in)
+
+    # Pydantic's HttpUrl normalizes the domain to lowercase, so we expect the path to be case-sensitive.
+    product2_url_case = "HTTP://EXAMPLE.COM/CASE_SENSITIVE_TEST"
+    product2_in = ProductCreate(
+        product_url=product2_url_case,
+        name="Case Test Product 2",
+        sku="CASE-SKU-URL-2",
+    )
+    db_product_2 = create_product(db_session, product2_in)
+    assert db_product_2 is not None
+    assert db_product_2.product_url == "http://example.com/CASE_SENSITIVE_TEST"
+
+    # Test case-sensitivity for sku
+    sku = "UniqueSkuCaseTest"
+    product3_in = ProductCreate(
+        product_url="http://example.com/case_sensitive_test_3",
+        name="Case Test Product 3",
+        sku=sku,
+    )
+    create_product(db_session, product3_in)
+
+    product4_in = ProductCreate(
+        product_url="http://example.com/case_sensitive_test_4",
+        name="Case Test Product 4",
+        sku=sku.lower(),
+    )
+    db_product_4 = create_product(db_session, product4_in)
+    assert db_product_4 is not None
+    assert db_product_4.sku == sku.lower()
+
+
+def test_create_product_with_empty_string_fields(db_session):
+    product_in = ProductCreate(
+        product_url="http://example.com/empty_fields",
+        name="",
+        sku="EMPTY-SKU",
+        currency="",
+        availability="",
+        color="",
+        composition="",
+        item="",
+        comment="",
+    )
+    db_product = create_product(db_session, product_in)
+    assert db_product.name == ""
+    assert db_product.sku == "EMPTY-SKU"
+    assert db_product.currency == ""
+    assert db_product.availability == ""
+    assert db_product.color == ""
+    assert db_product.composition == ""
+    assert db_product.item == ""
+    assert db_product.comment == ""
+    assert db_product.price is None
