@@ -278,3 +278,40 @@ def test_create_product_with_empty_string_fields(db_session):
     assert db_product.item == ""
     assert db_product.comment == ""
     assert db_product.price is None
+
+
+def test_create_product_with_zero_price(db_session):
+    product_in = ProductCreate(
+        product_url="http://example.com/zero_price",
+        name="Zero Price Product",
+        sku="ZERO-PRICE-SKU",
+        price=0.0,
+    )
+    db_product = create_product(db_session, product_in)
+    assert db_product.price == 0.0
+
+
+def test_create_product_with_special_characters_and_unicode(db_session):
+    product_in = ProductCreate(
+        product_url="http://example.com/special_chars",
+        name="Product with Special Chars & Unicode 🚀",
+        sku="SKU-!@#$%^&*()-+=",
+        color="Color-éàç",
+        comment="Comment-你好世界",
+    )
+    db_product = create_product(db_session, product_in)
+    assert db_product.name == "Product with Special Chars & Unicode 🚀"
+    assert db_product.sku == "SKU-!@#$%^&*()-+="
+    assert db_product.color == "Color-éàç"
+    assert db_product.comment == "Comment-你好世界"
+
+
+def test_create_product_with_complex_url(db_session):
+    complex_url = "http://example.com/product?id=123&session=abc#details"
+    product_in = ProductCreate(
+        product_url=complex_url,
+        name="Complex URL Product",
+        sku="COMPLEX-URL-SKU",
+    )
+    db_product = create_product(db_session, product_in)
+    assert db_product.product_url == complex_url
