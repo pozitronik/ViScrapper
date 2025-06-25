@@ -3,9 +3,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 
-from backend.crud.product import create_product, get_product_by_url
-from backend.models.product import Base
-from backend.schemas.product import ProductCreate
+from crud.product import create_product, get_product_by_url
+from models.product import Base
+from schemas.product import ProductCreate
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 

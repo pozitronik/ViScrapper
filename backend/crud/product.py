@@ -1,6 +1,6 @@
-from sqlalchemy.orm import Session
-from backend.models.product import Product, Image, Size
-from backend.schemas.product import ProductCreate
+from sqlalchemy.orm import Session, joinedload
+from models.product import Product, Image, Size
+from schemas.product import ProductCreate
 
 
 def get_product_by_url(db: Session, url: str):
@@ -21,13 +21,22 @@ def create_product(db: Session, product: ProductCreate):
         comment=product.comment,
     )
 
-    for image_url in product.all_image_urls:
-        db_product.images.append(Image(url=str(image_url)))
-
-    for size_name in product.available_sizes:
-        db_product.sizes.append(Size(name=size_name))
-
     db.add(db_product)
     db.commit()
     db.refresh(db_product)
+
+    for image_url in product.all_image_urls:
+        image = Image(url=str(image_url), product_id=db_product.id)
+        db.add(image)
+
+    for size_name in product.available_sizes:
+        size = Size(name=size_name, product_id=db_product.id)
+        db.add(size)
+
+    db.commit()
+    db.refresh(db_product)
+
+    # Explicitly load the relationships after refresh
+    db_product = db.query(Product).options(joinedload(Product.images), joinedload(Product.sizes)).filter(Product.id == db_product.id).first()
+
     return db_product

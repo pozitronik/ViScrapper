@@ -1,7 +1,7 @@
 import pytest
 import os
 
-from backend.services import image_downloader
+from services import image_downloader
 
 
 @pytest.mark.asyncio

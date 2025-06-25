@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 class ImageBase(BaseModel):
-    url: HttpUrl
+    url: str
 
 
 class ImageCreate(ImageBase):
