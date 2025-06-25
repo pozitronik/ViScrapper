@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from crud.product import create_product, get_product_by_url
 from models.product import Base
 from schemas.product import ProductCreate
+from exceptions.base import ProductException, DatabaseException
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
@@ -105,7 +106,7 @@ def test_create_product_with_no_images_or_sizes(db_session):
     assert len(db_product.sizes) == 0
 
 
-def test_create_product_with_duplicate_url_raises_integrity_error(db_session):
+def test_create_product_with_duplicate_url_raises_product_exception(db_session):
     product1_in = ProductCreate(
         product_url="http://example.com/duplicate_url",
         name="Product 1",
@@ -118,35 +119,35 @@ def test_create_product_with_duplicate_url_raises_integrity_error(db_session):
         name="Product 2",
         sku="DUP-URL-2",
     )
-    with pytest.raises(IntegrityError):
+    with pytest.raises(ProductException):
         create_product(db_session, product2_in)
 
 
-def test_create_product_with_duplicate_sku_raises_integrity_error(db_session):
+def test_create_product_with_duplicate_sku_raises_product_exception(db_session):
     product1_in = ProductCreate(
         product_url="http://example.com/product_sku1",
         name="Product SKU 1",
-        sku="UNIQUE-SKU-123",
+        sku="UNIQUE-SKU-DUPLICATE-TEST",
     )
     create_product(db_session, product1_in)
 
     product2_in = ProductCreate(
         product_url="http://example.com/product_sku2",
         name="Product SKU 2",
-        sku="UNIQUE-SKU-123",
+        sku="UNIQUE-SKU-DUPLICATE-TEST",
     )
-    with pytest.raises(IntegrityError):
+    with pytest.raises(ProductException):
         create_product(db_session, product2_in)
 
 
-def test_create_product_with_duplicate_image_urls_raises_integrity_error(db_session):
+def test_create_product_with_duplicate_image_urls_raises_database_exception(db_session):
     product_in = ProductCreate(
         product_url="http://example.com/product_dup_img",
         name="Product Dup Img",
         sku="DUP-IMG-SKU",
-        all_image_urls=["http://example.com/image1.jpg", "http://example.com/image1.jpg"],
+        all_image_urls=["http://example.com/duplicate_image.jpg", "http://example.com/duplicate_image.jpg"],
     )
-    with pytest.raises(IntegrityError):
+    with pytest.raises(DatabaseException):
         create_product(db_session, product_in)
 
 
@@ -191,26 +192,25 @@ def test_create_product_with_sizes_and_no_images(db_session):
 
 
 def test_no_partial_creation_on_image_integrity_error(db_session):
-    image_url = "http://example.com/unique_image.jpg"
+    image_url = "http://example.com/unique_image_rollback_test.jpg"
     product1_in = ProductCreate(
-        product_url="http://example.com/product_with_image",
+        product_url="http://example.com/product_with_image_rollback_test",
         name="Product with Image",
-        sku="SKU-IMG-1",
+        sku="SKU-IMG-ROLLBACK-1",
         all_image_urls=[image_url],
     )
     create_product(db_session, product1_in)
 
-    product2_url = "http://example.com/another_product"
+    product2_url = "http://example.com/another_product_rollback_test"
     product2_in = ProductCreate(
         product_url=product2_url,
         name="Another Product",
-        sku="SKU-IMG-2",
+        sku="SKU-IMG-ROLLBACK-2",
         all_image_urls=[image_url],
     )
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(DatabaseException):
         create_product(db_session, product2_in)
-    db_session.rollback()
 
     db_product = get_product_by_url(db_session, product2_url)
     assert db_product is None

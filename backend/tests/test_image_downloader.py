@@ -7,7 +7,11 @@ from services import image_downloader
 @pytest.mark.asyncio
 async def test_download_images(httpx_mock):
     IMAGE_URL = "http://example.com/image.jpg"
-    httpx_mock.add_response(url=IMAGE_URL, content=b"fake image data")
+    httpx_mock.add_response(
+        url=IMAGE_URL, 
+        content=b"fake image data",
+        headers={"content-type": "image/jpeg"}
+    )
 
     saved_files = await image_downloader.download_images([IMAGE_URL])
     assert len(saved_files) == 1

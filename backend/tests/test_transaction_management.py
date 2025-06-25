@@ -11,6 +11,7 @@ from crud.product import create_product
 from models.product import Base, Product, Image, Size
 from schemas.product import ProductCreate
 from utils.database import atomic_transaction, validate_product_constraints, bulk_create_relationships
+from exceptions.base import ProductException, DatabaseException
 
 
 class TestTransactionManagement:
@@ -271,7 +272,7 @@ class TestTransactionManagement:
             sku="UNIQUE-SKU"  # Duplicate SKU
         )
         
-        with pytest.raises(IntegrityError):
+        with pytest.raises((ProductException, DatabaseException)):
             create_product(constraint_db_session, product_data2)
         
         # Verify only first product exists
@@ -297,7 +298,7 @@ class TestTransactionManagement:
             all_image_urls=["http://example.com/unique_image.jpg"]  # Duplicate image URL
         )
         
-        with pytest.raises(IntegrityError):
+        with pytest.raises((ProductException, DatabaseException)):
             create_product(constraint_db_session, product_data2)
         
         # Verify second product was completely rolled back
