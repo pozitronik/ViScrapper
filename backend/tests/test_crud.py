@@ -148,3 +148,15 @@ def test_create_product_with_duplicate_image_urls_raises_integrity_error(db_sess
     )
     with pytest.raises(IntegrityError):
         create_product(db_session, product_in)
+
+
+def test_create_product_with_duplicate_sizes(db_session):
+    product_in = ProductCreate(
+        product_url="http://example.com/product_dup_size",
+        name="Product Dup Size",
+        sku="DUP-SIZE-SKU",
+        available_sizes=["M", "M"],
+    )
+    db_product = create_product(db_session, product_in)
+    assert len(db_product.sizes) == 2
+    assert [size.name for size in db_product.sizes] == ["M", "M"]
