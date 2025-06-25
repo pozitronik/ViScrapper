@@ -137,3 +137,14 @@ def test_create_product_with_duplicate_sku_raises_integrity_error(db_session):
     )
     with pytest.raises(IntegrityError):
         create_product(db_session, product2_in)
+
+
+def test_create_product_with_duplicate_image_urls_raises_integrity_error(db_session):
+    product_in = ProductCreate(
+        product_url="http://example.com/product_dup_img",
+        name="Product Dup Img",
+        sku="DUP-IMG-SKU",
+        all_image_urls=["http://example.com/image1.jpg", "http://example.com/image1.jpg"],
+    )
+    with pytest.raises(IntegrityError):
+        create_product(db_session, product_in)
