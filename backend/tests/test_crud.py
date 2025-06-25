@@ -160,3 +160,31 @@ def test_create_product_with_duplicate_sizes(db_session):
     db_product = create_product(db_session, product_in)
     assert len(db_product.sizes) == 2
     assert [size.name for size in db_product.sizes] == ["M", "M"]
+
+
+def test_create_product_with_images_and_no_sizes(db_session):
+    product_in = ProductCreate(
+        product_url="http://example.com/product_img_only",
+        name="Product Images Only",
+        sku="IMG-ONLY-SKU",
+        all_image_urls=["http://example.com/imageA.jpg", "http://example.com/imageB.jpg"],
+        available_sizes=[],
+    )
+    db_product = create_product(db_session, product_in)
+    assert db_product.name == "Product Images Only"
+    assert len(db_product.images) == 2
+    assert len(db_product.sizes) == 0
+
+
+def test_create_product_with_sizes_and_no_images(db_session):
+    product_in = ProductCreate(
+        product_url="http://example.com/product_size_only",
+        name="Product Sizes Only",
+        sku="SIZE-ONLY-SKU",
+        all_image_urls=[],
+        available_sizes=["XL", "XXL"],
+    )
+    db_product = create_product(db_session, product_in)
+    assert db_product.name == "Product Sizes Only"
+    assert len(db_product.images) == 0
+    assert len(db_product.sizes) == 2
