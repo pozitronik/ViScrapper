@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-
-from backend.schemas.product import Product, ProductCreate, Image, Size
+from backend.models.product import Product, Image, Size
+from backend.schemas.product import ProductCreate
 
 
 def get_product_by_url(db: Session, url: str):
