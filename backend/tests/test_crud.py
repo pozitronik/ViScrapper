@@ -120,3 +120,20 @@ def test_create_product_with_duplicate_url_raises_integrity_error(db_session):
     )
     with pytest.raises(IntegrityError):
         create_product(db_session, product2_in)
+
+
+def test_create_product_with_duplicate_sku_raises_integrity_error(db_session):
+    product1_in = ProductCreate(
+        product_url="http://example.com/product_sku1",
+        name="Product SKU 1",
+        sku="UNIQUE-SKU-123",
+    )
+    create_product(db_session, product1_in)
+
+    product2_in = ProductCreate(
+        product_url="http://example.com/product_sku2",
+        name="Product SKU 2",
+        sku="UNIQUE-SKU-123",
+    )
+    with pytest.raises(IntegrityError):
+        create_product(db_session, product2_in)
