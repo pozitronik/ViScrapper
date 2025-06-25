@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+gspread
+google-auth-oauthlib
+playwright
+bs4
+oauth2client
