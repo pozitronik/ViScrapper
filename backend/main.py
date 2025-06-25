@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from gspread.utils import ValueInputOption
 from pydantic import BaseModel, HttpUrl
 from typing import List, Optional
 import gspread
@@ -20,6 +21,7 @@ try:
     sheet_name = os.getenv("GOOGLE_SHEET_NAME")
     user_email = os.getenv("GOOGLE_USER_EMAIL")
     price_multiplier = float(os.getenv("PRICE_MULTIPLIER", 1.4))
+    image_layout = os.getenv("IMAGE_LAYOUT", "VERTICAL").upper()
 
     try:
         spreadsheet = client.open(sheet_name)
@@ -33,6 +35,8 @@ try:
         sheet.append_row(header_row)
         with open("google_sheet.txt", "w") as f:
             f.write(spreadsheet.url)
+    # Set word wrap for all columns
+    sheet.format("A:Z", {'wrapStrategy': 'WRAP'})
     print(f"Sheet URL: {spreadsheet.url}")
 
 except Exception as e:
@@ -67,7 +71,11 @@ async def scrape_product(data: ProductData):
         next_id = last_row + 1
 
         # Prepare row data in the correct order
-        photo_formula = '={{}}'.format(';'.join([f'IMAGE("{url}")' for url in data.all_image_urls])) if data.all_image_urls else ''
+        if data.all_image_urls:
+            images_part = ';'.join([f'IMAGE("{url}")' for url in data.all_image_urls])
+            photo_formula = f"={{{images_part}}}"
+        else:
+            photo_formula = ''
         price_commission = data.price * price_multiplier if data.price else 0
 
         row = [
@@ -84,7 +92,7 @@ async def scrape_product(data: ProductData):
             data.sku,
             data.color,
         ]
-        sheet.append_row(row, value_input_option='USER_ENTERED')
+        sheet.append_row(row, value_input_option=ValueInputOption('USER_ENTERED'))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error writing to Google Sheet: {e}")
 

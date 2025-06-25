@@ -59,7 +59,14 @@
     }
 
     productData.product_url = window.location.href;
-    productData.item = ''; // New field, default empty
+    try {
+        const itemElement = document.querySelector('[data-testid="ProductInfo-genericId"]');
+        if (itemElement) {
+            productData.item = itemElement.textContent.trim();
+        }
+    } catch (e) {
+        console.error('Could not find item information:', e);
+    }
     productData.comment = ''; // New field, default empty
 
     return productData;

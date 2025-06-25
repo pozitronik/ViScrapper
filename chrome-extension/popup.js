@@ -1,5 +1,6 @@
 document.getElementById('scrape').addEventListener('click', () => {
   const status = document.getElementById('status');
+  const comment = document.getElementById('comment').value;
   status.textContent = 'Scraping...';
 
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -15,6 +16,7 @@ document.getElementById('scrape').addEventListener('click', () => {
         }
         if (results && results[0]) {
           const data = results[0].result;
+          data.comment = comment; // Add comment to the data
           status.textContent = 'Sending...';
           fetch('http://127.0.0.1:8000/api/v1/scrape', {
             method: 'POST',
