@@ -1,6 +1,8 @@
 import pytest
 import os
-from services import image_downloader
+
+from backend.services import image_downloader
+
 
 @pytest.mark.asyncio
 async def test_download_images(httpx_mock):

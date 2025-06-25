@@ -2,11 +2,14 @@ from pydantic import BaseModel, HttpUrl
 from typing import List, Optional
 from datetime import datetime
 
+
 class ImageBase(BaseModel):
     url: HttpUrl
 
+
 class ImageCreate(ImageBase):
     pass
+
 
 class Image(ImageBase):
     id: int
@@ -15,11 +18,14 @@ class Image(ImageBase):
     class Config:
         from_attributes = True
 
+
 class SizeBase(BaseModel):
     name: str
 
+
 class SizeCreate(SizeBase):
     pass
+
 
 class Size(SizeBase):
     id: int
@@ -27,6 +33,7 @@ class Size(SizeBase):
 
     class Config:
         from_attributes = True
+
 
 class ProductBase(BaseModel):
     product_url: HttpUrl
@@ -40,9 +47,11 @@ class ProductBase(BaseModel):
     item: Optional[str] = None
     comment: Optional[str] = None
 
+
 class ProductCreate(ProductBase):
     all_image_urls: Optional[List[HttpUrl]] = []
     available_sizes: Optional[List[str]] = []
+
 
 class Product(ProductBase):
     id: int

@@ -5,6 +5,7 @@ from typing import List
 
 IMAGE_DIR = os.getenv("IMAGE_DIR", "./images")
 
+
 async def download_images(image_urls: List[str]) -> List[str]:
     if not os.path.exists(IMAGE_DIR):
         os.makedirs(IMAGE_DIR)

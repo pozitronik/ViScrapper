@@ -4,6 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
+
 class Product(Base):
     __tablename__ = "products"
 
@@ -24,6 +25,7 @@ class Product(Base):
     images = relationship("Image", back_populates="product")
     sizes = relationship("Size", back_populates="product")
 
+
 class Image(Base):
     __tablename__ = "images"
 
@@ -32,6 +34,7 @@ class Image(Base):
     product_id = Column(Integer, ForeignKey("products.id"))
 
     product = relationship("Product", back_populates="images")
+
 
 class Size(Base):
     __tablename__ = "sizes"
