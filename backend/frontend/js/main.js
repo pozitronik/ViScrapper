@@ -10,7 +10,13 @@ class VIParserApp {
         this.currentFilters = {};
         
         // Initialize components
-        this.table = new ProductTable('products-table', this.onDataChange.bind(this), this.onUpdateProduct.bind(this));
+        this.table = new ProductTable(
+            'products-table', 
+            this.onDataChange.bind(this), 
+            this.onUpdateProduct.bind(this),
+            this.onDeleteProducts.bind(this),
+            this.onExportProducts.bind(this)
+        );
         this.pagination = new Pagination('pagination', this.onPageChange.bind(this));
         this.filters = new ProductFilters(this.onFiltersChange.bind(this));
         
@@ -246,6 +252,104 @@ class VIParserApp {
             console.error(`Failed to update product ${productId}:`, error);
             throw error; // Re-throw so inline editor can handle it
         }
+    }
+
+    /**
+     * Handle mass delete operation
+     */
+    async onDeleteProducts(productIds) {
+        try {
+            console.log(`Deleting ${productIds.length} products:`, productIds);
+            
+            // Delete products one by one (could be optimized with batch API)
+            const deletePromises = productIds.map(id => api.deleteProduct(id));
+            await Promise.all(deletePromises);
+            
+            console.log(`Successfully deleted ${productIds.length} products`);
+            
+            // Reload the current page to reflect changes
+            await this.loadProducts(this.currentPage, false);
+            
+        } catch (error) {
+            console.error('Failed to delete products:', error);
+            throw error; // Re-throw so row selection can handle it
+        }
+    }
+
+    /**
+     * Handle export operation
+     */
+    async onExportProducts(products) {
+        try {
+            console.log(`Exporting ${products.length} products`);
+            
+            // Create CSV content
+            const csvContent = this.generateCSV(products);
+            
+            // Download CSV file
+            this.downloadFile(csvContent, 'products.csv', 'text/csv');
+            
+            console.log(`Successfully exported ${products.length} products`);
+            
+        } catch (error) {
+            console.error('Failed to export products:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate CSV content from products
+     */
+    generateCSV(products) {
+        if (products.length === 0) return '';
+        
+        // Define CSV headers
+        const headers = [
+            'ID', 'Name', 'SKU', 'Price', 'Currency', 'Availability', 
+            'Color', 'Composition', 'Item', 'Comment', 'Created At', 'Product URL'
+        ];
+        
+        // Create CSV rows
+        const rows = products.map(product => [
+            product.id,
+            product.name || '',
+            product.sku || '',
+            product.price || '',
+            product.currency || '',
+            product.availability || '',
+            product.color || '',
+            product.composition || '',
+            product.item || '',
+            product.comment || '',
+            product.created_at || '',
+            product.product_url || ''
+        ]);
+        
+        // Combine headers and rows
+        const allRows = [headers, ...rows];
+        
+        // Convert to CSV string
+        return allRows.map(row => 
+            row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+    }
+
+    /**
+     * Download file to user's computer
+     */
+    downloadFile(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up the URL object
+        URL.revokeObjectURL(url);
     }
 
     /**

@@ -1,7 +1,7 @@
 // Table rendering and management for products
 
 class ProductTable {
-    constructor(tableId, onDataChange, onUpdateProduct) {
+    constructor(tableId, onDataChange, onUpdateProduct, onDeleteProducts, onExportProducts) {
         this.table = document.getElementById(tableId);
         this.tbody = document.getElementById('products-tbody');
         this.totalCountElement = document.getElementById('total-count');
@@ -13,6 +13,13 @@ class ProductTable {
         // Initialize inline editor
         this.inlineEditor = new InlineEditor(this.handleProductUpdate.bind(this));
         this.inlineEditor.initializeTable(this.table);
+        
+        // Initialize row selection
+        this.rowSelection = new RowSelection(
+            this.handleSelectionChange.bind(this),
+            onDeleteProducts,
+            onExportProducts
+        );
     }
 
     /**
@@ -25,6 +32,9 @@ class ProductTable {
         if (totalCount !== null) {
             this.updateTotalCount(totalCount);
         }
+        
+        // Initialize row selection for new data
+        this.rowSelection.initializeTable(this.table, products);
         
         if (this.onDataChange) {
             this.onDataChange(products, totalCount);
@@ -67,7 +77,10 @@ class ProductTable {
         row.appendChild(this.createPriceCell(product));
         row.appendChild(this.createAvailabilityCell(product));
         row.appendChild(this.createColorCell(product));
+        row.appendChild(this.createCompositionCell(product));
+        row.appendChild(this.createItemCell(product));
         row.appendChild(this.createSizesCell(product));
+        row.appendChild(this.createCommentCell(product));
         row.appendChild(this.createCreatedAtCell(product));
         row.appendChild(this.createUrlCell(product));
 
@@ -224,6 +237,46 @@ class ProductTable {
     }
 
     /**
+     * Create composition cell
+     */
+    createCompositionCell(product) {
+        const composition = product.composition || '-';
+        const cell = createElement('td');
+        
+        if (composition === '-') {
+            cell.innerHTML = '<span class="cell-composition">-</span>';
+        } else {
+            // Preserve line breaks and show full text
+            const compositionSpan = createElement('span', { 
+                className: 'cell-composition cell-composition-full'
+            });
+            compositionSpan.textContent = composition;
+            cell.appendChild(compositionSpan);
+        }
+        
+        // Make editable
+        this.inlineEditor.makeEditable(cell, product.id, 'composition', product.composition);
+        
+        return cell;
+    }
+
+    /**
+     * Create item cell
+     */
+    createItemCell(product) {
+        const item = product.item || '-';
+        const displayItem = item !== '-' ? truncateText(item, 20) : item;
+        const cell = createElement('td', {}, `
+            <span class="cell-item" title="${escapeHtml(item)}">${escapeHtml(displayItem)}</span>
+        `);
+        
+        // Make editable
+        this.inlineEditor.makeEditable(cell, product.id, 'item', product.item);
+        
+        return cell;
+    }
+
+    /**
      * Create sizes cell
      */
     createSizesCell(product) {
@@ -236,25 +289,32 @@ class ProductTable {
 
         const container = createElement('div', { className: 'size-tags' });
         
-        // Show first 3 sizes
-        const visibleSizes = product.sizes.slice(0, 3);
-        
-        visibleSizes.forEach(size => {
+        // Show all sizes
+        product.sizes.forEach(size => {
             const tag = createElement('span', {
                 className: 'size-tag'
             }, escapeHtml(size.name));
             container.appendChild(tag);
         });
 
-        // Show count if there are more sizes
-        if (product.sizes.length > 3) {
-            const moreTag = createElement('span', {
-                className: 'size-tag size-more'
-            }, `+${product.sizes.length - 3}`);
-            container.appendChild(moreTag);
-        }
-
         cell.appendChild(container);
+        return cell;
+    }
+
+    /**
+     * Create comment cell
+     */
+    createCommentCell(product) {
+        const comment = product.comment || '';
+        const displayComment = comment ? truncateText(comment, 50) : '-';
+        
+        const cell = createElement('td', {}, `
+            <span class="cell-comment" title="${escapeHtml(comment)}">${escapeHtml(displayComment)}</span>
+        `);
+        
+        // Make editable
+        this.inlineEditor.makeEditable(cell, product.id, 'comment', product.comment);
+        
         return cell;
     }
 
@@ -328,6 +388,13 @@ class ProductTable {
         if (product) {
             product[field] = newValue;
         }
+    }
+
+    /**
+     * Handle selection change
+     */
+    handleSelectionChange(selectedIds, selectedProducts) {
+        console.log(`Selected ${selectedIds.length} products:`, selectedIds);
     }
 
     /**

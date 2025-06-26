@@ -100,6 +100,15 @@ class ApiClient {
     }
 
     /**
+     * Delete product by ID
+     */
+    async deleteProduct(id) {
+        return await this.request(`/products/${id}`, {
+            method: 'DELETE'
+        });
+    }
+
+    /**
      * Get product statistics
      */
     async getProductStats() {

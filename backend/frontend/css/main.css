@@ -33,7 +33,7 @@ body {
 
 /* Main Content */
 .main-content {
-    max-width: 1400px;
+    max-width: 100%;
     margin: 2rem auto;
     padding: 0 1rem;
 }

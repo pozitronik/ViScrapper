@@ -108,10 +108,29 @@
                 </div>
             </div>
 
+            <!-- Selection Info Bar -->
+            <div id="selection-info" class="selection-info hidden">
+                <span class="selection-count" id="selection-count">0 selected</span>
+                <div class="selection-actions">
+                    <button id="delete-selected" class="btn btn-secondary">
+                        🗑️ Delete Selected
+                    </button>
+                    <button id="export-selected" class="btn btn-secondary">
+                        📥 Export Selected
+                    </button>
+                    <button id="clear-selection" class="btn btn-outline">
+                        Clear Selection
+                    </button>
+                </div>
+            </div>
+
             <div class="table-wrapper">
                 <table id="products-table" class="products-table">
                     <thead>
                         <tr>
+                            <th class="select-column">
+                                <input type="checkbox" id="select-all" class="select-all-checkbox" title="Select all">
+                            </th>
                             <th data-column="id" class="sortable">ID</th>
                             <th data-column="images">Images</th>
                             <th data-column="name" class="sortable">Name</th>
@@ -119,7 +138,10 @@
                             <th data-column="price" class="sortable">Price</th>
                             <th data-column="availability" class="sortable">Availability</th>
                             <th data-column="color" class="sortable">Color</th>
+                            <th data-column="composition" class="sortable">Composition</th>
+                            <th data-column="item" class="sortable">Item</th>
                             <th data-column="sizes">Sizes</th>
+                            <th data-column="comment" class="sortable">Comment</th>
                             <th data-column="created_at" class="sortable sort-desc">Created</th>
                             <th data-column="product_url">URL</th>
                         </tr>
@@ -169,6 +191,7 @@
     <script src="/static/js/image-modal.js"></script>
     <script src="/static/js/filters.js"></script>
     <script src="/static/js/inline-editor.js"></script>
+    <script src="/static/js/row-selection.js"></script>
     <script src="/static/js/table.js"></script>
     <script src="/static/js/main.js"></script>
 </body>
