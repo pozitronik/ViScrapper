@@ -1,0 +1,292 @@
+// Table rendering and management for products
+
+class ProductTable {
+    constructor(tableId, onDataChange) {
+        this.table = document.getElementById(tableId);
+        this.tbody = document.getElementById('products-tbody');
+        this.totalCountElement = document.getElementById('total-count');
+        this.onDataChange = onDataChange;
+        this.products = [];
+        this.imageBaseUrl = 'http://localhost:8000/images/'; // Base URL for serving images
+    }
+
+    /**
+     * Update table with new product data
+     */
+    updateData(products, totalCount = null) {
+        this.products = products;
+        this.renderRows();
+        
+        if (totalCount !== null) {
+            this.updateTotalCount(totalCount);
+        }
+        
+        if (this.onDataChange) {
+            this.onDataChange(products, totalCount);
+        }
+    }
+
+    /**
+     * Update total count display
+     */
+    updateTotalCount(count) {
+        const plural = count === 1 ? 'product' : 'products';
+        this.totalCountElement.textContent = `${count.toLocaleString()} ${plural}`;
+    }
+
+    /**
+     * Render all product rows
+     */
+    renderRows() {
+        this.tbody.innerHTML = '';
+        
+        this.products.forEach(product => {
+            const row = this.createProductRow(product);
+            this.tbody.appendChild(row);
+        });
+    }
+
+    /**
+     * Create a single product row
+     */
+    createProductRow(product) {
+        const row = createElement('tr', {
+            dataset: { productId: product.id }
+        });
+
+        // Add all table cells
+        row.appendChild(this.createIdCell(product));
+        row.appendChild(this.createImagesCell(product));
+        row.appendChild(this.createNameCell(product));
+        row.appendChild(this.createSkuCell(product));
+        row.appendChild(this.createPriceCell(product));
+        row.appendChild(this.createAvailabilityCell(product));
+        row.appendChild(this.createColorCell(product));
+        row.appendChild(this.createSizesCell(product));
+        row.appendChild(this.createCreatedAtCell(product));
+        row.appendChild(this.createUrlCell(product));
+
+        return row;
+    }
+
+    /**
+     * Create ID cell
+     */
+    createIdCell(product) {
+        return createElement('td', {}, `
+            <span class="cell-id">${product.id}</span>
+        `);
+    }
+
+    /**
+     * Create images cell with thumbnails
+     */
+    createImagesCell(product) {
+        const cell = createElement('td');
+        
+        if (!product.images || product.images.length === 0) {
+            cell.innerHTML = '<span class="text-muted">No images</span>';
+            return cell;
+        }
+
+        const container = createElement('div', { className: 'image-thumbnails' });
+        
+        // Show first 3 images as thumbnails
+        const visibleImages = product.images.slice(0, 3);
+        
+        visibleImages.forEach((image, index) => {
+            const img = createElement('img', {
+                className: 'image-thumbnail',
+                src: this.getImageUrl(image.url),
+                alt: `Product image ${index + 1}`,
+                dataset: { 
+                    imageIndex: index,
+                    productId: product.id 
+                }
+            });
+            
+            // Add click handler for image preview
+            img.addEventListener('click', () => {
+                this.openImagePreview(product.images, index);
+            });
+            
+            // Handle image load error
+            img.addEventListener('error', () => {
+                img.src = this.getPlaceholderImage();
+            });
+            
+            container.appendChild(img);
+        });
+
+        // Show count if there are more images
+        if (product.images.length > 3) {
+            const count = createElement('div', {
+                className: 'image-count'
+            }, `+${product.images.length - 3}`);
+            container.appendChild(count);
+        }
+
+        cell.appendChild(container);
+        return cell;
+    }
+
+    /**
+     * Create name cell
+     */
+    createNameCell(product) {
+        const name = product.name || 'Unnamed Product';
+        return createElement('td', {}, `
+            <span class="cell-name" title="${escapeHtml(name)}">${escapeHtml(truncateText(name, 30))}</span>
+        `);
+    }
+
+    /**
+     * Create SKU cell
+     */
+    createSkuCell(product) {
+        const sku = product.sku || '-';
+        return createElement('td', {}, `
+            <span title="${escapeHtml(sku)}">${escapeHtml(sku)}</span>
+        `);
+    }
+
+    /**
+     * Create price cell
+     */
+    createPriceCell(product) {
+        const cell = createElement('td');
+        
+        if (product.price !== null && product.price !== undefined) {
+            const formattedPrice = formatCurrency(product.price, product.currency);
+            cell.innerHTML = `<span class="cell-price">${formattedPrice}</span>`;
+        } else {
+            cell.innerHTML = '<span class="text-muted">-</span>';
+        }
+        
+        return cell;
+    }
+
+    /**
+     * Create availability cell
+     */
+    createAvailabilityCell(product) {
+        const availability = product.availability || 'Unknown';
+        const availabilityClass = getAvailabilityClass(availability);
+        
+        return createElement('td', {}, `
+            <span class="cell-availability ${availabilityClass}">${escapeHtml(availability)}</span>
+        `);
+    }
+
+    /**
+     * Create color cell
+     */
+    createColorCell(product) {
+        const color = product.color || '-';
+        return createElement('td', {}, `
+            <span title="${escapeHtml(color)}">${escapeHtml(color)}</span>
+        `);
+    }
+
+    /**
+     * Create sizes cell
+     */
+    createSizesCell(product) {
+        const cell = createElement('td');
+        
+        if (!product.sizes || product.sizes.length === 0) {
+            cell.innerHTML = '<span class="text-muted">No sizes</span>';
+            return cell;
+        }
+
+        const container = createElement('div', { className: 'size-tags' });
+        
+        // Show first 3 sizes
+        const visibleSizes = product.sizes.slice(0, 3);
+        
+        visibleSizes.forEach(size => {
+            const tag = createElement('span', {
+                className: 'size-tag'
+            }, escapeHtml(size.name));
+            container.appendChild(tag);
+        });
+
+        // Show count if there are more sizes
+        if (product.sizes.length > 3) {
+            const moreTag = createElement('span', {
+                className: 'size-tag size-more'
+            }, `+${product.sizes.length - 3}`);
+            container.appendChild(moreTag);
+        }
+
+        cell.appendChild(container);
+        return cell;
+    }
+
+    /**
+     * Create created at cell
+     */
+    createCreatedAtCell(product) {
+        const date = formatRelativeTime(product.created_at);
+        const fullDate = formatDate(product.created_at);
+        
+        return createElement('td', {}, `
+            <span class="cell-date" title="${fullDate}">${date}</span>
+        `);
+    }
+
+    /**
+     * Create URL cell
+     */
+    createUrlCell(product) {
+        return createElement('td', { className: 'cell-url' }, `
+            <a href="${escapeHtml(product.product_url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(product.product_url)}">
+                View
+            </a>
+        `);
+    }
+
+    /**
+     * Get full image URL from filename
+     */
+    getImageUrl(filename) {
+        // If filename is already a full URL, return as-is
+        if (filename.startsWith('http://') || filename.startsWith('https://')) {
+            return filename;
+        }
+        // Otherwise, construct local URL
+        return this.imageBaseUrl + filename;
+    }
+
+    /**
+     * Get placeholder image for failed loads
+     */
+    getPlaceholderImage() {
+        return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xNiAyMEMxMy43OSAxNCAxMy43OSAxMiAxNiAxMlMxOC4yMSAxNCAxNiAyMFoiIGZpbGw9IiM5MzkzOTMiLz4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iNCIgc3Ryb2tlPSIjOTM5MzkzIiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+';
+    }
+
+    /**
+     * Open image preview (placeholder for now)
+     */
+    openImagePreview(images, startIndex = 0) {
+        // TODO: Implement image preview modal in Phase 2
+        console.log('Opening image preview:', images, startIndex);
+        
+        // For now, just open the first image in a new tab
+        if (images[startIndex]) {
+            const imageUrl = this.getImageUrl(images[startIndex].url);
+            window.open(imageUrl, '_blank');
+        }
+    }
+
+    /**
+     * Clear table data
+     */
+    clear() {
+        this.tbody.innerHTML = '';
+        this.updateTotalCount(0);
+    }
+}
+
+// Export for use in other modules
+window.ProductTable = ProductTable;

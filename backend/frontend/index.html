@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIParser - Product Management</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/table.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1>VIParser</h1>
+            <p>Product Management Dashboard</p>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Loading State -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Loading products...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error" class="error hidden">
+            <div class="error-content">
+                <h3>Error Loading Data</h3>
+                <p id="error-message"></p>
+                <button id="retry-btn" class="btn btn-primary">Retry</button>
+            </div>
+        </div>
+
+        <!-- Main Table Container -->
+        <div id="table-container" class="table-container">
+            <div class="table-header">
+                <div class="table-info">
+                    <span id="total-count">0 products</span>
+                </div>
+                <div class="table-controls">
+                    <!-- Pagination controls will be inserted here -->
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table id="products-table" class="products-table">
+                    <thead>
+                        <tr>
+                            <th data-column="id">ID</th>
+                            <th data-column="images">Images</th>
+                            <th data-column="name">Name</th>
+                            <th data-column="sku">SKU</th>
+                            <th data-column="price">Price</th>
+                            <th data-column="availability">Availability</th>
+                            <th data-column="color">Color</th>
+                            <th data-column="sizes">Sizes</th>
+                            <th data-column="created_at">Created</th>
+                            <th data-column="product_url">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="products-tbody">
+                        <!-- Product rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <div class="pagination" id="pagination">
+                    <!-- Pagination will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/pagination.js"></script>
+    <script src="js/table.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
