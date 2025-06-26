@@ -373,6 +373,72 @@
     display: none;
 }
 
+/* Filter Summary */
+.filter-summary {
+    background: #f0f9ff;
+    border: 1px solid #0ea5e9;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+}
+
+.filter-summary.hidden {
+    display: none;
+}
+
+.filter-summary-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.filter-summary-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #0c4a6e;
+}
+
+.active-filter-tags {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.filter-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.filter-tag-remove {
+    background: none;
+    border: none;
+    color: #1e40af;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.875rem;
+    line-height: 1;
+    border-radius: 2px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.filter-tag-remove:hover {
+    background: #1e40af;
+    color: white;
+}
+
 .cell-date {
     color: #6b7280;
     font-size: 0.8125rem;

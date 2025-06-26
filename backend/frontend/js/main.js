@@ -19,6 +19,7 @@ class VIParserApp {
         );
         this.pagination = new Pagination('pagination', this.onPageChange.bind(this));
         this.filters = new ProductFilters(this.onFiltersChange.bind(this));
+        this.keyboardShortcuts = new KeyboardShortcuts(this);
         
         // Bind methods
         this.loadProducts = this.loadProducts.bind(this);
@@ -416,6 +417,13 @@ class VIParserApp {
         this.currentSearch = '';
         this.toggleClearButton('');
         await this.loadProducts(1, false);
+    }
+
+    /**
+     * Public method to refresh data (for keyboard shortcuts)
+     */
+    async refresh() {
+        await this.loadProducts(this.currentPage, true);
     }
 
     /**

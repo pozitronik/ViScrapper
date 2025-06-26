@@ -10,6 +10,9 @@ class ProductFilters {
         this.filterBtn = document.getElementById('filter-btn');
         this.clearFiltersBtn = document.getElementById('clear-filters');
         this.filterPanel = document.getElementById('filter-panel');
+        this.filterSummary = document.getElementById('filter-summary');
+        this.activeFilterTags = document.getElementById('active-filter-tags');
+        this.clearAllFiltersBtn = document.getElementById('clear-all-filters');
         
         // Filter inputs
         this.priceMinInput = document.getElementById('price-min');
@@ -37,6 +40,13 @@ class ProductFilters {
         // Clear all filters
         if (this.clearFiltersBtn) {
             this.clearFiltersBtn.addEventListener('click', () => {
+                this.clearAllFilters();
+            });
+        }
+
+        // Clear all filters from summary
+        if (this.clearAllFiltersBtn) {
+            this.clearAllFiltersBtn.addEventListener('click', () => {
                 this.clearAllFilters();
             });
         }
@@ -117,6 +127,7 @@ class ProductFilters {
         }
 
         this.updateClearFiltersButton();
+        this.updateFilterSummary();
         
         if (this.onFiltersChange) {
             this.onFiltersChange(this.getApiFilters());
@@ -139,9 +150,129 @@ class ProductFilters {
         if (this.imagesSelect) this.imagesSelect.value = '';
         
         this.updateClearFiltersButton();
+        this.updateFilterSummary();
         
         if (this.onFiltersChange) {
             this.onFiltersChange({});
+        }
+    }
+
+    /**
+     * Update filter summary display
+     */
+    updateFilterSummary() {
+        if (!this.filterSummary || !this.activeFilterTags) return;
+
+        const hasActiveFilters = Object.keys(this.activeFilters).length > 0;
+
+        if (!hasActiveFilters) {
+            this.filterSummary.classList.add('hidden');
+            return;
+        }
+
+        // Show filter summary
+        this.filterSummary.classList.remove('hidden');
+
+        // Clear existing tags
+        this.activeFilterTags.innerHTML = '';
+
+        // Create filter tags
+        Object.entries(this.activeFilters).forEach(([key, value]) => {
+            const tag = this.createFilterTag(key, value);
+            if (tag) {
+                this.activeFilterTags.appendChild(tag);
+            }
+        });
+    }
+
+    /**
+     * Create a filter tag for the summary
+     */
+    createFilterTag(key, value) {
+        const filterLabel = this.getFilterLabel(key, value);
+        if (!filterLabel) return null;
+
+        const tag = createElement('div', { className: 'filter-tag' });
+        
+        const label = createElement('span', {}, filterLabel);
+        tag.appendChild(label);
+
+        const removeBtn = createElement('button', {
+            className: 'filter-tag-remove',
+            title: 'Remove filter'
+        }, '×');
+
+        removeBtn.addEventListener('click', () => {
+            this.removeFilter(key);
+        });
+
+        tag.appendChild(removeBtn);
+        return tag;
+    }
+
+    /**
+     * Get human-readable label for filter
+     */
+    getFilterLabel(key, value) {
+        switch (key) {
+            case 'priceMin':
+                return `Price ≥ $${value}`;
+            case 'priceMax':
+                return `Price ≤ $${value}`;
+            case 'availability':
+                return `Status: ${value}`;
+            case 'color':
+                return `Color: ${value}`;
+            case 'dateFrom':
+                return `From: ${new Date(value).toLocaleDateString()}`;
+            case 'dateTo':
+                return `To: ${new Date(value).toLocaleDateString()}`;
+            case 'hasImages':
+                return value === 'true' ? 'With Images' : 'Without Images';
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Remove a specific filter
+     */
+    removeFilter(key) {
+        // Clear the input
+        switch (key) {
+            case 'priceMin':
+                if (this.priceMinInput) this.priceMinInput.value = '';
+                break;
+            case 'priceMax':
+                if (this.priceMaxInput) this.priceMaxInput.value = '';
+                break;
+            case 'availability':
+                if (this.availabilitySelect) this.availabilitySelect.value = '';
+                break;
+            case 'color':
+                if (this.colorInput) this.colorInput.value = '';
+                break;
+            case 'dateFrom':
+                if (this.dateFromInput) this.dateFromInput.value = '';
+                break;
+            case 'dateTo':
+                if (this.dateToInput) this.dateToInput.value = '';
+                break;
+            case 'hasImages':
+                if (this.imagesSelect) this.imagesSelect.value = '';
+                break;
+        }
+
+        // Remove from active filters
+        delete this.activeFilters[key];
+
+        // Update UI
+        this.updateClearFiltersButton();
+        this.updateFilterSummary();
+
+        // Notify change
+        if (this.onFiltersChange) {
+            this.onFiltersChange(this.getApiFilters());
         }
     }
 
@@ -265,6 +396,7 @@ class ProductFilters {
         });
 
         this.updateClearFiltersButton();
+        this.updateFilterSummary();
     }
 }
 
