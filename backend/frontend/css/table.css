@@ -277,6 +277,8 @@
 .cell-name {
     font-weight: 500;
     color: #111827;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .cell-price {
@@ -310,10 +312,8 @@
 .cell-comment {
     color: #6b7280;
     font-style: italic;
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .cell-composition {
@@ -331,6 +331,8 @@
 .cell-item {
     color: #374151;
     font-weight: 500;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 /* Row Selection */

@@ -12,29 +12,10 @@ body {
     line-height: 1.6;
 }
 
-/* Header */
-.header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 1rem 2rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.header-content h1 {
-    font-size: 2rem;
-    font-weight: 600;
-    margin-bottom: 0.25rem;
-}
-
-.header-content p {
-    opacity: 0.9;
-    font-size: 1rem;
-}
-
 /* Main Content */
 .main-content {
     max-width: 100%;
-    margin: 2rem auto;
+    margin: 1rem auto;
     padding: 0 1rem;
 }
 
@@ -316,16 +297,8 @@ body {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .header {
-        padding: 1rem;
-    }
-    
-    .header-content h1 {
-        font-size: 1.5rem;
-    }
-    
     .main-content {
-        margin: 1rem auto;
+        margin: 0.5rem auto;
         padding: 0 0.5rem;
     }
 }

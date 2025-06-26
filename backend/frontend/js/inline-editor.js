@@ -507,7 +507,7 @@ class InlineEditor {
             case 'name':
                 return `<span class="cell-name" title="${escapeHtml(value)}">${escapeHtml(value)}</span>`;
             case 'comment':
-                const displayComment = value ? truncateText(value, 50) : '-';
+                const displayComment = value || '-';
                 return `<span class="cell-comment" title="${escapeHtml(value)}">${escapeHtml(displayComment)}</span>`;
             case 'composition':
                 if (!value || value === '-') {
@@ -515,7 +515,7 @@ class InlineEditor {
                 }
                 return `<span class="cell-composition cell-composition-full">${escapeHtml(value)}</span>`;
             case 'item':
-                const displayItem = value ? truncateText(value, 20) : '-';
+                const displayItem = value || '-';
                 return `<span class="cell-item" title="${escapeHtml(value)}">${escapeHtml(displayItem)}</span>`;
             default:
                 return `<span title="${escapeHtml(value)}">${escapeHtml(value)}</span>`;

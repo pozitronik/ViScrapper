@@ -109,10 +109,8 @@ class ProductTable {
 
         const container = createElement('div', { className: 'image-thumbnails' });
         
-        // Show first 3 images as thumbnails
-        const visibleImages = product.images.slice(0, 3);
-        
-        visibleImages.forEach((image, index) => {
+        // Show all images as thumbnails
+        product.images.forEach((image, index) => {
             const img = createElement('img', {
                 className: 'image-thumbnail',
                 src: this.getImageUrl(image.url),
@@ -136,21 +134,6 @@ class ProductTable {
             container.appendChild(img);
         });
 
-        // Show count if there are more images
-        if (product.images.length > 3) {
-            const count = createElement('div', {
-                className: 'image-count',
-                dataset: { productId: product.id }
-            }, `+${product.images.length - 3}`);
-            
-            // Add click handler for count indicator
-            count.addEventListener('click', () => {
-                this.openImagePreview(product.images, 3); // Start from 4th image
-            });
-            
-            container.appendChild(count);
-        }
-
         cell.appendChild(container);
         return cell;
     }
@@ -161,7 +144,7 @@ class ProductTable {
     createNameCell(product) {
         const name = product.name || 'Unnamed Product';
         const cell = createElement('td', {}, `
-            <span class="cell-name" title="${escapeHtml(name)}">${escapeHtml(truncateText(name, 30))}</span>
+            <span class="cell-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
         `);
         
         // Make editable
@@ -265,9 +248,8 @@ class ProductTable {
      */
     createItemCell(product) {
         const item = product.item || '-';
-        const displayItem = item !== '-' ? truncateText(item, 20) : item;
         const cell = createElement('td', {}, `
-            <span class="cell-item" title="${escapeHtml(item)}">${escapeHtml(displayItem)}</span>
+            <span class="cell-item" title="${escapeHtml(item)}">${escapeHtml(item)}</span>
         `);
         
         // Make editable
@@ -306,7 +288,7 @@ class ProductTable {
      */
     createCommentCell(product) {
         const comment = product.comment || '';
-        const displayComment = comment ? truncateText(comment, 50) : '-';
+        const displayComment = comment || '-';
         
         const cell = createElement('td', {}, `
             <span class="cell-comment" title="${escapeHtml(comment)}">${escapeHtml(displayComment)}</span>
