@@ -325,11 +325,27 @@ class InlineEditor {
                 // Add options
                 config.options.forEach(option => {
                     const optionEl = createElement('option', {
-                        value: option,
-                        selected: option === currentValue
+                        value: option
                     }, option);
                     element.appendChild(optionEl);
                 });
+                
+                // Set the selected value after all options are added
+                element.value = currentValue || '';
+                
+                // Add event listeners to handle mouse interactions properly
+                element.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                });
+                
+                element.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                
+                element.addEventListener('change', (e) => {
+                    e.stopPropagation();
+                });
+                
                 focusElement = element;
                 break;
 
@@ -618,7 +634,7 @@ class InlineEditor {
         return element.closest('.cell-editing') || 
                element.classList.contains('cell-editor') ||
                element.closest('.edit-actions') ||
-               element.closest('.editor-overlay');
+               element.closest('.editor-overlay') || element.tagName === 'OPTION' || (element.tagName === 'SELECT' && element.classList.contains('cell-editor'));
     }
 
     /**
