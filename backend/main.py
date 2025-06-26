@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from crud.product import get_product_by_url, create_product
 from models.product import Base
@@ -99,3 +101,17 @@ if __name__ == "__main__":
         reload=False,
         log_level="info"
     )
+
+
+# Frontend serving routes
+import os
+if os.path.exists("images"):
+    app.mount("/images", StaticFiles(directory="images"), name="images")
+
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
+
+@app.get("/")
+async def serve_frontend():
+    """Serve the main frontend HTML page"""
+    return FileResponse("frontend/index.html")
+

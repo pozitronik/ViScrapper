@@ -7,7 +7,7 @@ class ProductTable {
         this.totalCountElement = document.getElementById('total-count');
         this.onDataChange = onDataChange;
         this.products = [];
-        this.imageBaseUrl = 'http://localhost:8000/images/'; // Base URL for serving images
+        this.imageBaseUrl = '/images/'; // Base URL for serving images
     }
 
     /**
