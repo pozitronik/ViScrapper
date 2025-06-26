@@ -121,8 +121,15 @@ class ProductTable {
         // Show count if there are more images
         if (product.images.length > 3) {
             const count = createElement('div', {
-                className: 'image-count'
+                className: 'image-count',
+                dataset: { productId: product.id }
             }, `+${product.images.length - 3}`);
+            
+            // Add click handler for count indicator
+            count.addEventListener('click', () => {
+                this.openImagePreview(product.images, 3); // Start from 4th image
+            });
+            
             container.appendChild(count);
         }
 
@@ -266,16 +273,17 @@ class ProductTable {
     }
 
     /**
-     * Open image preview (placeholder for now)
+     * Open image preview modal
      */
     openImagePreview(images, startIndex = 0) {
-        // TODO: Implement image preview modal in Phase 2
-        console.log('Opening image preview:', images, startIndex);
-        
-        // For now, just open the first image in a new tab
-        if (images[startIndex]) {
-            const imageUrl = this.getImageUrl(images[startIndex].url);
-            window.open(imageUrl, '_blank');
+        if (window.imageModal && images && images.length > 0) {
+            window.imageModal.open(images, startIndex);
+        } else {
+            // Fallback: open first image in new tab
+            if (images[startIndex]) {
+                const imageUrl = this.getImageUrl(images[startIndex].url);
+                window.open(imageUrl, '_blank');
+            }
         }
     }
 

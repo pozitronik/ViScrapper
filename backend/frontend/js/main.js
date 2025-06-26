@@ -5,6 +5,8 @@ class VIParserApp {
         this.currentPage = 1;
         this.itemsPerPage = 20;
         this.isLoading = false;
+        this.currentSearch = '';
+        this.currentSort = { sortBy: 'created_at', sortOrder: 'desc' };
         
         // Initialize components
         this.table = new ProductTable('products-table', this.onDataChange.bind(this));
@@ -13,6 +15,9 @@ class VIParserApp {
         // Bind methods
         this.loadProducts = this.loadProducts.bind(this);
         this.retryLoad = this.retryLoad.bind(this);
+        this.handleSearch = debounce(this.handleSearch.bind(this), 500);
+        this.clearSearch = this.clearSearch.bind(this);
+        this.handleRefresh = this.handleRefresh.bind(this);
     }
 
     /**
@@ -46,6 +51,40 @@ class VIParserApp {
         if (retryBtn) {
             retryBtn.addEventListener('click', this.retryLoad);
         }
+
+        // Search functionality
+        const searchInput = document.getElementById('search-input');
+        const clearSearchBtn = document.getElementById('clear-search');
+        const refreshBtn = document.getElementById('refresh-btn');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.handleSearch(e.target.value);
+                this.toggleClearButton(e.target.value);
+            });
+
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.handleSearch(e.target.value, true); // Force immediate search
+                }
+                if (e.key === 'Escape') {
+                    this.clearSearch();
+                    searchInput.blur();
+                }
+            });
+        }
+
+        if (clearSearchBtn) {
+            clearSearchBtn.addEventListener('click', this.clearSearch);
+        }
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', this.handleRefresh);
+        }
+
+        // Table sorting
+        this.setupTableSorting();
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -120,12 +159,19 @@ class VIParserApp {
         }
 
         try {
-            const response = await api.getProducts({
+            const options = {
                 page,
                 perPage: this.itemsPerPage,
-                sortBy: 'created_at',
-                sortOrder: 'desc'
-            });
+                sortBy: this.currentSort.sortBy,
+                sortOrder: this.currentSort.sortOrder
+            };
+
+            // Add search if present
+            if (this.currentSearch.trim()) {
+                options.search = this.currentSearch.trim();
+            }
+
+            const response = await api.getProducts(options);
 
             // Update table with products
             this.table.updateData(response.data, response.pagination.total);
@@ -199,6 +245,126 @@ class VIParserApp {
     async setItemsPerPage(count) {
         this.itemsPerPage = count;
         await this.loadProducts(1, true);
+    }
+
+    /**
+     * Handle search input
+     */
+    async handleSearch(query, immediate = false) {
+        this.currentSearch = query;
+        
+        // Reset to first page when searching
+        this.currentPage = 1;
+        
+        if (immediate || query.length === 0 || query.length >= 2) {
+            await this.loadProducts(1, false);
+        }
+    }
+
+    /**
+     * Clear search
+     */
+    async clearSearch() {
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        this.currentSearch = '';
+        this.toggleClearButton('');
+        await this.loadProducts(1, false);
+    }
+
+    /**
+     * Toggle clear search button visibility
+     */
+    toggleClearButton(value) {
+        const clearBtn = document.getElementById('clear-search');
+        if (clearBtn) {
+            if (value.trim()) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+        }
+    }
+
+    /**
+     * Handle refresh button click
+     */
+    async handleRefresh() {
+        const refreshBtn = document.getElementById('refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.classList.add('loading');
+        }
+        
+        try {
+            await this.loadProducts(this.currentPage, true);
+        } finally {
+            if (refreshBtn) {
+                refreshBtn.classList.remove('loading');
+            }
+        }
+    }
+
+    /**
+     * Set up table column sorting
+     */
+    setupTableSorting() {
+        const table = document.getElementById('products-table');
+        if (!table) return;
+
+        // Add click listeners to sortable headers
+        const sortableHeaders = table.querySelectorAll('th.sortable');
+        sortableHeaders.forEach(header => {
+            header.addEventListener('click', () => {
+                const column = header.dataset.column;
+                this.handleSort(column);
+            });
+        });
+    }
+
+    /**
+     * Handle column sorting
+     */
+    async handleSort(column) {
+        // Determine new sort order
+        let newOrder = 'asc';
+        
+        if (this.currentSort.sortBy === column) {
+            // Toggle if same column
+            newOrder = this.currentSort.sortOrder === 'asc' ? 'desc' : 'asc';
+        }
+
+        // Update current sort
+        this.currentSort.sortBy = column;
+        this.currentSort.sortOrder = newOrder;
+
+        // Update visual indicators
+        this.updateSortIndicators(column, newOrder);
+
+        // Reset to first page and reload
+        await this.loadProducts(1, false);
+    }
+
+    /**
+     * Update visual sort indicators on table headers
+     */
+    updateSortIndicators(activeColumn, order) {
+        const table = document.getElementById('products-table');
+        if (!table) return;
+
+        // Remove all sort classes
+        const headers = table.querySelectorAll('th.sortable');
+        headers.forEach(header => {
+            header.classList.remove('sort-asc', 'sort-desc');
+        });
+
+        // Add sort class to active column
+        const activeHeader = table.querySelector(`th[data-column="${activeColumn}"]`);
+        if (activeHeader) {
+            activeHeader.classList.add(`sort-${order}`);
+        }
     }
 }
 

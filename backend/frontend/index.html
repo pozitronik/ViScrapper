@@ -38,7 +38,18 @@
                     <span id="total-count">0 products</span>
                 </div>
                 <div class="table-controls">
-                    <!-- Pagination controls will be inserted here -->
+                    <div class="search-container">
+                        <input 
+                            type="text" 
+                            id="search-input" 
+                            placeholder="Search products..." 
+                            class="search-input"
+                        >
+                        <button id="clear-search" class="clear-search-btn hidden" title="Clear search">×</button>
+                    </div>
+                    <button id="refresh-btn" class="btn btn-secondary" title="Refresh data">
+                        <span class="refresh-icon">↻</span> Refresh
+                    </button>
                 </div>
             </div>
 
@@ -46,15 +57,15 @@
                 <table id="products-table" class="products-table">
                     <thead>
                         <tr>
-                            <th data-column="id">ID</th>
+                            <th data-column="id" class="sortable">ID</th>
                             <th data-column="images">Images</th>
-                            <th data-column="name">Name</th>
-                            <th data-column="sku">SKU</th>
-                            <th data-column="price">Price</th>
-                            <th data-column="availability">Availability</th>
-                            <th data-column="color">Color</th>
+                            <th data-column="name" class="sortable">Name</th>
+                            <th data-column="sku" class="sortable">SKU</th>
+                            <th data-column="price" class="sortable">Price</th>
+                            <th data-column="availability" class="sortable">Availability</th>
+                            <th data-column="color" class="sortable">Color</th>
                             <th data-column="sizes">Sizes</th>
-                            <th data-column="created_at">Created</th>
+                            <th data-column="created_at" class="sortable sort-desc">Created</th>
                             <th data-column="product_url">URL</th>
                         </tr>
                     </thead>
@@ -72,10 +83,35 @@
         </div>
     </main>
 
+    <!-- Image Preview Modal -->
+    <div id="image-modal" class="image-modal hidden">
+        <div class="image-modal-backdrop"></div>
+        <div class="image-modal-content">
+            <button class="image-modal-close" title="Close (Esc)">×</button>
+            
+            <div class="image-modal-header">
+                <span class="image-modal-counter">1 of 3</span>
+            </div>
+
+            <div class="image-modal-body">
+                <button class="image-modal-nav image-modal-prev" title="Previous (←)">‹</button>
+                <img id="modal-image" class="modal-image" src="" alt="Product image">
+                <button class="image-modal-nav image-modal-next" title="Next (→)">›</button>
+            </div>
+
+            <div class="image-modal-footer">
+                <div class="image-thumbnails-strip" id="modal-thumbnails">
+                    <!-- Thumbnail navigation will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/api.js"></script>
     <script src="/static/js/pagination.js"></script>
+    <script src="/static/js/image-modal.js"></script>
     <script src="/static/js/table.js"></script>
     <script src="/static/js/main.js"></script>
 </body>
