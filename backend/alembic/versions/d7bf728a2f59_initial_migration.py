@@ -53,8 +53,7 @@ def upgrade() -> None:
                     sa.Column('product_id', sa.Integer(), nullable=False),
                     sa.ForeignKeyConstraint(['product_id'], ['products.id'], ),
                     sa.PrimaryKeyConstraint('id'),
-                    sa.UniqueConstraint('url'),
-                    sa.CheckConstraint("url LIKE 'http://%' OR url LIKE 'https://%'", name='ck_images_url_format')
+                    sa.UniqueConstraint('url')
                     )
     op.create_index(op.f('ix_images_id'), 'images', ['id'], unique=False)
     op.create_index('ix_images_product_id_url', 'images', ['product_id', 'url'])
