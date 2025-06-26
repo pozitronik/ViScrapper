@@ -49,7 +49,7 @@ class ProductBase(BaseModel):
 
 
 class ProductCreate(ProductBase):
-    all_image_urls: Optional[List[HttpUrl]] = []
+    all_image_urls: Optional[List[str]] = []
     available_sizes: Optional[List[str]] = []
 
 
