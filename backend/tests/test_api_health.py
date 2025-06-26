@@ -10,7 +10,7 @@ from database.session import get_db
 from models.product import Base
 
 # Setup a test database
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_health.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

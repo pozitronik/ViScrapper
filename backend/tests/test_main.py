@@ -10,7 +10,7 @@ from models.product import Base
 from crud.product import get_product_by_url, create_product
 
 # Setup a test database
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

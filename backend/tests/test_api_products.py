@@ -11,7 +11,7 @@ from models.product import Base
 from schemas.product import ProductCreate
 
 # Setup a test database
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_api.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
