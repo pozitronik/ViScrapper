@@ -7,10 +7,12 @@ class VIParserApp {
         this.isLoading = false;
         this.currentSearch = '';
         this.currentSort = { sortBy: 'created_at', sortOrder: 'desc' };
+        this.currentFilters = {};
         
         // Initialize components
         this.table = new ProductTable('products-table', this.onDataChange.bind(this));
         this.pagination = new Pagination('pagination', this.onPageChange.bind(this));
+        this.filters = new ProductFilters(this.onFiltersChange.bind(this));
         
         // Bind methods
         this.loadProducts = this.loadProducts.bind(this);
@@ -171,6 +173,9 @@ class VIParserApp {
                 options.search = this.currentSearch.trim();
             }
 
+            // Add filters if present
+            Object.assign(options, this.currentFilters);
+
             const response = await api.getProducts(options);
 
             // Update table with products
@@ -207,6 +212,18 @@ class VIParserApp {
     onDataChange(products, totalCount) {
         // This can be used for additional processing when data changes
         console.log(`Loaded ${products.length} products (${totalCount} total)`);
+    }
+
+    /**
+     * Handle filters change
+     */
+    async onFiltersChange(filters) {
+        this.currentFilters = filters;
+        
+        // Reset to first page when filters change
+        this.currentPage = 1;
+        
+        await this.loadProducts(1, false);
     }
 
     /**

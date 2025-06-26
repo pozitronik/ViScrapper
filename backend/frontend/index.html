@@ -47,9 +47,64 @@
                         >
                         <button id="clear-search" class="clear-search-btn hidden" title="Clear search">×</button>
                     </div>
+                    <div class="filter-controls">
+                        <button id="filter-btn" class="btn btn-secondary" title="Show filters">
+                            <span class="filter-icon">🔍</span> Filters
+                        </button>
+                        <button id="clear-filters" class="btn btn-outline hidden" title="Clear all filters">
+                            Clear Filters
+                        </button>
+                    </div>
                     <button id="refresh-btn" class="btn btn-secondary" title="Refresh data">
                         <span class="refresh-icon">↻</span> Refresh
                     </button>
+                </div>
+            </div>
+
+            <!-- Filter Panel -->
+            <div id="filter-panel" class="filter-panel hidden">
+                <div class="filter-panel-content">
+                    <div class="filter-section">
+                        <label class="filter-label">Price Range</label>
+                        <div class="filter-row">
+                            <input type="number" id="price-min" placeholder="Min" class="filter-input" step="0.01">
+                            <span class="filter-separator">-</span>
+                            <input type="number" id="price-max" placeholder="Max" class="filter-input" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <div class="filter-section">
+                        <label class="filter-label">Availability</label>
+                        <select id="availability-filter" class="filter-select">
+                            <option value="">All</option>
+                            <option value="In Stock">In Stock</option>
+                            <option value="Out of Stock">Out of Stock</option>
+                            <option value="Limited">Limited</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-section">
+                        <label class="filter-label">Color</label>
+                        <input type="text" id="color-filter" placeholder="Enter color..." class="filter-input">
+                    </div>
+                    
+                    <div class="filter-section">
+                        <label class="filter-label">Date Range</label>
+                        <div class="filter-row">
+                            <input type="date" id="date-from" class="filter-input">
+                            <span class="filter-separator">-</span>
+                            <input type="date" id="date-to" class="filter-input">
+                        </div>
+                    </div>
+                    
+                    <div class="filter-section">
+                        <label class="filter-label">Has Images</label>
+                        <select id="images-filter" class="filter-select">
+                            <option value="">All</option>
+                            <option value="true">With Images</option>
+                            <option value="false">Without Images</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -112,6 +167,7 @@
     <script src="/static/js/api.js"></script>
     <script src="/static/js/pagination.js"></script>
     <script src="/static/js/image-modal.js"></script>
+    <script src="/static/js/filters.js"></script>
     <script src="/static/js/table.js"></script>
     <script src="/static/js/main.js"></script>
 </body>

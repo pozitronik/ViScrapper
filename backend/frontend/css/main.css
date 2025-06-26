@@ -131,6 +131,17 @@ body {
     background-color: #cbd5e0;
 }
 
+.btn-outline {
+    background-color: transparent;
+    color: #667eea;
+    border: 1px solid #667eea;
+}
+
+.btn-outline:hover {
+    background-color: #667eea;
+    color: white;
+}
+
 /* Utility Classes */
 .hidden {
     display: none !important;

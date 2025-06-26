@@ -70,9 +70,13 @@ class ApiClient {
             per_page: perPage,
             sort_by: sortBy,
             sort_order: sortOrder,
-            q: search,
             ...filters
         };
+
+        // Add search parameter if provided
+        if (search) {
+            params.q = search;
+        }
 
         const queryString = this.buildQueryString(params);
         return await this.request(`/products${queryString}`);
