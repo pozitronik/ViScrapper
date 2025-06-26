@@ -53,6 +53,20 @@ class ProductCreate(ProductBase):
     available_sizes: Optional[List[str]] = []
 
 
+class ProductUpdate(BaseModel):
+    """Schema for updating products - all fields are optional."""
+    product_url: Optional[HttpUrl] = None
+    name: Optional[str] = None
+    sku: Optional[str] = None
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    availability: Optional[str] = None
+    color: Optional[str] = None
+    composition: Optional[str] = None
+    item: Optional[str] = None
+    comment: Optional[str] = None
+
+
 class Product(ProductBase):
     id: int
     created_at: datetime

@@ -9,6 +9,10 @@ from utils.logger import setup_logger, get_logger
 from utils.error_handlers import setup_error_handlers
 from exceptions.base import ProductException
 
+# Import new API routers
+from api.routers.products import router as products_router
+from api.routers.health import router as health_router
+
 # Set up logging
 setup_logger()
 logger = get_logger(__name__)
@@ -17,12 +21,18 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="VIParser API", 
-    description="Product scraping and management API",
-    version="1.0.0"
+    description="Comprehensive product scraping and management API with full CRUD operations",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
 # Set up error handlers
 setup_error_handlers(app)
+
+# Include API routers
+app.include_router(products_router)
+app.include_router(health_router)
 
 
 @app.post("/api/v1/scrape", response_model=Product)
