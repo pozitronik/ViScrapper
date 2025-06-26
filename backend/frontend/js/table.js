@@ -1,13 +1,18 @@
 // Table rendering and management for products
 
 class ProductTable {
-    constructor(tableId, onDataChange) {
+    constructor(tableId, onDataChange, onUpdateProduct) {
         this.table = document.getElementById(tableId);
         this.tbody = document.getElementById('products-tbody');
         this.totalCountElement = document.getElementById('total-count');
         this.onDataChange = onDataChange;
+        this.onUpdateProduct = onUpdateProduct;
         this.products = [];
         this.imageBaseUrl = '/images/'; // Base URL for serving images
+        
+        // Initialize inline editor
+        this.inlineEditor = new InlineEditor(this.handleProductUpdate.bind(this));
+        this.inlineEditor.initializeTable(this.table);
     }
 
     /**
@@ -142,9 +147,14 @@ class ProductTable {
      */
     createNameCell(product) {
         const name = product.name || 'Unnamed Product';
-        return createElement('td', {}, `
+        const cell = createElement('td', {}, `
             <span class="cell-name" title="${escapeHtml(name)}">${escapeHtml(truncateText(name, 30))}</span>
         `);
+        
+        // Make editable
+        this.inlineEditor.makeEditable(cell, product.id, 'name', product.name);
+        
+        return cell;
     }
 
     /**
@@ -152,9 +162,14 @@ class ProductTable {
      */
     createSkuCell(product) {
         const sku = product.sku || '-';
-        return createElement('td', {}, `
+        const cell = createElement('td', {}, `
             <span title="${escapeHtml(sku)}">${escapeHtml(sku)}</span>
         `);
+        
+        // Make editable
+        this.inlineEditor.makeEditable(cell, product.id, 'sku', product.sku);
+        
+        return cell;
     }
 
     /**
@@ -170,6 +185,9 @@ class ProductTable {
             cell.innerHTML = '<span class="text-muted">-</span>';
         }
         
+        // Make editable
+        this.inlineEditor.makeEditable(cell, product.id, 'price', product.price);
+        
         return cell;
     }
 
@@ -180,9 +198,14 @@ class ProductTable {
         const availability = product.availability || 'Unknown';
         const availabilityClass = getAvailabilityClass(availability);
         
-        return createElement('td', {}, `
+        const cell = createElement('td', {}, `
             <span class="cell-availability ${availabilityClass}">${escapeHtml(availability)}</span>
         `);
+        
+        // Make editable
+        this.inlineEditor.makeEditable(cell, product.id, 'availability', product.availability);
+        
+        return cell;
     }
 
     /**
@@ -190,9 +213,14 @@ class ProductTable {
      */
     createColorCell(product) {
         const color = product.color || '-';
-        return createElement('td', {}, `
+        const cell = createElement('td', {}, `
             <span title="${escapeHtml(color)}">${escapeHtml(color)}</span>
         `);
+        
+        // Make editable
+        this.inlineEditor.makeEditable(cell, product.id, 'color', product.color);
+        
+        return cell;
     }
 
     /**
@@ -284,6 +312,21 @@ class ProductTable {
                 const imageUrl = this.getImageUrl(images[startIndex].url);
                 window.open(imageUrl, '_blank');
             }
+        }
+    }
+
+    /**
+     * Handle product update from inline editor
+     */
+    async handleProductUpdate(productId, field, newValue) {
+        if (this.onUpdateProduct) {
+            await this.onUpdateProduct(productId, field, newValue);
+        }
+        
+        // Update local product data
+        const product = this.products.find(p => p.id === productId);
+        if (product) {
+            product[field] = newValue;
         }
     }
 

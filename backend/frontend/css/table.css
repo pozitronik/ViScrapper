@@ -353,6 +353,122 @@
     position: relative;
 }
 
+/* Inline Editing */
+.cell-editable {
+    position: relative;
+    cursor: text;
+    transition: all 0.2s;
+}
+
+.cell-editable:hover {
+    background-color: #f8fafc;
+    border-radius: 4px;
+}
+
+.cell-editing {
+    background-color: #fff;
+    border: 2px solid #667eea;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.cell-editor {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: inherit;
+    font-family: inherit;
+    padding: 0.25rem;
+    min-height: 1.5rem;
+}
+
+.cell-editor:focus {
+    outline: none;
+}
+
+.cell-editor-textarea {
+    resize: vertical;
+    min-height: 2rem;
+}
+
+.cell-editor-select {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 3px;
+    padding: 0.25rem;
+}
+
+.edit-actions {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    display: flex;
+    gap: 0.25rem;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 0.25rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    z-index: 10;
+}
+
+.edit-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+}
+
+.edit-btn-save {
+    color: #059669;
+}
+
+.edit-btn-save:hover {
+    background-color: #dcfce7;
+}
+
+.edit-btn-cancel {
+    color: #dc2626;
+}
+
+.edit-btn-cancel:hover {
+    background-color: #fee2e2;
+}
+
+.edit-indicator {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 6px;
+    height: 6px;
+    background-color: #667eea;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.cell-editable:hover .edit-indicator {
+    opacity: 1;
+}
+
+.cell-updated {
+    background-color: #dcfce7 !important;
+    animation: fadeToNormal 2s ease-out forwards;
+}
+
+@keyframes fadeToNormal {
+    0% {
+        background-color: #dcfce7;
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
 /* Size Tags */
 .size-tags {
     display: flex;

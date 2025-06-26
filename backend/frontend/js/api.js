@@ -90,6 +90,16 @@ class ApiClient {
     }
 
     /**
+     * Update product by ID
+     */
+    async updateProduct(id, updateData) {
+        return await this.request(`/products/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(updateData)
+        });
+    }
+
+    /**
      * Get product statistics
      */
     async getProductStats() {

@@ -10,7 +10,7 @@ class VIParserApp {
         this.currentFilters = {};
         
         // Initialize components
-        this.table = new ProductTable('products-table', this.onDataChange.bind(this));
+        this.table = new ProductTable('products-table', this.onDataChange.bind(this), this.onUpdateProduct.bind(this));
         this.pagination = new Pagination('pagination', this.onPageChange.bind(this));
         this.filters = new ProductFilters(this.onFiltersChange.bind(this));
         
@@ -224,6 +224,28 @@ class VIParserApp {
         this.currentPage = 1;
         
         await this.loadProducts(1, false);
+    }
+
+    /**
+     * Handle product update from inline editing
+     */
+    async onUpdateProduct(productId, field, newValue) {
+        try {
+            console.log(`Updating product ${productId}: ${field} = ${newValue}`);
+            
+            // Create update object
+            const updateData = {};
+            updateData[field] = newValue;
+            
+            // Call API to update product
+            await api.updateProduct(productId, updateData);
+            
+            console.log(`Successfully updated product ${productId}`);
+            
+        } catch (error) {
+            console.error(`Failed to update product ${productId}:`, error);
+            throw error; // Re-throw so inline editor can handle it
+        }
     }
 
     /**
