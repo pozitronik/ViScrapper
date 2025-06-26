@@ -142,7 +142,7 @@ class Pagination {
         const start = (this.currentPage - 1) * this.itemsPerPage + 1;
         const end = Math.min(this.currentPage * this.itemsPerPage, this.totalItems);
         
-        return `Showing ${start}-${end} of ${this.totalItems} products`;
+        return `Showing ${start}-${end} of ${this.totalItems} products (${this.itemsPerPage} per page)`;
     }
 
     /**

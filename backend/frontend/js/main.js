@@ -35,6 +35,7 @@ class VIParserApp {
         this.handleSearch = debounce(this.handleSearch.bind(this), 500);
         this.clearSearch = this.clearSearch.bind(this);
         this.handleRefresh = this.handleRefresh.bind(this);
+        this.handlePageSizeChange = this.handlePageSizeChange.bind(this);
     }
 
     /**
@@ -107,6 +108,12 @@ class VIParserApp {
 
         if (refreshBtn) {
             refreshBtn.addEventListener('click', this.handleRefresh);
+        }
+
+        // Page size selector
+        const pageSizeSelect = document.getElementById('page-size-select');
+        if (pageSizeSelect) {
+            pageSizeSelect.addEventListener('change', this.handlePageSizeChange);
         }
 
         // Table sorting
@@ -406,6 +413,29 @@ class VIParserApp {
     async setItemsPerPage(count) {
         this.itemsPerPage = count;
         await this.loadProducts(1, true);
+    }
+
+    /**
+     * Handle page size change from select dropdown
+     */
+    async handlePageSizeChange(event) {
+        const newPageSize = parseInt(event.target.value);
+        if (newPageSize && newPageSize !== this.itemsPerPage) {
+            console.log(`Changing page size from ${this.itemsPerPage} to ${newPageSize}`);
+            
+            // Update page size and reset to first page
+            this.itemsPerPage = newPageSize;
+            this.currentPage = 1;
+            
+            // Update select dropdown to current selection
+            const pageSizeSelect = document.getElementById('page-size-select');
+            if (pageSizeSelect) {
+                pageSizeSelect.value = newPageSize.toString();
+            }
+            
+            // Reload data with new page size
+            await this.loadProducts(1, true);
+        }
     }
 
     /**
