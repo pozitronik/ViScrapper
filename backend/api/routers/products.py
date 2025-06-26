@@ -18,6 +18,7 @@ from api.models.responses import (
 from exceptions.base import ProductException, ValidationException
 from utils.logger import get_logger
 from models.product import Product as ProductModel, Image, Size
+from services.websocket_service import websocket_manager
 
 logger = get_logger(__name__)
 
@@ -309,6 +310,11 @@ async def create_new_product(
     # Create product
     created_product = create_product(db=db, product=product)
     
+    # Broadcast the new product to all connected WebSocket clients
+    from schemas.product import Product as ProductSchema
+    product_dict = ProductSchema.from_orm(created_product).dict()
+    await websocket_manager.broadcast_product_created(product_dict)
+    
     logger.info(f"Successfully created product with ID: {created_product.id}")
     
     return SuccessResponse(
@@ -334,6 +340,11 @@ async def update_existing_product(
     
     # Update product
     updated_product = update_product(db=db, product_id=product_id, product_update=product_update)
+    
+    # Broadcast the updated product to all connected WebSocket clients
+    from schemas.product import Product as ProductSchema
+    product_dict = ProductSchema.from_orm(updated_product).dict()
+    await websocket_manager.broadcast_product_updated(product_dict)
     
     logger.info(f"Successfully updated product with ID: {product_id}")
     
@@ -362,6 +373,9 @@ async def delete_existing_product(
     if not success:
         logger.error(f"Failed to delete product with ID: {product_id}")
         raise HTTPException(status_code=500, detail="Failed to delete product")
+    
+    # Broadcast the product deletion to all connected WebSocket clients
+    await websocket_manager.broadcast_product_deleted(product_id)
     
     logger.info(f"Successfully deleted product with ID: {product_id}")
     

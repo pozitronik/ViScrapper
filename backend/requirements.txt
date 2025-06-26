@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 python-dotenv
 sqlalchemy
@@ -9,3 +9,4 @@ httpx
 pytest-httpx
 pytest-asyncio
 pytest-mock
+websockets

@@ -80,7 +80,7 @@ class RowSelection {
     }
 
     /**
-     * Add checkboxes to all table rows
+     * Add event listeners to existing checkboxes in table rows
      */
     addCheckboxesToRows() {
         if (!this.table) return;
@@ -90,22 +90,15 @@ class RowSelection {
             const productId = parseInt(row.dataset.productId);
             if (!productId) return;
 
-            // Create checkbox cell
-            const checkboxCell = createElement('td', { className: 'select-column' });
-            const checkbox = createElement('input', {
-                type: 'checkbox',
-                className: 'row-checkbox',
-                dataset: { productId: productId }
-            });
-
-            checkbox.addEventListener('change', (e) => {
-                this.toggleRowSelection(productId, e.target.checked);
-            });
-
-            checkboxCell.appendChild(checkbox);
-            
-            // Insert as first cell
-            row.insertBefore(checkboxCell, row.firstChild);
+            // Find existing checkbox in the row
+            const checkbox = row.querySelector('.row-checkbox');
+            if (checkbox) {
+                // Remove any existing event listeners and add new one
+                checkbox.removeEventListener('change', this.handleCheckboxChange);
+                checkbox.addEventListener('change', (e) => {
+                    this.toggleRowSelection(productId, e.target.checked);
+                });
+            }
         });
     }
 

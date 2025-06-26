@@ -21,6 +21,14 @@ class VIParserApp {
         this.filters = new ProductFilters(this.onFiltersChange.bind(this));
         this.keyboardShortcuts = new KeyboardShortcuts(this);
         
+        // Initialize WebSocket client for real-time updates
+        this.websocketClient = new WebSocketClient(
+            this.onProductCreated.bind(this),
+            this.onProductUpdated.bind(this), 
+            this.onProductDeleted.bind(this),
+            this.onScrapingStatus.bind(this)
+        );
+        
         // Bind methods
         this.loadProducts = this.loadProducts.bind(this);
         this.retryLoad = this.retryLoad.bind(this);
@@ -47,6 +55,15 @@ class VIParserApp {
         
         // Load initial data
         await this.loadProducts();
+        
+        // Connect WebSocket for real-time updates
+        console.log('Connecting WebSocket...');
+        this.websocketClient.connect();
+        
+        // Check WebSocket status after a brief delay
+        setTimeout(() => {
+            console.log('WebSocket status:', this.websocketClient.getStatus());
+        }, 1000);
         
         console.log('VIParser frontend initialized successfully');
     }
@@ -516,6 +533,134 @@ class VIParserApp {
         if (activeHeader) {
             activeHeader.classList.add(`sort-${order}`);
         }
+    }
+
+    /**
+     * Handle new product created via WebSocket
+     */
+    onProductCreated(product) {
+        console.log('New product created:', product);
+        console.log('Current page:', this.currentPage);
+        console.log('Current sort:', this.currentSort);
+        console.log('Current products count:', this.table.products.length);
+        
+        // Show notification
+        this.showNotification(`New product added: ${product.name || 'Unnamed Product'}`, 'success');
+        
+        // If we're on the first page and sorting by created_at desc, add the product to the top
+        if (this.currentPage === 1 && this.currentSort.sortBy === 'created_at' && this.currentSort.sortOrder === 'desc') {
+            console.log('Adding product to current view');
+            
+            // Add product to the beginning of the current products array
+            this.table.products.unshift(product);
+            
+            // Remove the last product if we have more than itemsPerPage
+            if (this.table.products.length > this.itemsPerPage) {
+                this.table.products.pop();
+            }
+            
+            // Re-render the table
+            this.table.renderRows();
+            this.table.rowSelection.initializeTable(this.table.table, this.table.products);
+            
+            console.log('Product added to table. New count:', this.table.products.length);
+        } else {
+            console.log('Not adding product to current view - conditions not met');
+        }
+    }
+
+    /**
+     * Handle product updated via WebSocket
+     */
+    onProductUpdated(product) {
+        console.log('Product updated:', product);
+        
+        // Show notification
+        this.showNotification(`Product updated: ${product.name || 'Unnamed Product'}`, 'info');
+        
+        // Find and update the product in current data
+        const productIndex = this.table.products.findIndex(p => p.id === product.id);
+        if (productIndex !== -1) {
+            this.table.products[productIndex] = product;
+            this.table.renderRows();
+            this.table.rowSelection.initializeTable(this.table.table, this.table.products);
+        }
+    }
+
+    /**
+     * Handle product deleted via WebSocket
+     */
+    onProductDeleted(productId) {
+        console.log('Product deleted:', productId);
+        
+        // Show notification
+        this.showNotification(`Product deleted (ID: ${productId})`, 'warning');
+        
+        // Remove product from current data
+        const productIndex = this.table.products.findIndex(p => p.id === productId);
+        if (productIndex !== -1) {
+            this.table.products.splice(productIndex, 1);
+            this.table.renderRows();
+            this.table.rowSelection.initializeTable(this.table.table, this.table.products);
+            
+            // Update total count
+            const currentTotal = parseInt(this.table.totalCountElement.textContent.split(' ')[0]) - 1;
+            this.table.updateTotalCount(currentTotal);
+        }
+    }
+
+    /**
+     * Handle scraping status updates via WebSocket
+     */
+    onScrapingStatus(status, details) {
+        console.log('Scraping status:', status, details);
+        
+        // Show appropriate notifications based on status
+        switch (status) {
+            case 'started':
+                this.showNotification('Scraping started...', 'info');
+                break;
+            case 'in_progress':
+                this.showNotification(`Scraping in progress: ${details.message || ''}`, 'info');
+                break;
+            case 'completed':
+                this.showNotification('Scraping completed successfully!', 'success');
+                break;
+            case 'error':
+                this.showNotification(`Scraping error: ${details.error || 'Unknown error'}`, 'error');
+                break;
+        }
+    }
+
+    /**
+     * Show notification to user
+     */
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = createElement('div', {
+            className: `notification notification-${type}`
+        });
+        
+        notification.innerHTML = `
+            <span>${escapeHtml(message)}</span>
+            <button class="notification-close" onclick="this.parentElement.remove()">×</button>
+        `;
+        
+        // Add to page
+        let notificationContainer = document.querySelector('.notification-container');
+        if (!notificationContainer) {
+            notificationContainer = createElement('div', { className: 'notification-container' });
+            document.body.appendChild(notificationContainer);
+        }
+        
+        notificationContainer.appendChild(notification);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 5000);
     }
 }
 

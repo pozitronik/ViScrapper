@@ -70,6 +70,7 @@ class ProductTable {
         });
 
         // Add all table cells
+        row.appendChild(this.createSelectCell(product));
         row.appendChild(this.createIdCell(product));
         row.appendChild(this.createImagesCell(product));
         row.appendChild(this.createNameCell(product));
@@ -85,6 +86,15 @@ class ProductTable {
         row.appendChild(this.createUrlCell(product));
 
         return row;
+    }
+
+    /**
+     * Create select cell
+     */
+    createSelectCell(product) {
+        return createElement('td', { className: 'select-column' }, `
+            <input type="checkbox" class="row-checkbox" data-product-id="${product.id}" title="Select product">
+        `);
     }
 
     /**

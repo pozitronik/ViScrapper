@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -7,6 +7,7 @@ from crud.product import get_product_by_url, create_product
 from models.product import Base
 from schemas.product import Product, ProductCreate
 from services.image_downloader import download_images
+from services.websocket_service import websocket_manager
 from database.session import get_db, engine
 from utils.logger import setup_logger, get_logger
 from utils.error_handlers import setup_error_handlers
@@ -45,6 +46,25 @@ setup_error_handlers(app)
 # Include API routers
 app.include_router(products_router)
 app.include_router(health_router)
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time updates"""
+    await websocket_manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive and handle any incoming messages
+            data = await websocket.receive_text()
+            logger.info(f"Received WebSocket message: {data}")
+            
+            # Echo back or handle specific commands if needed
+            await websocket_manager.send_personal_message(
+                f"Message received: {data}", websocket
+            )
+    except WebSocketDisconnect:
+        websocket_manager.disconnect(websocket)
+        logger.info("WebSocket disconnected")
 
 
 @app.post("/api/v1/scrape", response_model=Product)
@@ -86,6 +106,11 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
     
     logger.info(f"Creating product in database: {product.product_url}")
     created_product = create_product(db=db, product=product)
+    
+    # Broadcast the new product to all connected WebSocket clients
+    from schemas.product import Product as ProductSchema
+    product_dict = ProductSchema.from_orm(created_product).dict()
+    await websocket_manager.broadcast_product_created(product_dict)
     
     logger.info(f"Successfully created product with ID: {created_product.id} for URL: {product.product_url}")
     return created_product
