@@ -21,6 +21,7 @@ class Product(Base):
     comment = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     telegram_posted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     images = relationship("Image", back_populates="product")
     sizes = relationship("Size", back_populates="product")
@@ -32,6 +33,7 @@ class Image(Base):
     id = Column(Integer, primary_key=True, index=True)
     url = Column(String, unique=True)
     product_id = Column(Integer, ForeignKey("products.id"))
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     product = relationship("Product", back_populates="images")
 
@@ -42,5 +44,6 @@ class Size(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     product_id = Column(Integer, ForeignKey("products.id"))
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     product = relationship("Product", back_populates="sizes")

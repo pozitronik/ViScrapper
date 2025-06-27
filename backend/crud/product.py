@@ -10,19 +10,25 @@ from exceptions.base import DatabaseException, ValidationException, ProductExcep
 logger = get_logger(__name__)
 
 
-def get_product_by_url(db: Session, url: str):
+def get_product_by_url(db: Session, url: str, include_deleted: bool = False):
     """
     Get a product by its URL.
     
     Args:
         db: Database session
         url: Product URL to search for
+        include_deleted: Whether to include soft-deleted products
         
     Returns:
         Product instance if found, None otherwise
     """
     logger.debug(f"Searching for product with URL: {url}")
-    product = db.query(Product).filter(Product.product_url == url).first()
+    query = db.query(Product).filter(Product.product_url == url)
+    
+    if not include_deleted:
+        query = query.filter(Product.deleted_at.is_(None))
+    
+    product = query.first()
     if product:
         logger.debug(f"Found product with ID: {product.id}")
     else:
@@ -172,13 +178,14 @@ def create_product(db: Session, product: ProductCreate):
         )
 
 
-def get_product_by_id(db: Session, product_id: int) -> Optional[Product]:
+def get_product_by_id(db: Session, product_id: int, include_deleted: bool = False) -> Optional[Product]:
     """
     Get a product by its ID with all relationships loaded.
     
     Args:
         db: Database session
         product_id: Product ID to search for
+        include_deleted: Whether to include soft-deleted products
         
     Returns:
         Product instance if found, None otherwise
@@ -186,10 +193,15 @@ def get_product_by_id(db: Session, product_id: int) -> Optional[Product]:
     logger.debug(f"Searching for product with ID: {product_id}")
     
     try:
-        product = db.query(Product).options(
+        query = db.query(Product).options(
             joinedload(Product.images),
             joinedload(Product.sizes)
-        ).filter(Product.id == product_id).first()
+        ).filter(Product.id == product_id)
+        
+        if not include_deleted:
+            query = query.filter(Product.deleted_at.is_(None))
+        
+        product = query.first()
         
         if product:
             logger.debug(f"Found product: {product.name}")
@@ -213,7 +225,8 @@ def get_products(
     db: Session, 
     skip: int = 0, 
     limit: int = 100,
-    load_relationships: bool = True
+    load_relationships: bool = True,
+    include_deleted: bool = False
 ) -> List[Product]:
     """
     Get a list of products with pagination.
@@ -223,6 +236,7 @@ def get_products(
         skip: Number of records to skip
         limit: Maximum number of records to return
         load_relationships: Whether to load images and sizes
+        include_deleted: Whether to include soft-deleted products
         
     Returns:
         List of products
@@ -231,6 +245,9 @@ def get_products(
     
     try:
         query = db.query(Product)
+        
+        if not include_deleted:
+            query = query.filter(Product.deleted_at.is_(None))
         
         if load_relationships:
             query = query.options(
@@ -361,7 +378,7 @@ def update_product(db: Session, product_id: int, product_update: ProductUpdate) 
 
 def delete_product(db: Session, product_id: int) -> bool:
     """
-    Delete a product and all its associated data.
+    Delete a product using soft delete (default behavior for backward compatibility).
     
     Args:
         db: Database session
@@ -374,59 +391,28 @@ def delete_product(db: Session, product_id: int) -> bool:
         ProductException: If product not found
         DatabaseException: If database operation fails
     """
-    logger.info(f"Deleting product with ID: {product_id}")
-    
-    try:
-        with atomic_transaction(db):
-            # Get existing product
-            product = db.query(Product).filter(Product.id == product_id).first()
-            if not product:
-                raise ProductException(
-                    message="Product not found for deletion",
-                    details={"product_id": product_id}
-                )
-            
-            # Delete associated images first (due to foreign key constraints)
-            images_deleted = db.query(Image).filter(Image.product_id == product_id).delete()
-            logger.debug(f"Deleted {images_deleted} images for product {product_id}")
-            
-            # Delete associated sizes
-            sizes_deleted = db.query(Size).filter(Size.product_id == product_id).delete()
-            logger.debug(f"Deleted {sizes_deleted} sizes for product {product_id}")
-            
-            # Delete the product itself
-            db.delete(product)
-            db.flush()
-            
-            logger.info(f"Successfully deleted product ID: {product_id} with {images_deleted} images and {sizes_deleted} sizes")
-            
-        return True
-        
-    except ProductException:
-        raise  # Re-raise product exceptions
-    except Exception as e:
-        logger.error(f"Error deleting product {product_id}: {e}")
-        raise DatabaseException(
-            message="Failed to delete product",
-            operation="delete_product",
-            table="products",
-            details={"product_id": product_id},
-            original_exception=e
-        )
+    from crud.delete_operations import soft_delete_product
+    return soft_delete_product(db, product_id)
 
 
-def get_product_count(db: Session) -> int:
+def get_product_count(db: Session, include_deleted: bool = False) -> int:
     """
     Get the total count of products.
     
     Args:
         db: Database session
+        include_deleted: Whether to include soft-deleted products
         
     Returns:
         Total number of products
     """
     try:
-        count = db.query(Product).count()
+        query = db.query(Product)
+        
+        if not include_deleted:
+            query = query.filter(Product.deleted_at.is_(None))
+        
+        count = query.count()
         logger.debug(f"Total product count: {count}")
         return count
     except Exception as e:

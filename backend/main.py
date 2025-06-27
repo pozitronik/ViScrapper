@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -18,18 +19,49 @@ from api.routers.products import router as products_router
 from api.routers.health import router as health_router
 from api.routers.backup import router as backup_router
 
+# Setup backup service with environment variable support
+from services.backup_service import backup_service
+
 # Set up logging
 setup_logger()
 logger = get_logger(__name__)
 
 Base.metadata.create_all(bind=engine)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan with proper startup and shutdown"""
+    # Startup
+    logger.info("Starting VIParser application...")
+    
+    # Start scheduled backups if enabled
+    if backup_service:
+        logger.info("Starting backup service...")
+        await backup_service.start_scheduled_backups()
+    else:
+        logger.info("Backup service disabled via BACKUP_ENABLED=false")
+    
+    logger.info("VIParser application started successfully")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down VIParser application...")
+    
+    # Stop scheduled backups if enabled
+    if backup_service:
+        logger.info("Stopping backup service...")
+        await backup_service.stop_scheduled_backups()
+    
+    logger.info("VIParser application shut down successfully")
+
 app = FastAPI(
     title="VIParser API", 
     description="Comprehensive product scraping and management API with full CRUD operations",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -48,35 +80,6 @@ setup_error_handlers(app)
 app.include_router(products_router)
 app.include_router(health_router)
 app.include_router(backup_router)
-
-# Setup backup service with environment variable support
-from services.backup_service import backup_service
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on application startup"""
-    logger.info("Starting VIParser application...")
-    
-    # Start scheduled backups if enabled
-    if backup_service:
-        logger.info("Starting backup service...")
-        await backup_service.start_scheduled_backups()
-    else:
-        logger.info("Backup service disabled via BACKUP_ENABLED=false")
-    
-    logger.info("VIParser application started successfully")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup services on application shutdown"""
-    logger.info("Shutting down VIParser application...")
-    
-    # Stop scheduled backups if enabled
-    if backup_service:
-        logger.info("Stopping backup service...")
-        await backup_service.stop_scheduled_backups()
-    
-    logger.info("VIParser application shut down successfully")
 
 
 @app.websocket("/ws")
@@ -147,18 +150,6 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
     return created_product
 
 
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=False,
-        log_level="info"
-    )
-
-
 # Frontend serving routes
 import os
 if os.path.exists("images"):
@@ -171,3 +162,14 @@ async def serve_frontend():
     """Serve the main frontend HTML page"""
     return FileResponse("frontend/index.html")
 
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=False,
+        log_level="info"
+    )

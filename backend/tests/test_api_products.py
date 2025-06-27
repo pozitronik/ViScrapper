@@ -310,7 +310,7 @@ class TestProductsAPI:
         data = response.json()
         assert data["success"] is True
         assert data["deleted_id"] == product_id
-        assert data["message"] == "Product deleted successfully"
+        assert data["message"] == "Product soft deleted successfully"
         
         # Verify product is deleted
         response = client.get(f"/api/v1/products/{product_id}")

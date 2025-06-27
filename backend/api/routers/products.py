@@ -10,6 +10,11 @@ from crud.product import (
     get_product_by_url, create_product, get_product_by_id, 
     update_product, delete_product, get_products
 )
+from crud.delete_operations import (
+    delete_product_with_mode, restore_product, get_deleted_products,
+    permanently_delete_old_soft_deleted
+)
+from enums.delete_mode import DeleteMode
 from services.image_downloader import download_images
 from api.models.responses import (
     SuccessResponse, PaginatedResponse, PaginationInfo, SearchFilters, 
@@ -38,8 +43,12 @@ def calculate_pagination(page: int, per_page: int, total: int) -> PaginationInfo
     )
 
 
-def apply_filters(query, filters: SearchFilters):
+def apply_filters(query, filters: SearchFilters, include_deleted: bool = False):
     """Apply search filters to the query."""
+    # Always exclude soft-deleted records unless explicitly requested
+    if not include_deleted:
+        query = query.filter(ProductModel.deleted_at.is_(None))
+    
     if filters.q:
         search_term = f"%{filters.q}%"
         query = query.filter(
@@ -141,7 +150,7 @@ async def list_products(
     
     # Build query
     query = db.query(ProductModel)
-    query = apply_filters(query, filters)
+    query = apply_filters(query, filters, include_deleted=False)
     query = apply_sorting(query, sort_by, sort_order)
     
     # Get total count
@@ -168,15 +177,22 @@ async def get_product_statistics(db: Session = Depends(get_db)):
     """Get comprehensive product statistics."""
     logger.info("Fetching product statistics")
     
-    total_products = db.query(ProductModel).count()
-    products_with_images = db.query(ProductModel).filter(ProductModel.images.any()).count()
-    products_with_sizes = db.query(ProductModel).filter(ProductModel.sizes.any()).count()
-    total_images = db.query(Image).count()
-    total_sizes = db.query(Size).count()
+    total_products = db.query(ProductModel).filter(ProductModel.deleted_at.is_(None)).count()
+    products_with_images = db.query(ProductModel).filter(
+        ProductModel.deleted_at.is_(None),
+        ProductModel.images.any()
+    ).count()
+    products_with_sizes = db.query(ProductModel).filter(
+        ProductModel.deleted_at.is_(None),
+        ProductModel.sizes.any()
+    ).count()
+    total_images = db.query(Image).filter(Image.deleted_at.is_(None)).count()
+    total_sizes = db.query(Size).filter(Size.deleted_at.is_(None)).count()
     
     # Products added in last 24 hours
     twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
     recent_products_24h = db.query(ProductModel).filter(
+        ProductModel.deleted_at.is_(None),
         ProductModel.created_at >= twenty_four_hours_ago
     ).count()
     
@@ -203,6 +219,36 @@ async def get_product_statistics(db: Session = Depends(get_db)):
     )
 
 
+@router.get("/deleted", response_model=PaginatedResponse[Product])
+async def list_deleted_products(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: Session = Depends(get_db)
+):
+    """Get a paginated list of soft-deleted products."""
+    logger.info(f"Fetching deleted products list - page: {page}, per_page: {per_page}")
+    
+    # Calculate offset
+    offset = (page - 1) * per_page
+    
+    # Get deleted products
+    products = get_deleted_products(db, skip=offset, limit=per_page)
+    
+    # Get total count of deleted products
+    total = db.query(ProductModel).filter(ProductModel.deleted_at.isnot(None)).count()
+    
+    # Calculate pagination info
+    pagination = calculate_pagination(page, per_page, total)
+    
+    logger.info(f"Retrieved {len(products)} deleted products (page {page}/{pagination.pages})")
+    
+    return PaginatedResponse(
+        data=products,
+        pagination=pagination,
+        message=f"Retrieved {len(products)} deleted products"
+    )
+
+
 @router.get("/recent", response_model=SuccessResponse[List[Product]])
 async def get_recent_products(
     limit: int = Query(10, ge=1, le=50, description="Number of recent products"),
@@ -211,13 +257,34 @@ async def get_recent_products(
     """Get recently added products."""
     logger.info(f"Fetching {limit} recent products")
     
-    products = db.query(ProductModel).order_by(desc(ProductModel.created_at)).limit(limit).all()
+    products = db.query(ProductModel).filter(
+        ProductModel.deleted_at.is_(None)
+    ).order_by(desc(ProductModel.created_at)).limit(limit).all()
     
     logger.info(f"Retrieved {len(products)} recent products")
     
     return SuccessResponse(
         data=products,
         message=f"Retrieved {len(products)} recent products"
+    )
+
+
+@router.post("/cleanup-old-deleted", response_model=SuccessResponse[dict])
+async def cleanup_old_deleted_products(
+    days_old: int = Query(30, ge=0, le=365, description="Days old threshold for permanent deletion"),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete products that have been soft-deleted for more than specified days."""
+    logger.info(f"Cleaning up products soft-deleted more than {days_old} days ago")
+    
+    # Permanently delete old soft-deleted products
+    deleted_count = permanently_delete_old_soft_deleted(db=db, days_old=days_old)
+    
+    logger.info(f"Permanently deleted {deleted_count} old soft-deleted products")
+    
+    return SuccessResponse(
+        data={"deleted_count": deleted_count, "days_threshold": days_old},
+        message=f"Permanently deleted {deleted_count} products that were soft-deleted more than {days_old} days ago"
     )
 
 
@@ -233,6 +300,7 @@ async def search_products(
     
     search_term = f"%{q}%"
     query = db.query(ProductModel).filter(
+        ProductModel.deleted_at.is_(None),
         or_(
             ProductModel.name.ilike(search_term),
             ProductModel.sku.ilike(search_term),
@@ -357,29 +425,72 @@ async def update_existing_product(
 @router.delete("/{product_id}", response_model=DeleteResponse)
 async def delete_existing_product(
     product_id: int = Path(..., ge=1, description="Product ID"),
+    delete_mode: DeleteMode = Query(DeleteMode.SOFT, description="Delete mode: soft (default) or hard"),
     db: Session = Depends(get_db)
 ):
-    """Delete a product and all its associated data."""
-    logger.info(f"Deleting product with ID: {product_id}")
+    """Delete a product and all its associated data with configurable delete mode."""
+    logger.info(f"Deleting product with ID: {product_id} using {delete_mode} delete")
     
-    # Check if product exists
-    existing_product = get_product_by_id(db, product_id=product_id)
+    # Check if product exists (include soft-deleted for hard delete)
+    include_deleted = (delete_mode == DeleteMode.HARD)
+    existing_product = get_product_by_id(db, product_id=product_id, include_deleted=include_deleted)
     if not existing_product:
         logger.warning(f"Product not found with ID: {product_id}")
         raise HTTPException(status_code=404, detail="Product not found")
     
-    # Delete product
-    success = delete_product(db=db, product_id=product_id)
+    # Delete product with specified mode
+    success = delete_product_with_mode(db=db, product_id=product_id, delete_mode=delete_mode)
     if not success:
-        logger.error(f"Failed to delete product with ID: {product_id}")
-        raise HTTPException(status_code=500, detail="Failed to delete product")
+        logger.error(f"Failed to {delete_mode} delete product with ID: {product_id}")
+        raise HTTPException(status_code=500, detail=f"Failed to {delete_mode} delete product")
     
     # Broadcast the product deletion to all connected WebSocket clients
     await websocket_manager.broadcast_product_deleted(product_id)
     
-    logger.info(f"Successfully deleted product with ID: {product_id}")
+    delete_message = f"Product {delete_mode} deleted successfully"
+    logger.info(f"Successfully {delete_mode} deleted product with ID: {product_id}")
     
     return DeleteResponse(
         deleted_id=product_id,
-        message="Product deleted successfully"
+        message=delete_message
+    )
+
+
+@router.post("/{product_id}/restore", response_model=SuccessResponse[Product])
+async def restore_deleted_product(
+    product_id: int = Path(..., ge=1, description="Product ID"),
+    db: Session = Depends(get_db)
+):
+    """Restore a soft-deleted product."""
+    logger.info(f"Restoring soft-deleted product with ID: {product_id}")
+    
+    # Check if product exists and is soft-deleted
+    existing_product = get_product_by_id(db, product_id=product_id, include_deleted=True)
+    if not existing_product:
+        logger.warning(f"Product not found with ID: {product_id}")
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    if existing_product.deleted_at is None:
+        logger.warning(f"Product {product_id} is not soft-deleted")
+        raise HTTPException(status_code=400, detail="Product is not deleted and cannot be restored")
+    
+    # Restore product
+    success = restore_product(db=db, product_id=product_id)
+    if not success:
+        logger.error(f"Failed to restore product with ID: {product_id}")
+        raise HTTPException(status_code=500, detail="Failed to restore product")
+    
+    # Get restored product
+    restored_product = get_product_by_id(db, product_id=product_id)
+    
+    # Broadcast the product restoration to all connected WebSocket clients
+    from schemas.product import Product as ProductSchema
+    product_dict = ProductSchema.from_orm(restored_product).dict()
+    await websocket_manager.broadcast_product_created(product_dict)  # Reuse created event
+    
+    logger.info(f"Successfully restored product with ID: {product_id}")
+    
+    return SuccessResponse(
+        data=restored_product,
+        message="Product restored successfully"
     )
