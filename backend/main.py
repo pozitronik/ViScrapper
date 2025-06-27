@@ -16,6 +16,7 @@ from exceptions.base import ProductException
 # Import new API routers
 from api.routers.products import router as products_router
 from api.routers.health import router as health_router
+from api.routers.backup import router as backup_router
 
 # Set up logging
 setup_logger()
@@ -46,6 +47,36 @@ setup_error_handlers(app)
 # Include API routers
 app.include_router(products_router)
 app.include_router(health_router)
+app.include_router(backup_router)
+
+# Setup backup service with environment variable support
+from services.backup_service import backup_service
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on application startup"""
+    logger.info("Starting VIParser application...")
+    
+    # Start scheduled backups if enabled
+    if backup_service:
+        logger.info("Starting backup service...")
+        await backup_service.start_scheduled_backups()
+    else:
+        logger.info("Backup service disabled via BACKUP_ENABLED=false")
+    
+    logger.info("VIParser application started successfully")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup services on application shutdown"""
+    logger.info("Shutting down VIParser application...")
+    
+    # Stop scheduled backups if enabled
+    if backup_service:
+        logger.info("Stopping backup service...")
+        await backup_service.stop_scheduled_backups()
+    
+    logger.info("VIParser application shut down successfully")
 
 
 @app.websocket("/ws")

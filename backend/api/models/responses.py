@@ -87,6 +87,14 @@ class DeleteResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+class FileDeleteResponse(BaseModel):
+    """Response for file delete operations."""
+    success: bool = True
+    message: str = "File deleted successfully"
+    deleted_filename: str = Field(description="Name of the deleted file")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
 class BulkOperationResponse(BaseModel):
     """Response for bulk operations."""
     success: bool = True
