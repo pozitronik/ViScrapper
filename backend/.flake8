@@ -1,0 +1,11 @@
+[flake8]
+select = E3, E4, F
+exclude = 
+    tests/,
+    venv/,
+    .venv/,
+    __pycache__/,
+    .git/,
+    *.egg-info/,
+    build/,
+    dist/
