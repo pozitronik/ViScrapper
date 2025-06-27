@@ -63,3 +63,50 @@ class MessageTemplate(Base):
 
     def __repr__(self):
         return f"<MessageTemplate(id={self.id}, name='{self.name}', active={self.is_active})>"
+
+
+class TelegramChannel(Base):
+    __tablename__ = "telegram_channels"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, index=True)
+    chat_id = Column(String, unique=True, nullable=False, index=True)
+    description = Column(String, nullable=True)
+    template_id = Column(Integer, ForeignKey("message_templates.id"), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    auto_post = Column(Boolean, default=False, nullable=False)
+    send_photos = Column(Boolean, default=True, nullable=False)
+    disable_web_page_preview = Column(Boolean, default=True, nullable=False)
+    disable_notification = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    template = relationship("MessageTemplate")
+
+    def __repr__(self):
+        return f"<TelegramChannel(id={self.id}, name='{self.name}', chat_id='{self.chat_id}', active={self.is_active})>"
+
+
+class TelegramPost(Base):
+    __tablename__ = "telegram_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    channel_id = Column(Integer, ForeignKey("telegram_channels.id"), nullable=False)
+    message_id = Column(Integer, nullable=True)  # Telegram message ID
+    template_id = Column(Integer, ForeignKey("message_templates.id"), nullable=True)
+    rendered_content = Column(Text, nullable=False)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String, default="pending", nullable=False)  # pending, sent, failed
+    error_message = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    product = relationship("Product")
+    channel = relationship("TelegramChannel")
+    template = relationship("MessageTemplate")
+
+    def __repr__(self):
+        return f"<TelegramPost(id={self.id}, product_id={self.product_id}, channel_id={self.channel_id}, status='{self.status}')>"

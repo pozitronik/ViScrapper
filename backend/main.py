@@ -19,9 +19,13 @@ from api.routers.products import router as products_router
 from api.routers.health import router as health_router
 from api.routers.backup import router as backup_router
 from api.routers.templates import router as templates_router
+from api.routers.telegram import router as telegram_router
 
 # Setup backup service with environment variable support
 from services.backup_service import backup_service
+
+# Setup telegram post service for auto-posting
+from services.telegram_post_service import telegram_post_service
 
 # Set up logging
 setup_logger()
@@ -82,6 +86,7 @@ app.include_router(products_router)
 app.include_router(health_router)
 app.include_router(backup_router)
 app.include_router(templates_router)
+app.include_router(telegram_router)
 
 
 @app.websocket("/ws")
@@ -147,6 +152,17 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
     from schemas.product import Product as ProductSchema
     product_dict = ProductSchema.from_orm(created_product).dict()
     await websocket_manager.broadcast_product_created(product_dict)
+    
+    # Auto-post to telegram channels if configured
+    try:
+        auto_post_result = await telegram_post_service.auto_post_product(db=db, product_id=created_product.id)
+        if auto_post_result["success_count"] > 0:
+            logger.info(f"Auto-posted product {created_product.id} to {auto_post_result['success_count']} telegram channels")
+        elif auto_post_result["failed_count"] > 0:
+            logger.warning(f"Failed to auto-post product {created_product.id} to {auto_post_result['failed_count']} telegram channels")
+    except Exception as e:
+        logger.error(f"Error auto-posting product {created_product.id} to telegram: {e}")
+        # Don't fail the main product creation if telegram auto-post fails
     
     logger.info(f"Successfully created product with ID: {created_product.id} for URL: {product.product_url}")
     return created_product
