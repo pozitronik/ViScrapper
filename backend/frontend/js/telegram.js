@@ -312,7 +312,7 @@ class TelegramModal {
 
     async updatePreview() {
         if (!this.selectedProducts.length || !this.selectedChannels.length) {
-            this.hidePreview();
+            this.showDefaultPreview();
             return;
         }
 
@@ -415,6 +415,43 @@ class TelegramModal {
         this.showElement(error);
     }
 
+    showDefaultPreview() {
+        const container = document.getElementById('preview-container');
+        const error = document.getElementById('preview-error');
+        const loading = document.getElementById('preview-loading');
+        
+        this.showElement(container);
+        this.hideElement(error);
+        this.hideElement(loading);
+        
+        // Set default preview content
+        const channelName = document.querySelector('.preview-channel');
+        const photosInfo = document.querySelector('.preview-photos');
+        const messageContainer = document.getElementById('preview-message');
+        
+        if (channelName) {
+            if (!this.selectedChannels.length) {
+                channelName.textContent = '📢 Select a channel';
+            } else if (!this.selectedProducts.length) {
+                channelName.textContent = '📢 Select a product';
+            }
+        }
+        
+        if (photosInfo) {
+            photosInfo.textContent = '📝 Preview will appear here';
+        }
+        
+        if (messageContainer) {
+            if (!this.selectedChannels.length && !this.selectedProducts.length) {
+                messageContainer.textContent = 'Select a channel and ensure you have a product selected to see the preview.';
+            } else if (!this.selectedChannels.length) {
+                messageContainer.textContent = 'Please select at least one channel from step 1.';
+            } else if (!this.selectedProducts.length) {
+                messageContainer.textContent = 'Please select a product from the main table before opening this modal.';
+            }
+        }
+    }
+
     hidePreview() {
         const container = document.getElementById('preview-container');
         const error = document.getElementById('preview-error');
@@ -501,6 +538,9 @@ class TelegramModal {
         this.showElement(this.modal);
         this.updateFooterInfo();
         this.updateSendButtonState();
+        
+        // Always show the preview container and update it
+        this.showElement(document.getElementById('preview-container'));
         this.updatePreview();
 
         // Reset form state

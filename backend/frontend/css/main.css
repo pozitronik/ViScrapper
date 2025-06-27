@@ -367,6 +367,58 @@ body {
     }
 }
 
+/* ID Column Control Buttons */
+.id-cell {
+    position: relative;
+}
+
+.id-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 80px;
+}
+
+.cell-id {
+    font-weight: 500;
+    color: #374151;
+}
+
+.control-buttons {
+    display: flex;
+    gap: 0.25rem;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+.btn-telegram {
+    background: #667eea;
+    color: white;
+    border: 1px solid #667eea;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+}
+
+.btn-telegram:hover {
+    background: #5a67d8;
+    border-color: #5a67d8;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-telegram:active {
+    transform: translateY(0);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .main-content {
@@ -383,6 +435,10 @@ body {
     .notification {
         min-width: auto;
         max-width: none;
+    }
+    
+    .control-buttons {
+        opacity: 1; /* Always show on mobile */
     }
 }
 

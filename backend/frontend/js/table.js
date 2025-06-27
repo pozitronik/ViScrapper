@@ -98,12 +98,32 @@ class ProductTable {
     }
 
     /**
-     * Create ID cell
+     * Create ID cell with control buttons
      */
     createIdCell(product) {
-        return createElement('td', {}, `
-            <span class="cell-id">${product.id}</span>
-        `);
+        const cell = createElement('td', { className: 'id-cell' });
+        
+        cell.innerHTML = `
+            <div class="id-content">
+                <span class="cell-id">${product.id}</span>
+                <div class="control-buttons">
+                    <button class="btn btn-sm btn-telegram" data-product-id="${product.id}" title="Send to Telegram">
+                        📤
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Add event listener for telegram button
+        const telegramBtn = cell.querySelector('.btn-telegram');
+        if (telegramBtn) {
+            telegramBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleSendToTelegram(product.id);
+            });
+        }
+        
+        return cell;
     }
 
     /**
@@ -387,6 +407,24 @@ class ProductTable {
      */
     handleSelectionChange(selectedIds, selectedProducts) {
         console.log(`Selected ${selectedIds.length} products:`, selectedIds);
+    }
+
+    /**
+     * Handle send to telegram for individual product
+     */
+    handleSendToTelegram(productId) {
+        // First select the product in the row selection system
+        if (this.rowSelection) {
+            this.rowSelection.clearSelection();
+            this.rowSelection.selectProducts([productId]);
+        }
+        
+        // Open the telegram modal
+        if (window.telegramModal) {
+            window.telegramModal.openModal();
+        } else {
+            console.warn('Telegram modal not available');
+        }
     }
 
     /**
