@@ -52,6 +52,9 @@
                     <button id="refresh-btn" class="btn btn-secondary" title="Refresh data">
                         <span class="refresh-icon">↻</span> Refresh
                     </button>
+                    <button id="manage-channels" class="btn btn-outline" title="Manage Telegram channels">
+                        📢 Channels
+                    </button>
                     <button id="manage-templates" class="btn btn-outline" title="Manage templates">
                         📝 Templates
                     </button>
@@ -383,6 +386,57 @@
     <script src="/static/js/main.js"></script>
 
     <!-- Channel Management Modal -->
+    <div id="channel-management-modal" class="telegram-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">📢 Telegram Channel Management</h3>
+                <button class="modal-close" id="channel-management-close" title="Close (Esc)">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="channel-management-header">
+                    <div class="channel-management-actions">
+                        <button id="add-new-channel" class="btn btn-primary btn-sm">
+                            ➕ Add New Channel
+                        </button>
+                        <button id="refresh-channel-list" class="btn btn-outline btn-sm">
+                            ↻ Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div id="channel-management-loading" class="loading-spinner hidden">
+                    <div class="spinner"></div>
+                    <span>Loading channels...</span>
+                </div>
+
+                <div id="channel-management-list" class="channel-management-list">
+                    <!-- Channels will be loaded here -->
+                </div>
+
+                <div id="no-channels-management" class="no-channels hidden">
+                    <p>No Telegram channels found.</p>
+                    <p class="text-muted">Create your first channel to start posting to Telegram.</p>
+                    <button id="create-first-channel" class="btn btn-primary">
+                        ➕ Create First Channel
+                    </button>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <div class="modal-footer-info">
+                    <span id="channel-management-count">0 channels</span>
+                </div>
+                
+                <div class="modal-footer-actions">
+                    <button id="channel-management-cancel" class="btn btn-outline">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Channel Creation/Edit Modal -->
     <div id="channel-modal" class="telegram-modal hidden">
         <div class="modal-backdrop"></div>
         <div class="modal-content">

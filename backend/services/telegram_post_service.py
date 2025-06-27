@@ -278,10 +278,19 @@ class TelegramPostService:
             if should_send_photos:
                 active_images = [img for img in product.images if not img.deleted_at]
                 for image in active_images:
-                    # Image URL should be the local file ID from image downloader
-                    image_path = os.path.join("images", f"{image.url}.jpg")
-                    if os.path.exists(image_path):
-                        photo_paths.append(image_path)
+                    # Image URL in database is the filename (UUID.jpg)
+                    if image.url:
+                        image_path = os.path.join("images", image.url)
+                        if os.path.exists(image_path):
+                            photo_paths.append(image_path)
+                        else:
+                            logger.warning(f"Image file not found: {image_path}")
+                            # Try alternative path without extension
+                            alt_path = os.path.join("images", f"{image.url}.jpg")
+                            if os.path.exists(alt_path):
+                                photo_paths.append(alt_path)
+                            else:
+                                logger.warning(f"Alternative image path also not found: {alt_path}")
             
             # Send message to telegram
             if photo_paths:

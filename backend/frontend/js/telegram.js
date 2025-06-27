@@ -25,6 +25,12 @@ class TelegramModal {
     }
 
     bindEvents() {
+        // Channel management button
+        const channelsBtn = document.getElementById('manage-channels');
+        if (channelsBtn) {
+            channelsBtn.addEventListener('click', () => this.openChannelManagement());
+        }
+
         // Modal open/close
         const telegramBtn = document.getElementById('telegram-selected');
         const closeBtn = document.getElementById('telegram-modal-close');
@@ -47,6 +53,39 @@ class TelegramModal {
                 this.closeModal();
             }
         });
+
+        // Channel management modal
+        const channelManagementModal = document.getElementById('channel-management-modal');
+        if (channelManagementModal) {
+            const closeBtn = channelManagementModal.querySelector('#channel-management-close');
+            const cancelBtn = channelManagementModal.querySelector('#channel-management-cancel');
+            const addNewChannelBtn = channelManagementModal.querySelector('#add-new-channel');
+            const refreshChannelListBtn = channelManagementModal.querySelector('#refresh-channel-list');
+            const createFirstChannelBtn = channelManagementModal.querySelector('#create-first-channel');
+
+            [closeBtn, cancelBtn].forEach(btn => {
+                if (btn) btn.addEventListener('click', () => this.closeChannelManagement());
+            });
+
+            if (addNewChannelBtn) {
+                addNewChannelBtn.addEventListener('click', () => this.openChannelModal());
+            }
+
+            if (createFirstChannelBtn) {
+                createFirstChannelBtn.addEventListener('click', () => this.openChannelModal());
+            }
+
+            if (refreshChannelListBtn) {
+                refreshChannelListBtn.addEventListener('click', () => this.loadChannelsForManagement());
+            }
+
+            // Click outside to close
+            channelManagementModal.addEventListener('click', (e) => {
+                if (e.target === channelManagementModal || e.target.classList.contains('modal-backdrop')) {
+                    this.closeChannelManagement();
+                }
+            });
+        }
 
         // Channel management buttons
         const addChannelBtn = document.getElementById('add-channel');
@@ -530,14 +569,17 @@ class TelegramModal {
             const data = await response.json();
 
             if (response.ok) {
-                const successMsg = `Successfully sent to ${data.success_count} channel${data.success_count !== 1 ? 's' : ''}`;
-                this.showNotification(successMsg, 'success');
-                
+                // Only show warnings for failures, not success confirmations
                 if (data.failed_count > 0) {
                     console.warn('Some posts failed:', data.errors);
-                    this.showNotification(`${data.failed_count} posts failed`, 'warning');
+                    if (data.success_count > 0) {
+                        this.showNotification(`${data.failed_count} of ${data.success_count + data.failed_count} posts failed`, 'warning');
+                    } else {
+                        this.showNotification(`All ${data.failed_count} posts failed`, 'error');
+                    }
                 }
-
+                
+                // Always close modal after sending (whether successful or not)
                 this.closeModal();
             } else {
                 throw new Error(data.detail || 'Failed to send posts');
@@ -552,6 +594,118 @@ class TelegramModal {
             }
         }
     }
+
+    openChannelManagement() {
+        // Open the channel management interface
+        const modal = document.getElementById('channel-management-modal');
+        if (modal) {
+            this.showElement(modal);
+            this.loadChannelsForManagement();
+        }
+    }
+
+    closeChannelManagement() {
+        const modal = document.getElementById('channel-management-modal');
+        if (modal) {
+            this.hideElement(modal);
+        }
+    }
+
+    async loadChannelsForManagement() {
+        const loading = document.getElementById('channel-management-loading');
+        const container = document.getElementById('channel-management-list');
+        const noChannels = document.getElementById('no-channels-management');
+        const countDisplay = document.getElementById('channel-management-count');
+
+        this.showElement(loading);
+        this.hideElement(container);
+        this.hideElement(noChannels);
+
+        try {
+            const response = await fetch('/api/v1/telegram/channels?include_deleted=false');
+            const data = await response.json();
+
+            if (data.success && data.data.length > 0) {
+                this.renderChannelsForManagement(data.data);
+                this.showElement(container);
+                if (countDisplay) {
+                    countDisplay.textContent = `${data.data.length} channel${data.data.length !== 1 ? 's' : ''}`;
+                }
+            } else {
+                this.showElement(noChannels);
+                if (countDisplay) {
+                    countDisplay.textContent = '0 channels';
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load channels for management:', error);
+            this.showElement(noChannels);
+            this.showNotification('Failed to load Telegram channels', 'error');
+            if (countDisplay) {
+                countDisplay.textContent = '0 channels';
+            }
+        } finally {
+            this.hideElement(loading);
+        }
+    }
+
+    renderChannelsForManagement(channels) {
+        const container = document.getElementById('channel-management-list');
+        if (!container) return;
+
+        container.innerHTML = channels.map(channel => `
+            <div class="channel-management-item" data-channel-id="${channel.id}">
+                <div class="channel-management-info">
+                    <div class="channel-management-header">
+                        <h4 class="channel-management-name">${this.escapeHtml(channel.name)}</h4>
+                        <div class="channel-management-badges">
+                            <span class="channel-badge ${channel.is_active ? 'active' : 'inactive'}">
+                                ${channel.is_active ? '✅ Active' : '❌ Inactive'}
+                            </span>
+                            <span class="channel-badge ${channel.auto_post ? 'auto-post' : 'manual'}">
+                                ${channel.auto_post ? '🤖 Auto' : '👤 Manual'}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="channel-management-details">
+                        <span class="channel-chat-id">Chat ID: ${this.escapeHtml(channel.chat_id)}</span>
+                        ${channel.description ? `<span class="channel-description">${this.escapeHtml(channel.description)}</span>` : ''}
+                        <div class="channel-settings">
+                            ${channel.send_photos ? '📷 Photos' : '📝 Text only'} • 
+                            ${channel.disable_notification ? '🔕 Silent' : '🔔 With notifications'} • 
+                            ${channel.disable_web_page_preview ? '🔗 No previews' : '🔗 With previews'}
+                        </div>
+                    </div>
+                </div>
+                <div class="channel-management-actions">
+                    <button class="btn btn-sm btn-secondary edit-channel-btn" data-channel-id="${channel.id}" title="Edit channel">
+                        ✏️ Edit
+                    </button>
+                    <button class="btn btn-sm btn-danger delete-channel-btn" data-channel-id="${channel.id}" title="Delete channel">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        // Bind action button events
+        container.querySelectorAll('.edit-channel-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const channelId = parseInt(btn.dataset.channelId);
+                this.editChannel(channelId);
+            });
+        });
+
+        container.querySelectorAll('.delete-channel-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const channelId = parseInt(btn.dataset.channelId);
+                this.deleteChannel(channelId);
+            });
+        });
+    }
+
 
     openModal() {
         // Get selected products from the main table
@@ -931,6 +1085,11 @@ class TelegramModal {
                 );
                 this.closeChannelModal();
                 this.loadChannels();
+                // Also refresh management list if it's open
+                const managementModal = document.getElementById('channel-management-modal');
+                if (managementModal && !managementModal.classList.contains('hidden')) {
+                    this.loadChannelsForManagement();
+                }
             } else {
                 throw new Error(data.detail || `Failed to ${isEdit ? 'update' : 'create'} channel`);
             }
@@ -967,6 +1126,11 @@ class TelegramModal {
             if (response.ok && data.success) {
                 this.showNotification('Channel deleted successfully', 'success');
                 this.loadChannels();
+                // Also refresh management list if it's open
+                const managementModal = document.getElementById('channel-management-modal');
+                if (managementModal && !managementModal.classList.contains('hidden')) {
+                    this.loadChannelsForManagement();
+                }
             } else {
                 throw new Error(data.detail || 'Failed to delete channel');
             }
