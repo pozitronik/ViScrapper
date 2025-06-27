@@ -213,9 +213,14 @@
                 <div class="step-section" id="channel-selection-step">
                     <div class="step-header">
                         <h4>1. Select Channels</h4>
-                        <button id="refresh-channels" class="btn btn-outline btn-sm" title="Refresh channels">
-                            ↻ Refresh
-                        </button>
+                        <div class="step-header-actions">
+                            <button id="add-channel" class="btn btn-primary btn-sm" title="Add new channel">
+                                ➕ Add Channel
+                            </button>
+                            <button id="refresh-channels" class="btn btn-outline btn-sm" title="Refresh channels">
+                                ↻ Refresh
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="channels-container">
@@ -372,5 +377,120 @@
     <script src="/static/js/telegram.js"></script>
     <script src="/static/js/table.js"></script>
     <script src="/static/js/main.js"></script>
+
+    <!-- Channel Management Modal -->
+    <div id="channel-modal" class="telegram-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="channel-modal-title">➕ Add Channel</h3>
+                <button class="modal-close" id="channel-modal-close" title="Close (Esc)">×</button>
+            </div>
+
+            <div class="modal-body">
+                <form id="channel-form" class="channel-form">
+                    <div class="form-section">
+                        <label for="channel-name" class="form-label">Channel Name *</label>
+                        <input 
+                            type="text" 
+                            id="channel-name" 
+                            name="name"
+                            class="form-input" 
+                            placeholder="e.g., My Store Channel"
+                            required
+                            maxlength="100"
+                        >
+                        <small class="form-help">Display name for this channel</small>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="channel-chat-id" class="form-label">Chat ID *</label>
+                        <input 
+                            type="text" 
+                            id="channel-chat-id" 
+                            name="chat_id"
+                            class="form-input" 
+                            placeholder="@channelname or -1001234567890"
+                            required
+                        >
+                        <small class="form-help">Telegram chat ID or @username</small>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="channel-description" class="form-label">Description</label>
+                        <textarea 
+                            id="channel-description" 
+                            name="description"
+                            class="form-textarea" 
+                            placeholder="Channel description (optional)"
+                            maxlength="500"
+                            rows="3"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="channel-template" class="form-label">Default Template</label>
+                        <select id="channel-template" name="template_id" class="form-select">
+                            <option value="">No default template</option>
+                            <!-- Templates will be loaded here -->
+                        </select>
+                        <small class="form-help">Default template for this channel</small>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-checkboxes">
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="channel-active" name="is_active" checked>
+                                <span class="checkbox-label">✅ Channel is active</span>
+                            </label>
+
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="channel-auto-post" name="auto_post">
+                                <span class="checkbox-label">🤖 Auto-post new products</span>
+                            </label>
+
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="channel-send-photos" name="send_photos" checked>
+                                <span class="checkbox-label">📷 Include photos by default</span>
+                            </label>
+
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="channel-disable-notification" name="disable_notification">
+                                <span class="checkbox-label">🔕 Send silently by default</span>
+                            </label>
+
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="channel-disable-preview" name="disable_web_page_preview" checked>
+                                <span class="checkbox-label">🔗 Disable link previews</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="channel-test-section" class="form-section">
+                        <button type="button" id="test-channel" class="btn btn-outline">
+                            🔧 Test Connection
+                        </button>
+                        <div id="test-result" class="test-result hidden">
+                            <!-- Test results will appear here -->
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <div class="modal-footer-info">
+                    <span id="channel-status">Fill in the required fields</span>
+                </div>
+                
+                <div class="modal-footer-actions">
+                    <button id="channel-cancel" class="btn btn-outline">Cancel</button>
+                    <button id="channel-save" class="btn btn-primary" disabled>
+                        ➕ Create Channel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

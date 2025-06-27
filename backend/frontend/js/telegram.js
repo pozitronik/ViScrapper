@@ -48,11 +48,15 @@ class TelegramModal {
             }
         });
 
-        // Refresh buttons
+        // Channel management buttons
+        const addChannelBtn = document.getElementById('add-channel');
         const refreshChannels = document.getElementById('refresh-channels');
         const refreshTemplates = document.getElementById('refresh-templates');
         const refreshPreview = document.getElementById('refresh-preview');
 
+        if (addChannelBtn) {
+            addChannelBtn.addEventListener('click', () => this.openChannelModal());
+        }
         if (refreshChannels) {
             refreshChannels.addEventListener('click', () => this.loadChannels());
         }
@@ -157,6 +161,14 @@ class TelegramModal {
                         </span>
                     </div>
                 </label>
+                <div class="channel-actions">
+                    <button class="channel-action-btn edit" data-channel-id="${channel.id}" title="Edit channel">
+                        ✏️
+                    </button>
+                    <button class="channel-action-btn delete" data-channel-id="${channel.id}" title="Delete channel">
+                        🗑️
+                    </button>
+                </div>
             </div>
         `).join('');
 
@@ -165,9 +177,24 @@ class TelegramModal {
             checkbox.addEventListener('change', () => this.onChannelSelectionChange());
         });
 
+        // Bind channel action buttons
+        container.querySelectorAll('.channel-action-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const channelId = parseInt(btn.dataset.channelId);
+                const action = btn.classList.contains('edit') ? 'edit' : 'delete';
+                
+                if (action === 'edit') {
+                    this.editChannel(channelId);
+                } else {
+                    this.deleteChannel(channelId);
+                }
+            });
+        });
+
         container.querySelectorAll('.channel-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                if (e.target.type !== 'checkbox') {
+                if (e.target.type !== 'checkbox' && !e.target.classList.contains('channel-action-btn')) {
                     const checkbox = item.querySelector('input[type="checkbox"]');
                     checkbox.checked = !checkbox.checked;
                     this.onChannelSelectionChange();
@@ -636,6 +663,317 @@ class TelegramModal {
 
         const canSend = this.selectedProducts.length > 0 && this.selectedChannels.length > 0;
         sendBtn.disabled = !canSend;
+    }
+
+    // Channel Management Methods
+    openChannelModal(channelData = null) {
+        const modal = document.getElementById('channel-modal');
+        const title = document.getElementById('channel-modal-title');
+        const saveBtn = document.getElementById('channel-save');
+        
+        if (channelData) {
+            title.textContent = '✏️ Edit Channel';
+            saveBtn.textContent = '💾 Update Channel';
+            this.populateChannelForm(channelData);
+        } else {
+            title.textContent = '➕ Add Channel';
+            saveBtn.textContent = '➕ Create Channel';
+            this.resetChannelForm();
+        }
+        
+        this.currentEditingChannel = channelData;
+        this.showElement(modal);
+        this.loadTemplatesForChannel();
+        this.initChannelFormEvents();
+    }
+
+    closeChannelModal() {
+        const modal = document.getElementById('channel-modal');
+        this.hideElement(modal);
+        this.resetChannelForm();
+        this.currentEditingChannel = null;
+    }
+
+    initChannelFormEvents() {
+        if (this.channelFormBound) return;
+        this.channelFormBound = true;
+
+        const modal = document.getElementById('channel-modal');
+        const closeBtn = document.getElementById('channel-modal-close');
+        const cancelBtn = document.getElementById('channel-cancel');
+        const saveBtn = document.getElementById('channel-save');
+        const testBtn = document.getElementById('test-channel');
+        const form = document.getElementById('channel-form');
+
+        [closeBtn, cancelBtn].forEach(btn => {
+            if (btn) btn.addEventListener('click', () => this.closeChannelModal());
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal || e.target.classList.contains('modal-backdrop')) {
+                this.closeChannelModal();
+            }
+        });
+
+        form.addEventListener('input', () => this.validateChannelForm());
+        
+        if (testBtn) testBtn.addEventListener('click', () => this.testChannelConnection());
+        if (saveBtn) saveBtn.addEventListener('click', () => this.saveChannel());
+    }
+
+    resetChannelForm() {
+        const form = document.getElementById('channel-form');
+        if (form) {
+            form.reset();
+            document.getElementById('channel-active').checked = true;
+            document.getElementById('channel-send-photos').checked = true;
+            document.getElementById('channel-disable-preview').checked = true;
+        }
+        this.clearChannelFormValidation();
+        this.updateChannelSaveButton();
+        this.hideElement(document.getElementById('test-result'));
+    }
+
+    populateChannelForm(channel) {
+        document.getElementById('channel-name').value = channel.name || '';
+        document.getElementById('channel-chat-id').value = channel.chat_id || '';
+        document.getElementById('channel-description').value = channel.description || '';
+        document.getElementById('channel-template').value = channel.template_id || '';
+        
+        document.getElementById('channel-active').checked = channel.is_active !== false;
+        document.getElementById('channel-auto-post').checked = channel.auto_post === true;
+        document.getElementById('channel-send-photos').checked = channel.send_photos !== false;
+        document.getElementById('channel-disable-notification').checked = channel.disable_notification === true;
+        document.getElementById('channel-disable-preview').checked = channel.disable_web_page_preview !== false;
+        
+        this.validateChannelForm();
+    }
+
+    async loadTemplatesForChannel() {
+        const select = document.getElementById('channel-template');
+        if (!select) return;
+
+        try {
+            const response = await fetch('/api/v1/templates?active_only=true');
+            const data = await response.json();
+
+            if (data.success) {
+                select.innerHTML = `
+                    <option value="">No default template</option>
+                    ${data.data.map(template => 
+                        `<option value="${template.id}">${this.escapeHtml(template.name)}</option>`
+                    ).join('')}
+                `;
+            }
+        } catch (error) {
+            console.error('Failed to load templates for channel:', error);
+        }
+    }
+
+    validateChannelForm() {
+        const name = document.getElementById('channel-name').value.trim();
+        const chatId = document.getElementById('channel-chat-id').value.trim();
+        
+        let isValid = true;
+        let errors = [];
+
+        if (!name) {
+            errors.push('Channel name is required');
+            isValid = false;
+        }
+
+        if (!chatId) {
+            errors.push('Chat ID is required');
+            isValid = false;
+        } else if (!this.isValidChatId(chatId)) {
+            errors.push('Chat ID must be numeric or start with @');
+            isValid = false;
+        }
+
+        this.updateChannelStatus(isValid, errors);
+        this.updateChannelSaveButton(isValid);
+        
+        return isValid;
+    }
+
+    isValidChatId(chatId) {
+        if (chatId.startsWith('@')) {
+            return chatId.length > 1;
+        } else {
+            return !isNaN(parseInt(chatId));
+        }
+    }
+
+    updateChannelStatus(isValid, errors = []) {
+        const status = document.getElementById('channel-status');
+        if (!status) return;
+
+        if (isValid) {
+            status.textContent = 'Ready to save';
+            status.style.color = '#166534';
+        } else {
+            status.textContent = errors[0] || 'Please fix the errors';
+            status.style.color = '#991b1b';
+        }
+    }
+
+    updateChannelSaveButton(isValid = null) {
+        const saveBtn = document.getElementById('channel-save');
+        if (!saveBtn) return;
+
+        if (isValid === null) {
+            isValid = this.validateChannelForm();
+        }
+        
+        saveBtn.disabled = !isValid;
+    }
+
+    clearChannelFormValidation() {
+        const inputs = document.querySelectorAll('#channel-form .form-input, #channel-form .form-textarea');
+        inputs.forEach(input => {
+            input.classList.remove('invalid');
+        });
+        
+        const errors = document.querySelectorAll('#channel-form .form-error');
+        errors.forEach(error => error.remove());
+    }
+
+    async testChannelConnection() {
+        const chatId = document.getElementById('channel-chat-id').value.trim();
+        const testBtn = document.getElementById('test-channel');
+        
+        if (!chatId) {
+            this.showTestResult('Please enter a chat ID first', 'error');
+            return;
+        }
+
+        testBtn.disabled = true;
+        testBtn.textContent = '🔄 Testing...';
+        this.showTestResult('Testing connection...', 'testing');
+
+        try {
+            const response = await fetch('/api/v1/telegram/channels/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                const chatInfo = data.chat_info;
+                this.showTestResult(
+                    `✅ Connection successful!\nChat: ${chatInfo.title || chatInfo.username || 'Unknown'}\nType: ${chatInfo.type || 'Unknown'}`,
+                    'success'
+                );
+            } else {
+                this.showTestResult(`❌ Connection failed: ${data.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Test connection error:', error);
+            this.showTestResult(`❌ Network error: ${error.message}`, 'error');
+        } finally {
+            testBtn.disabled = false;
+            testBtn.textContent = '🔧 Test Connection';
+        }
+    }
+
+    showTestResult(message, type) {
+        const testResult = document.getElementById('test-result');
+        if (!testResult) return;
+
+        testResult.textContent = message;
+        testResult.className = `test-result ${type}`;
+        this.showElement(testResult);
+    }
+
+    async saveChannel() {
+        if (!this.validateChannelForm()) return;
+
+        const form = document.getElementById('channel-form');
+        const formData = new FormData(form);
+        const saveBtn = document.getElementById('channel-save');
+        
+        const channelData = {
+            name: formData.get('name'),
+            chat_id: formData.get('chat_id'),
+            description: formData.get('description') || null,
+            template_id: formData.get('template_id') ? parseInt(formData.get('template_id')) : null,
+            is_active: formData.has('is_active'),
+            auto_post: formData.has('auto_post'),
+            send_photos: formData.has('send_photos'),
+            disable_notification: formData.has('disable_notification'),
+            disable_web_page_preview: formData.has('disable_web_page_preview')
+        };
+
+        const isEdit = this.currentEditingChannel !== null;
+        const url = isEdit 
+            ? `/api/v1/telegram/channels/${this.currentEditingChannel.id}`
+            : '/api/v1/telegram/channels';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = isEdit ? '💾 Updating...' : '➕ Creating...';
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(channelData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                this.showNotification(
+                    `Channel ${isEdit ? 'updated' : 'created'} successfully`, 
+                    'success'
+                );
+                this.closeChannelModal();
+                this.loadChannels();
+            } else {
+                throw new Error(data.detail || `Failed to ${isEdit ? 'update' : 'create'} channel`);
+            }
+        } catch (error) {
+            console.error('Save channel error:', error);
+            this.showNotification(error.message, 'error');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = isEdit ? '💾 Update Channel' : '➕ Create Channel';
+        }
+    }
+
+    editChannel(channelId) {
+        const channel = this.channels.find(c => c.id === channelId);
+        if (channel) {
+            this.openChannelModal(channel);
+        }
+    }
+
+    async deleteChannel(channelId) {
+        const channel = this.channels.find(c => c.id === channelId);
+        if (!channel) return;
+
+        const confirmed = confirm(`Are you sure you want to delete the channel "${channel.name}"?\n\nThis action cannot be undone.`);
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch(`/api/v1/telegram/channels/${channelId}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                this.showNotification('Channel deleted successfully', 'success');
+                this.loadChannels();
+            } else {
+                throw new Error(data.detail || 'Failed to delete channel');
+            }
+        } catch (error) {
+            console.error('Delete channel error:', error);
+            this.showNotification(error.message, 'error');
+        }
     }
 
     // Utility methods
