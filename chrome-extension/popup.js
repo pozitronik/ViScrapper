@@ -61,17 +61,22 @@ document.getElementById('scrape').addEventListener('click', async () => {
       body: JSON.stringify(data),
     });
 
-    const result = await response.json();
+    let result;
+    try {
+      result = await response.json();
+    } catch (e) {
+      throw new Error(`Failed to parse server response (${response.status}): ${response.statusText}`);
+    }
     
     if (!response.ok) {
-      // Handle API errors
-      if (response.status === 400 && result.detail && result.detail.includes('already exists')) {
-        throw new Error('Product already exists in database');
-      } else if (result.message) {
-        throw new Error(`Server error: ${result.message}`);
-      } else {
-        throw new Error(`Server error (${response.status}): ${result.detail || 'Unknown error'}`);
-      }
+      // Extract message from nested error structure
+      const errorMessage = result.message || 
+                           result.detail || 
+                           result.error?.message || 
+                           `Server Error (${response.status})`;
+      
+      console.error('Backend error details:', result);
+      throw new Error(errorMessage);
     }
 
     // Success
