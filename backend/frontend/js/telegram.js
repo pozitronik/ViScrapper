@@ -12,6 +12,12 @@ class TelegramModal {
         this.templates = [];
         this.placeholders = [];
         this.isLoading = false;
+        this.quickPostConfig = {
+            channels: [],
+            template_id: null,
+            send_photos: true,
+            disable_notification: false
+        };
         
         this.init();
     }
@@ -29,6 +35,13 @@ class TelegramModal {
         const channelsBtn = document.getElementById('manage-channels');
         if (channelsBtn) {
             channelsBtn.addEventListener('click', () => this.openChannelManagement());
+        }
+
+        // Quick post button in selection bar
+        const quickPostBtn = document.getElementById('telegram-quick-post');
+        
+        if (quickPostBtn) {
+            quickPostBtn.addEventListener('click', () => this.quickPost());
         }
 
         // Modal open/close
@@ -77,6 +90,23 @@ class TelegramModal {
 
             if (refreshChannelListBtn) {
                 refreshChannelListBtn.addEventListener('click', () => this.loadChannelsForManagement());
+            }
+
+            // Quick post configuration
+            const configureQuickPostBtn = channelManagementModal.querySelector('#configure-quick-post');
+            const saveQuickPostConfigBtn = channelManagementModal.querySelector('#save-quick-post-config');
+            const cancelQuickPostConfigBtn = channelManagementModal.querySelector('#cancel-quick-post-config');
+
+            if (configureQuickPostBtn) {
+                configureQuickPostBtn.addEventListener('click', () => this.openQuickPostConfig());
+            }
+
+            if (saveQuickPostConfigBtn) {
+                saveQuickPostConfigBtn.addEventListener('click', () => this.saveQuickPostConfig());
+            }
+
+            if (cancelQuickPostConfigBtn) {
+                cancelQuickPostConfigBtn.addEventListener('click', () => this.closeQuickPostConfig());
             }
 
             // Click outside to close
@@ -151,7 +181,8 @@ class TelegramModal {
         await Promise.all([
             this.loadChannels(),
             this.loadTemplates(),
-            this.loadPlaceholders()
+            this.loadPlaceholders(),
+            this.loadQuickPostConfig()
         ]);
     }
 
@@ -637,6 +668,9 @@ class TelegramModal {
                     countDisplay.textContent = '0 channels';
                 }
             }
+            
+            // Update quick post summary
+            this.updateQuickPostSummary();
         } catch (error) {
             console.error('Failed to load channels for management:', error);
             this.showElement(noChannels);
@@ -654,54 +688,50 @@ class TelegramModal {
         if (!container) return;
 
         container.innerHTML = channels.map(channel => `
-            <div class="channel-management-item" data-channel-id="${channel.id}">
-                <div class="channel-management-info">
-                    <div class="channel-management-header">
-                        <h4 class="channel-management-name">${this.escapeHtml(channel.name)}</h4>
-                        <div class="channel-management-badges">
+            <div class="channel-item" data-channel-id="${channel.id}">
+                <div class="channel-content">
+                    <div class="channel-name">${this.escapeHtml(channel.name)}</div>
+                    <div class="channel-info">
+                        <span class="channel-chat-id">${this.escapeHtml(channel.chat_id)}</span>
+                        <div class="channel-badges">
                             <span class="channel-badge ${channel.is_active ? 'active' : 'inactive'}">
-                                ${channel.is_active ? '✅ Active' : '❌ Inactive'}
+                                ${channel.is_active ? 'Active' : 'Inactive'}
                             </span>
                             <span class="channel-badge ${channel.auto_post ? 'auto-post' : 'manual'}">
                                 ${channel.auto_post ? '🤖 Auto' : '👤 Manual'}
                             </span>
                         </div>
                     </div>
-                    <div class="channel-management-details">
-                        <span class="channel-chat-id">Chat ID: ${this.escapeHtml(channel.chat_id)}</span>
-                        ${channel.description ? `<span class="channel-description">${this.escapeHtml(channel.description)}</span>` : ''}
-                        <div class="channel-settings">
-                            ${channel.send_photos ? '📷 Photos' : '📝 Text only'} • 
-                            ${channel.disable_notification ? '🔕 Silent' : '🔔 With notifications'} • 
-                            ${channel.disable_web_page_preview ? '🔗 No previews' : '🔗 With previews'}
-                        </div>
+                    ${channel.description ? `<div class="channel-description">${this.escapeHtml(channel.description)}</div>` : ''}
+                    <div class="channel-settings">
+                        ${channel.send_photos ? '📷 Photos' : '📝 Text only'} • 
+                        ${channel.disable_notification ? '🔕 Silent' : '🔔 With notifications'} • 
+                        ${channel.disable_web_page_preview ? '🔗 No previews' : '🔗 With previews'}
                     </div>
                 </div>
-                <div class="channel-management-actions">
-                    <button class="btn btn-sm btn-secondary edit-channel-btn" data-channel-id="${channel.id}" title="Edit channel">
-                        ✏️ Edit
+                <div class="channel-actions">
+                    <button class="channel-action-btn edit" data-channel-id="${channel.id}" title="Edit channel">
+                        ✏️
                     </button>
-                    <button class="btn btn-sm btn-danger delete-channel-btn" data-channel-id="${channel.id}" title="Delete channel">
-                        🗑️ Delete
+                    <button class="channel-action-btn delete" data-channel-id="${channel.id}" title="Delete channel">
+                        🗑️
                     </button>
                 </div>
             </div>
         `).join('');
 
         // Bind action button events
-        container.querySelectorAll('.edit-channel-btn').forEach(btn => {
+        container.querySelectorAll('.channel-action-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const channelId = parseInt(btn.dataset.channelId);
-                this.editChannel(channelId);
-            });
-        });
-
-        container.querySelectorAll('.delete-channel-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const channelId = parseInt(btn.dataset.channelId);
-                this.deleteChannel(channelId);
+                const action = btn.classList.contains('edit') ? 'edit' : 'delete';
+                
+                if (action === 'edit') {
+                    this.editChannel(channelId);
+                } else {
+                    this.deleteChannel(channelId);
+                }
             });
         });
     }
@@ -1163,6 +1193,208 @@ class TelegramModal {
             // Fallback
             console.log(`${type.toUpperCase()}: ${message}`);
             alert(message);
+        }
+    }
+
+    // Quick Post Methods
+    async quickPost() {
+        // Get selected products
+        const selectedProducts = this.getSelectedProductIds();
+        
+        if (!selectedProducts.length) {
+            this.showNotification('Please select products to post', 'warning');
+            return;
+        }
+
+        // Check if quick post is configured
+        if (!this.quickPostConfig.channels.length) {
+            this.showNotification('Quick post not configured. Use "📢 Channels" to set it up.', 'warning');
+            return;
+        }
+
+        // Send immediately without confirmation
+        try {
+            const requestData = {
+                product_id: selectedProducts[0], // Post first selected product
+                channel_ids: this.quickPostConfig.channels,
+                template_id: this.quickPostConfig.template_id,
+                send_photos: this.quickPostConfig.send_photos,
+                disable_notification: this.quickPostConfig.disable_notification
+            };
+
+            const response = await fetch('/api/v1/telegram/posts/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Only show warnings for failures, not success confirmations
+                if (data.failed_count > 0) {
+                    if (data.success_count > 0) {
+                        this.showNotification(`${data.failed_count} of ${data.success_count + data.failed_count} posts failed`, 'warning');
+                    } else {
+                        this.showNotification(`All ${data.failed_count} posts failed`, 'error');
+                    }
+                }
+                // Success posts complete silently
+            } else {
+                throw new Error(data.detail || 'Failed to send posts');
+            }
+        } catch (error) {
+            console.error('Quick post error:', error);
+            this.showNotification(error.message || 'Failed to send quick post', 'error');
+        }
+    }
+
+    async openQuickPostConfig() {
+        const configSection = document.getElementById('quick-post-config');
+        this.showElement(configSection);
+        
+        // Load data for configuration
+        await this.loadQuickPostChannels();
+        await this.loadQuickPostTemplates();
+        this.populateQuickPostForm();
+    }
+
+    closeQuickPostConfig() {
+        const configSection = document.getElementById('quick-post-config');
+        this.hideElement(configSection);
+        this.updateQuickPostSummary();
+    }
+
+    async loadQuickPostChannels() {
+        const container = document.getElementById('quick-post-channels');
+        if (!container) return;
+
+        const channels = this.channels.filter(channel => channel.is_active);
+        
+        container.innerHTML = channels.map(channel => `
+            <label class="checkbox-option">
+                <input type="checkbox" value="${channel.id}" data-channel-id="${channel.id}">
+                <span class="checkbox-label">${this.escapeHtml(channel.name)}</span>
+            </label>
+        `).join('');
+    }
+
+    async loadQuickPostTemplates() {
+        const select = document.getElementById('quick-post-template');
+        if (!select) return;
+
+        select.innerHTML = `
+            <option value="">Use channel's default template</option>
+            ${this.templates.map(template => 
+                `<option value="${template.id}">${this.escapeHtml(template.name)}</option>`
+            ).join('')}
+        `;
+    }
+
+    populateQuickPostForm() {
+        // Set selected channels
+        const channelCheckboxes = document.querySelectorAll('#quick-post-channels input[type="checkbox"]');
+        channelCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.quickPostConfig.channels.includes(parseInt(checkbox.value));
+        });
+
+        // Set selected template
+        const templateSelect = document.getElementById('quick-post-template');
+        if (templateSelect) {
+            templateSelect.value = this.quickPostConfig.template_id || '';
+        }
+
+        // Set options
+        const photosCheckbox = document.getElementById('quick-post-photos');
+        const silentCheckbox = document.getElementById('quick-post-silent');
+        
+        if (photosCheckbox) {
+            photosCheckbox.checked = this.quickPostConfig.send_photos;
+        }
+        
+        if (silentCheckbox) {
+            silentCheckbox.checked = this.quickPostConfig.disable_notification;
+        }
+    }
+
+    async saveQuickPostConfig() {
+        // Get selected channels
+        const selectedChannels = [];
+        const channelCheckboxes = document.querySelectorAll('#quick-post-channels input[type="checkbox"]:checked');
+        channelCheckboxes.forEach(checkbox => {
+            selectedChannels.push(parseInt(checkbox.value));
+        });
+
+        if (!selectedChannels.length) {
+            this.showNotification('Please select at least one channel', 'warning');
+            return;
+        }
+
+        // Get other settings
+        const templateSelect = document.getElementById('quick-post-template');
+        const photosCheckbox = document.getElementById('quick-post-photos');
+        const silentCheckbox = document.getElementById('quick-post-silent');
+
+        this.quickPostConfig = {
+            channels: selectedChannels,
+            template_id: templateSelect?.value ? parseInt(templateSelect.value) : null,
+            send_photos: photosCheckbox?.checked || true,
+            disable_notification: silentCheckbox?.checked || false
+        };
+
+        // Save to localStorage
+        localStorage.setItem('telegram_quick_post_config', JSON.stringify(this.quickPostConfig));
+        
+        this.showNotification('Quick post configuration saved', 'success');
+        this.closeQuickPostConfig();
+    }
+
+    async loadQuickPostConfig() {
+        try {
+            const savedConfig = localStorage.getItem('telegram_quick_post_config');
+            if (savedConfig) {
+                this.quickPostConfig = { ...this.quickPostConfig, ...JSON.parse(savedConfig) };
+            }
+        } catch (error) {
+            console.error('Error loading quick post config:', error);
+        }
+    }
+
+    updateQuickPostSummary() {
+        const summaryElement = document.getElementById('quick-post-summary');
+        if (!summaryElement) return;
+
+        if (this.quickPostConfig.channels.length > 0) {
+            const channelNames = this.quickPostConfig.channels
+                .map(id => {
+                    const channel = this.channels.find(c => c.id === id);
+                    return channel ? channel.name : `Channel ${id}`;
+                })
+                .join(', ');
+
+            summaryElement.innerHTML = `
+                <div class="quick-post-status configured">
+                    <div class="status-header">
+                        <span class="status-indicator">✅</span>
+                        <strong>Quick Post Configured</strong>
+                    </div>
+                    <div class="status-details">
+                        <div><strong>Channels:</strong> ${channelNames}</div>
+                        <div><strong>Photos:</strong> ${this.quickPostConfig.send_photos ? 'Enabled' : 'Disabled'}</div>
+                        <div><strong>Notifications:</strong> ${this.quickPostConfig.disable_notification ? 'Silent' : 'Enabled'}</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            summaryElement.innerHTML = `
+                <div class="quick-post-status not-configured">
+                    <div class="status-header">
+                        <span class="status-indicator">⚠️</span>
+                        <strong>Quick Post Not Configured</strong>
+                    </div>
+                    <p class="text-muted">Configure default settings for one-click posting with the ⚡ Quick Post button.</p>
+                </div>
+            `;
         }
     }
 }

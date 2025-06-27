@@ -139,6 +139,9 @@
                     <button id="telegram-selected" class="btn btn-primary">
                         📤 Post to Telegram
                     </button>
+                    <button id="telegram-quick-post" class="btn btn-success">
+                        ⚡ Quick Post
+                    </button>
                     <button id="clear-selection" class="btn btn-outline">
                         Clear Selection
                     </button>
@@ -395,32 +398,94 @@
             </div>
 
             <div class="modal-body">
-                <div class="channel-management-header">
-                    <div class="channel-management-actions">
-                        <button id="add-new-channel" class="btn btn-primary btn-sm">
-                            ➕ Add New Channel
-                        </button>
-                        <button id="refresh-channel-list" class="btn btn-outline btn-sm">
-                            ↻ Refresh
-                        </button>
+                <!-- Step 1: Channel Management -->
+                <div class="step-section" id="channels-management-step">
+                    <div class="step-header">
+                        <h4>1. Manage Channels</h4>
+                        <div class="step-header-actions">
+                            <button id="add-new-channel" class="btn btn-primary btn-sm" title="Add new channel">
+                                ➕ Add Channel
+                            </button>
+                            <button id="refresh-channel-list" class="btn btn-outline btn-sm" title="Refresh channels">
+                                ↻ Refresh
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="channels-container">
+                        <div id="channel-management-loading" class="loading-spinner hidden">
+                            <div class="spinner"></div>
+                            <span>Loading channels...</span>
+                        </div>
+                        
+                        <div id="channel-management-list" class="channels-list">
+                            <!-- Channels will be loaded here -->
+                        </div>
+                        
+                        <div id="no-channels-management" class="no-channels hidden">
+                            <p>No Telegram channels found.</p>
+                            <p class="text-muted">Create your first channel to start posting to Telegram.</p>
+                            <button id="create-first-channel" class="btn btn-primary">
+                                ➕ Create First Channel
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div id="channel-management-loading" class="loading-spinner hidden">
-                    <div class="spinner"></div>
-                    <span>Loading channels...</span>
-                </div>
+                <!-- Step 2: Quick Post Configuration -->
+                <div class="step-section" id="quick-post-management-step">
+                    <div class="step-header">
+                        <h4>2. Quick Post Settings</h4>
+                        <button id="configure-quick-post" class="btn btn-outline btn-sm" title="Configure quick post">
+                            ⚡ Configure
+                        </button>
+                    </div>
+                    
+                    <div id="quick-post-config" class="quick-post-config hidden">
+                        <div class="quick-post-form">
+                            <div class="form-section">
+                                <label class="form-label">Default Channels</label>
+                                <div id="quick-post-channels" class="quick-post-channels">
+                                    <!-- Channels will be loaded here -->
+                                </div>
+                                <small class="form-help">Select channels for one-click posting</small>
+                            </div>
 
-                <div id="channel-management-list" class="channel-management-list">
-                    <!-- Channels will be loaded here -->
-                </div>
+                            <div class="form-section">
+                                <label class="form-label">Default Template</label>
+                                <select id="quick-post-template" class="form-select">
+                                    <option value="">Use channel's default template</option>
+                                    <!-- Templates will be loaded here -->
+                                </select>
+                                <small class="form-help">Template to use for quick posts</small>
+                            </div>
 
-                <div id="no-channels-management" class="no-channels hidden">
-                    <p>No Telegram channels found.</p>
-                    <p class="text-muted">Create your first channel to start posting to Telegram.</p>
-                    <button id="create-first-channel" class="btn btn-primary">
-                        ➕ Create First Channel
-                    </button>
+                            <div class="form-section">
+                                <label class="option-checkbox">
+                                    <input type="checkbox" id="quick-post-photos" checked>
+                                    <span class="option-label">📷 Include product photos</span>
+                                </label>
+                                
+                                <label class="option-checkbox">
+                                    <input type="checkbox" id="quick-post-silent">
+                                    <span class="option-label">🔕 Send silently (no notification)</span>
+                                </label>
+                            </div>
+
+                            <div class="quick-post-actions">
+                                <button id="save-quick-post-config" class="btn btn-primary">
+                                    💾 Save Configuration
+                                </button>
+                                <button id="cancel-quick-post-config" class="btn btn-outline">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="quick-post-summary" class="quick-post-summary">
+                        <p class="text-muted">Configure default settings for one-click posting with the ⚡ Quick Post button.</p>
+                    </div>
                 </div>
             </div>
 

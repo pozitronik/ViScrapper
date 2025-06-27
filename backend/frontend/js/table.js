@@ -107,19 +107,31 @@ class ProductTable {
             <div class="id-content">
                 <span class="cell-id">${product.id}</span>
                 <div class="control-buttons">
-                    <button class="btn btn-sm btn-telegram" data-product-id="${product.id}" title="Send to Telegram">
+                    <button class="btn btn-sm btn-outline" data-product-id="${product.id}" data-action="telegram" title="Send to Telegram">
                         📤
+                    </button>
+                    <button class="btn btn-sm btn-success" data-product-id="${product.id}" data-action="quick-post" title="Quick post to Telegram">
+                        ⚡
                     </button>
                 </div>
             </div>
         `;
         
         // Add event listener for telegram button
-        const telegramBtn = cell.querySelector('.btn-telegram');
+        const telegramBtn = cell.querySelector('[data-action="telegram"]');
         if (telegramBtn) {
             telegramBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.handleSendToTelegram(product.id);
+            });
+        }
+        
+        // Add event listener for quick post button
+        const quickPostBtn = cell.querySelector('[data-action="quick-post"]');
+        if (quickPostBtn) {
+            quickPostBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleQuickPost(product.id);
             });
         }
         
@@ -430,6 +442,24 @@ class ProductTable {
         // Open the telegram modal
         if (window.telegramModal) {
             window.telegramModal.openModal();
+        } else {
+            console.warn('Telegram modal not available');
+        }
+    }
+
+    /**
+     * Handle quick post for individual product
+     */
+    handleQuickPost(productId) {
+        // First select the product in the row selection system
+        if (this.rowSelection) {
+            this.rowSelection.clearSelection();
+            this.rowSelection.selectProducts([productId]);
+        }
+        
+        // Trigger quick post
+        if (window.telegramModal) {
+            window.telegramModal.quickPost();
         } else {
             console.warn('Telegram modal not available');
         }
