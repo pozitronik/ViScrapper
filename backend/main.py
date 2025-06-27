@@ -18,6 +18,7 @@ from exceptions.base import ProductException
 from api.routers.products import router as products_router
 from api.routers.health import router as health_router
 from api.routers.backup import router as backup_router
+from api.routers.templates import router as templates_router
 
 # Setup backup service with environment variable support
 from services.backup_service import backup_service
@@ -80,6 +81,7 @@ setup_error_handlers(app)
 app.include_router(products_router)
 app.include_router(health_router)
 app.include_router(backup_router)
+app.include_router(templates_router)
 
 
 @app.websocket("/ws")

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -47,3 +47,19 @@ class Size(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     product = relationship("Product", back_populates="sizes")
+
+
+class MessageTemplate(Base):
+    __tablename__ = "message_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+    description = Column(String, nullable=True)
+    template_content = Column(Text, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    def __repr__(self):
+        return f"<MessageTemplate(id={self.id}, name='{self.name}', active={self.is_active})>"
