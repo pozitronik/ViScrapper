@@ -22,6 +22,24 @@ class TemplateRenderer:
     
     # Define available placeholders and their descriptions
     AVAILABLE_PLACEHOLDERS = {
+        # Short format (user-friendly)
+        '{name}': 'Product name',
+        '{sku}': 'Product SKU', 
+        '{price}': 'Product price',
+        '{currency}': 'Product currency',
+        '{availability}': 'Product availability status',
+        '{color}': 'Product color',
+        '{composition}': 'Product composition',
+        '{item}': 'Product item type',
+        '{comment}': 'Product comment',
+        '{url}': 'Product URL',
+        '{id}': 'Product ID',
+        '{created_at}': 'Product creation date',
+        '{images_count}': 'Number of product images',
+        '{sizes_count}': 'Number of available sizes',
+        '{sizes}': 'Available sizes (comma-separated)',
+        '{images}': 'Image URLs (comma-separated)',
+        # Long format (backwards compatibility)
         '{product_name}': 'Product name',
         '{product_sku}': 'Product SKU',
         '{product_price}': 'Product price',
@@ -38,6 +56,7 @@ class TemplateRenderer:
         '{product_sizes_count}': 'Number of available sizes',
         '{product_sizes}': 'Available sizes (comma-separated)',
         '{product_images}': 'Image URLs (comma-separated)',
+        # Date/time placeholders
         '{current_date}': 'Current date (YYYY-MM-DD)',
         '{current_time}': 'Current time (HH:MM:SS)',
         '{current_datetime}': 'Current date and time',
@@ -84,7 +103,26 @@ class TemplateRenderer:
         # Format creation date
         created_at_str = product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else 'Unknown'
         
-        return {
+        # Return both short and long format for compatibility
+        product_data = {
+            # Short format (user-friendly)
+            'name': product.name or 'Unnamed Product',
+            'sku': product.sku or 'No SKU',
+            'price': str(product.price) if product.price is not None else '0.00',
+            'currency': product.currency or 'USD',
+            'availability': product.availability or 'Unknown',
+            'color': product.color or 'Not specified',
+            'composition': product.composition or 'Not specified',
+            'item': product.item or 'Not specified',
+            'comment': product.comment or 'No comment',
+            'url': product.product_url or '',
+            'id': str(product.id),
+            'created_at': created_at_str,
+            'images_count': str(len(images)),
+            'sizes_count': str(len(sizes)),
+            'sizes': sizes_str,
+            'images': images_str,
+            # Long format (backwards compatibility)
             'product_name': product.name or 'Unnamed Product',
             'product_sku': product.sku or 'No SKU',
             'product_price': str(product.price) if product.price is not None else '0.00',
@@ -102,6 +140,8 @@ class TemplateRenderer:
             'product_sizes': sizes_str,
             'product_images': images_str,
         }
+        
+        return product_data
     
     def _get_current_data(self) -> Dict[str, str]:
         """Get current date/time data for placeholder replacement"""
