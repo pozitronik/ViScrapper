@@ -11,6 +11,9 @@ from sqlalchemy.orm import Session
 from main import app
 from database.session import get_db, engine
 from models.product import Base, Product, Image, Size
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from crud.delete_operations import (
     soft_delete_product, hard_delete_product, restore_product,
     get_deleted_products, delete_product_with_mode
@@ -25,9 +28,15 @@ class TestSoftDeleteOperations:
     @pytest.fixture(autouse=True)
     def setup_method(self):
         """Set up test database and sample data"""
-        # Create fresh database for each test
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        # Create isolated test database
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
         
         # Create test image directory
         self.test_image_dir = Path("test_images")
@@ -44,6 +53,9 @@ class TestSoftDeleteOperations:
         yield
         
         # Cleanup
+        self.test_db.close()
+        Base.metadata.drop_all(bind=self.test_engine)
+        
         if self.test_image_file.exists():
             self.test_image_file.unlink()
         if self.test_image_dir.exists():
@@ -84,7 +96,7 @@ class TestSoftDeleteOperations:
     
     def test_soft_delete_product_success(self):
         """Test successful soft deletion of a product"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create test product
         product = self.create_test_product(db)
@@ -118,7 +130,7 @@ class TestSoftDeleteOperations:
     
     def test_soft_delete_already_deleted_product(self):
         """Test soft deleting an already soft-deleted product"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create and soft delete product
         product = self.create_test_product(db)
@@ -132,7 +144,7 @@ class TestSoftDeleteOperations:
     
     def test_hard_delete_product_success(self):
         """Test successful hard deletion of a product"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create test product
         product = self.create_test_product(db)
@@ -157,7 +169,7 @@ class TestSoftDeleteOperations:
     
     def test_hard_delete_soft_deleted_product(self):
         """Test hard deletion of a previously soft-deleted product"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create and soft delete product
         product = self.create_test_product(db)
@@ -175,7 +187,7 @@ class TestSoftDeleteOperations:
     
     def test_restore_product_success(self):
         """Test successful restoration of a soft-deleted product"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create and soft delete product
         product = self.create_test_product(db)
@@ -202,7 +214,7 @@ class TestSoftDeleteOperations:
     
     def test_restore_non_deleted_product_fails(self):
         """Test that restoring a non-deleted product fails"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create product (but don't delete it)
         product = self.create_test_product(db)
@@ -216,7 +228,7 @@ class TestSoftDeleteOperations:
     
     def test_get_deleted_products(self):
         """Test retrieving list of soft-deleted products"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create multiple products
         product1 = self.create_test_product(db)
@@ -244,7 +256,7 @@ class TestSoftDeleteOperations:
     
     def test_delete_product_with_mode(self):
         """Test delete_product_with_mode function"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create two products
         product1 = self.create_test_product(db)
@@ -275,7 +287,7 @@ class TestSoftDeleteOperations:
     
     def test_soft_delete_nonexistent_product_fails(self):
         """Test that soft deleting a nonexistent product fails"""
-        db = next(get_db())
+        db = self.test_db
         
         with pytest.raises(ProductException) as exc_info:
             soft_delete_product(db, 99999)
@@ -284,7 +296,7 @@ class TestSoftDeleteOperations:
     
     def test_hard_delete_nonexistent_product_fails(self):
         """Test that hard deleting a nonexistent product fails"""
-        db = next(get_db())
+        db = self.test_db
         
         with pytest.raises(ProductException) as exc_info:
             hard_delete_product(db, 99999)
@@ -298,8 +310,20 @@ class TestSoftDeleteAPI:
     @pytest.fixture(autouse=True)
     def setup_method(self):
         """Set up test database"""
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        # Create isolated test database
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
+        
+        # Override dependency injection for isolated testing
+        def override_get_db():
+            yield self.test_db
+        app.dependency_overrides[get_db] = override_get_db
         
         self.client = TestClient(app)
         

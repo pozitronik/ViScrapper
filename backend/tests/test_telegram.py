@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 from main import app
 from database.session import get_db, engine
 from models.product import Base, Product, Image, Size, MessageTemplate, TelegramChannel, TelegramPost
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from crud.telegram import create_channel, get_channel_by_id, create_post
 from crud.template import create_template
 from schemas.telegram import TelegramChannelCreate, TelegramPostCreate, PostStatus
@@ -24,9 +27,15 @@ class TestTelegramService:
     @pytest.fixture(autouse=True)
     def setup_method(self):
         """Set up test database"""
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        # Create isolated test database
+        test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=test_engine)
         yield
+        Base.metadata.drop_all(bind=test_engine)
     
     def test_telegram_service_disabled_without_token(self):
         """Test that service is disabled without token"""
@@ -115,9 +124,18 @@ class TestTelegramCRUD:
     @pytest.fixture(autouse=True)
     def setup_method(self):
         """Set up test database"""
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        # Create isolated test database
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
         yield
+        self.test_db.close()
+        Base.metadata.drop_all(bind=self.test_engine)
     
     def create_test_template(self, db: Session) -> MessageTemplate:
         """Helper to create test template"""
@@ -131,7 +149,7 @@ class TestTelegramCRUD:
     
     def test_create_channel_success(self):
         """Test successful channel creation"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create template first
         template = self.create_test_template(db)
@@ -157,7 +175,7 @@ class TestTelegramCRUD:
     
     def test_create_channel_duplicate_chat_id_fails(self):
         """Test that creating channel with duplicate chat_id fails"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create first channel
         channel_data1 = TelegramChannelCreate(
@@ -182,7 +200,7 @@ class TestTelegramCRUD:
     
     def test_create_channel_invalid_template_fails(self):
         """Test creating channel with non-existent template fails"""
-        db = next(get_db())
+        db = self.test_db
         
         channel_data = TelegramChannelCreate(
             name="Test Channel",
@@ -198,7 +216,7 @@ class TestTelegramCRUD:
     
     def test_get_channel_by_id(self):
         """Test retrieving channel by ID"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create channel
         channel_data = TelegramChannelCreate(
@@ -221,9 +239,18 @@ class TestTelegramPostService:
     @pytest.fixture(autouse=True)
     def setup_method(self):
         """Set up test database and sample data"""
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        # Create isolated test database
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
         yield
+        self.test_db.close()
+        Base.metadata.drop_all(bind=self.test_engine)
     
     def create_test_product(self, db: Session) -> Product:
         """Helper to create test product"""
@@ -264,7 +291,7 @@ class TestTelegramPostService:
     @pytest.mark.asyncio
     async def test_preview_post_with_custom_template(self):
         """Test post preview with custom template"""
-        db = next(get_db())
+        db = self.test_db
         product = self.create_test_product(db)
         channel = self.create_test_channel(db)
         
@@ -285,7 +312,7 @@ class TestTelegramPostService:
     @pytest.mark.asyncio
     async def test_preview_post_with_channel_template(self):
         """Test post preview using channel's default template"""
-        db = next(get_db())
+        db = self.test_db
         template = self.create_test_template(db)
         product = self.create_test_product(db)
         channel = self.create_test_channel(db, template_id=template.id)
@@ -305,7 +332,7 @@ class TestTelegramPostService:
     @pytest.mark.asyncio
     async def test_preview_post_invalid_product(self):
         """Test preview with non-existent product"""
-        db = next(get_db())
+        db = self.test_db
         service = TelegramPostService()
         
         from exceptions.base import ValidationException
@@ -320,7 +347,7 @@ class TestTelegramPostService:
         """Test sending post with disabled telegram service"""
         mock_telegram_service.is_enabled.return_value = False
         
-        db = next(get_db())
+        db = self.test_db
         product = self.create_test_product(db)
         channel = self.create_test_channel(db)
         
@@ -347,7 +374,7 @@ class TestTelegramPostService:
             "result": {"message_id": 123}
         })
         
-        db = next(get_db())
+        db = self.test_db
         product = self.create_test_product(db)
         channel = self.create_test_channel(db)
         
@@ -374,13 +401,25 @@ class TestTelegramAPI:
     @pytest.fixture(autouse=True)
     def setup_method(self):
         """Set up test database"""
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        # Create isolated test database
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
+        
+        # Override dependency injection for isolated testing
+        def override_get_db():
+            yield self.test_db
+        app.dependency_overrides[get_db] = override_get_db
         
         self.client = TestClient(app)
         
         # Create test data
-        db = next(get_db())
+        db = self.test_db
         
         # Create template
         template_data = MessageTemplateCreate(
@@ -401,6 +440,13 @@ class TestTelegramAPI:
         db.add(product)
         db.commit()
         self.test_product_id = product.id
+        
+        yield
+        
+        # Cleanup
+        app.dependency_overrides.clear()
+        self.test_db.close()
+        Base.metadata.drop_all(bind=self.test_engine)
     
     def test_create_channel_api(self):
         """Test creating channel via API"""

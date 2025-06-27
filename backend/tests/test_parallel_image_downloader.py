@@ -41,8 +41,9 @@ class TestParallelImageDownloader:
         assert len(saved_files) == 3
         
         # Verify all files exist and contain correct content
+        image_dir = os.getenv("IMAGE_DIR", "./images")
         for i, image_id in enumerate(saved_files):
-            file_path = os.path.join("./images", image_id)
+            file_path = os.path.join(image_dir, image_id)
             assert os.path.exists(file_path)
             
             with open(file_path, "rb") as f:

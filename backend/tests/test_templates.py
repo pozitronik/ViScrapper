@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session
 from main import app
 from database.session import get_db, engine
 from models.product import Base, Product, Image, Size, MessageTemplate
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from crud.template import create_template, get_template_by_id, update_template
 from schemas.template import MessageTemplateCreate, MessageTemplateUpdate
 from services.template_service import template_renderer
@@ -19,11 +22,18 @@ class TestMessageTemplates:
     @pytest.fixture(autouse=True)
     def setup_method(self):
         """Set up test database and sample data"""
-        # Create fresh database for each test
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
-        
+        # Create isolated test database
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
         yield
+        self.test_db.close()
+        Base.metadata.drop_all(bind=self.test_engine)
     
     def create_test_product(self, db: Session) -> Product:
         """Helper to create a test product"""
@@ -72,7 +82,7 @@ class TestMessageTemplates:
     
     def test_create_template_success(self):
         """Test successful template creation"""
-        db = next(get_db())
+        db = self.test_db
         
         template_data = MessageTemplateCreate(
             name="Email Template",
@@ -93,7 +103,7 @@ class TestMessageTemplates:
     
     def test_create_template_duplicate_name_fails(self):
         """Test that creating template with duplicate name fails"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create first template
         template_data1 = MessageTemplateCreate(
@@ -120,7 +130,7 @@ class TestMessageTemplates:
     
     def test_get_template_by_id(self):
         """Test retrieving template by ID"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create template
         created_template = self.create_test_template(db)
@@ -134,7 +144,7 @@ class TestMessageTemplates:
     
     def test_update_template_success(self):
         """Test successful template update"""
-        db = next(get_db())
+        db = self.test_db
         
         # Create template
         template = self.create_test_template(db)
@@ -162,10 +172,18 @@ class TestTemplateRenderer:
     @pytest.fixture(autouse=True)
     def setup_method(self):
         """Set up test database and sample data"""
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
-        
+        # Create isolated test database
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
         yield
+        self.test_db.close()
+        Base.metadata.drop_all(bind=self.test_engine)
     
     def create_test_product(self, db: Session) -> Product:
         """Helper to create a test product with images and sizes"""
@@ -198,7 +216,7 @@ class TestTemplateRenderer:
     
     def test_template_rendering_basic(self):
         """Test basic template rendering with product data"""
-        db = next(get_db())
+        db = self.test_db
         product = self.create_test_product(db)
         
         template_content = "Product: {product_name} - Price: {product_price} {product_currency}"
@@ -210,7 +228,7 @@ class TestTemplateRenderer:
     
     def test_template_rendering_all_placeholders(self):
         """Test template rendering with all available placeholders"""
-        db = next(get_db())
+        db = self.test_db
         product = self.create_test_product(db)
         
         template_content = """
@@ -244,7 +262,7 @@ class TestTemplateRenderer:
     
     def test_template_rendering_invalid_placeholder(self):
         """Test that invalid placeholders raise an error"""
-        db = next(get_db())
+        db = self.test_db
         product = self.create_test_product(db)
         
         template_content = "Product: {product_name} - Invalid: {invalid_placeholder}"
@@ -295,13 +313,25 @@ class TestTemplateAPI:
     @pytest.fixture(autouse=True)
     def setup_method(self):
         """Set up test database"""
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        # Create isolated test database
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
+        
+        # Override dependency injection for isolated testing
+        def override_get_db():
+            yield self.test_db
+        app.dependency_overrides[get_db] = override_get_db
         
         self.client = TestClient(app)
         
         # Create test product
-        db = next(get_db())
+        db = self.test_db
         product = Product(
             product_url="https://example.com/api-test-product",
             name="API Test Product",
@@ -312,6 +342,13 @@ class TestTemplateAPI:
         db.add(product)
         db.commit()
         self.test_product_id = product.id
+        
+        yield
+        
+        # Cleanup
+        app.dependency_overrides.clear()
+        self.test_db.close()
+        Base.metadata.drop_all(bind=self.test_engine)
     
     def test_create_template_api(self):
         """Test creating template via API"""
