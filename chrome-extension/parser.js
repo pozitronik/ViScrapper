@@ -67,7 +67,7 @@
     } catch (e) {
         console.error('Could not find item information:', e);
     }
-    productData.comment = ''; // New field, default empty
+    productData.comment = '';
 
     return productData;
   }

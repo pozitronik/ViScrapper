@@ -5,8 +5,8 @@ document.getElementById('scrape').addEventListener('click', async () => {
   
   // Disable button during operation
   button.disabled = true;
-  button.textContent = 'Scraping...';
-  status.textContent = 'Extracting product data...';
+  button.textContent = 'Reloading...';
+  status.textContent = 'Refreshing page to get latest data...';
   status.className = 'status-info';
 
   try {
@@ -18,6 +18,17 @@ document.getElementById('scrape').addEventListener('click', async () => {
     if (!tabs || !tabs[0]) {
       throw new Error('No active tab found');
     }
+
+    // Reload the page to ensure fresh JSON-LD data
+    await new Promise((resolve) => {
+      chrome.tabs.reload(tabs[0].id, () => {
+        // Wait for page to fully load
+        setTimeout(resolve, 3000);
+      });
+    });
+
+    status.textContent = 'Extracting product data...';
+    button.textContent = 'Scraping...';
 
     // Execute parser script
     const results = await new Promise((resolve, reject) => {
