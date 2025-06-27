@@ -130,6 +130,9 @@
                     <button id="export-selected" class="btn btn-secondary">
                         📥 Export Selected
                     </button>
+                    <button id="telegram-selected" class="btn btn-primary">
+                        📤 Post to Telegram
+                    </button>
                     <button id="clear-selection" class="btn btn-outline">
                         Clear Selection
                     </button>
@@ -196,6 +199,170 @@
         </div>
     </div>
 
+    <!-- Telegram Post Modal -->
+    <div id="telegram-modal" class="telegram-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">📤 Post to Telegram</h3>
+                <button class="modal-close" id="telegram-modal-close" title="Close (Esc)">×</button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Step 1: Channel Selection -->
+                <div class="step-section" id="channel-selection-step">
+                    <div class="step-header">
+                        <h4>1. Select Channels</h4>
+                        <button id="refresh-channels" class="btn btn-outline btn-sm" title="Refresh channels">
+                            ↻ Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="channels-container">
+                        <div id="channels-loading" class="loading-spinner hidden">
+                            <div class="spinner"></div>
+                            <span>Loading channels...</span>
+                        </div>
+                        
+                        <div id="channels-list" class="channels-list">
+                            <!-- Channels will be loaded here -->
+                        </div>
+                        
+                        <div id="no-channels" class="no-channels hidden">
+                            <p>No active Telegram channels found.</p>
+                            <p class="text-muted">Create channels via the API to start posting.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Template Selection -->
+                <div class="step-section" id="template-selection-step">
+                    <div class="step-header">
+                        <h4>2. Choose Template</h4>
+                        <button id="refresh-templates" class="btn btn-outline btn-sm" title="Refresh templates">
+                            ↻ Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="template-options">
+                        <label class="template-option">
+                            <input type="radio" name="template-type" value="channel-default" checked>
+                            <span class="template-option-label">Use channel's default template</span>
+                        </label>
+                        
+                        <label class="template-option">
+                            <input type="radio" name="template-type" value="template-select">
+                            <span class="template-option-label">Select template:</span>
+                            <select id="template-select" class="template-select" disabled>
+                                <option value="">Loading templates...</option>
+                            </select>
+                        </label>
+                        
+                        <label class="template-option">
+                            <input type="radio" name="template-type" value="custom">
+                            <span class="template-option-label">Custom template:</span>
+                        </label>
+                    </div>
+                    
+                    <div id="custom-template-section" class="custom-template-section hidden">
+                        <textarea 
+                            id="custom-template" 
+                            class="custom-template-textarea"
+                            placeholder="Enter your custom template here...&#10;&#10;Available placeholders:&#10;{product_name}, {product_price}, {product_currency}, {product_sku}, {product_url}, {current_date}..."
+                            rows="6"
+                        ></textarea>
+                        
+                        <div class="template-help">
+                            <button id="show-placeholders" class="btn btn-outline btn-sm" type="button">
+                                📋 Show Available Placeholders
+                            </button>
+                        </div>
+                        
+                        <div id="placeholders-help" class="placeholders-help hidden">
+                            <h5>Available Placeholders:</h5>
+                            <div class="placeholders-grid" id="placeholders-list">
+                                <!-- Placeholders will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Post Options -->
+                <div class="step-section" id="post-options-step">
+                    <h4>3. Post Options</h4>
+                    
+                    <div class="post-options">
+                        <label class="option-checkbox">
+                            <input type="checkbox" id="send-photos" checked>
+                            <span class="option-label">📷 Include product photos</span>
+                        </label>
+                        
+                        <label class="option-checkbox">
+                            <input type="checkbox" id="disable-notification">
+                            <span class="option-label">🔕 Send silently (no notification)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Step 4: Preview -->
+                <div class="step-section" id="preview-step">
+                    <div class="step-header">
+                        <h4>4. Preview</h4>
+                        <button id="refresh-preview" class="btn btn-outline btn-sm" title="Refresh preview">
+                            ↻ Update Preview
+                        </button>
+                    </div>
+                    
+                    <div id="preview-loading" class="loading-spinner hidden">
+                        <div class="spinner"></div>
+                        <span>Generating preview...</span>
+                    </div>
+                    
+                    <div id="preview-container" class="preview-container">
+                        <div class="preview-tabs">
+                            <button class="preview-tab active" data-product="first">Product 1</button>
+                        </div>
+                        
+                        <div class="preview-content">
+                            <div id="preview-post" class="preview-post">
+                                <div class="preview-header">
+                                    <span class="preview-channel">📢 Channel Name</span>
+                                    <span class="preview-photos">📷 2 photos</span>
+                                </div>
+                                
+                                <div class="preview-message" id="preview-message">
+                                    <!-- Rendered message will appear here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="preview-error" class="preview-error hidden">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-text">
+                            <strong>Preview Error</strong>
+                            <p id="preview-error-message"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <div class="modal-footer-info">
+                    <span id="selected-products-count">1 product selected</span>
+                    <span id="selected-channels-count">0 channels selected</span>
+                </div>
+                
+                <div class="modal-footer-actions">
+                    <button id="telegram-cancel" class="btn btn-outline">Cancel</button>
+                    <button id="telegram-send" class="btn btn-primary" disabled>
+                        📤 Send Posts
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/api.js"></script>
@@ -206,6 +373,7 @@
     <script src="/static/js/row-selection.js"></script>
     <script src="/static/js/keyboard-shortcuts.js"></script>
     <script src="/static/js/websocket-client.js"></script>
+    <script src="/static/js/telegram.js"></script>
     <script src="/static/js/table.js"></script>
     <script src="/static/js/main.js"></script>
 </body>
