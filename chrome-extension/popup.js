@@ -1,3 +1,126 @@
+// Check current product status when popup opens
+document.addEventListener('DOMContentLoaded', async () => {
+  await checkCurrentStatus();
+});
+
+async function checkCurrentStatus() {
+  try {
+    const tabs = await new Promise((resolve) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, resolve);
+    });
+
+    if (!tabs || !tabs[0]) return;
+
+    // Get current product data
+    const results = await new Promise((resolve, reject) => {
+      chrome.scripting.executeScript(
+        {
+          target: { tabId: tabs[0].id },
+          func: () => {
+            try {
+              const jsonLdScript = document.getElementById('StructuredDataPDP-json-ld');
+              if (!jsonLdScript) return null;
+              const data = JSON.parse(jsonLdScript.textContent);
+              return {
+                url: window.location.href,
+                sku: data.sku,
+                name: data.name
+              };
+            } catch (e) {
+              return null;
+            }
+          }
+        },
+        (results) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(results);
+          }
+        }
+      );
+    });
+
+    const productData = results?.[0]?.result;
+    if (!productData) {
+      updateStatusDisplay('NOT_PRODUCT', null);
+      return;
+    }
+
+    // Check backend for status
+    const urlResponse = await fetch(`http://127.0.0.1:8000/api/v1/products/search?q=${encodeURIComponent(productData.url)}`);
+    let urlExists = false;
+    if (urlResponse.ok) {
+      const urlResult = await urlResponse.json();
+      urlExists = urlResult.data && urlResult.data.some(product => 
+        product.product_url === productData.url
+      );
+    }
+
+    if (urlExists) {
+      updateStatusDisplay('URL_EXISTS', productData);
+    } else if (productData.sku) {
+      // Check if SKU exists (exact match)
+      const skuResponse = await fetch(`http://127.0.0.1:8000/api/v1/products/search?q=${encodeURIComponent(productData.sku)}`);
+      let skuExists = false;
+      if (skuResponse.ok) {
+        const skuResult = await skuResponse.json();
+        skuExists = skuResult.data && skuResult.data.some(product => 
+          product.sku === productData.sku
+        );
+      }
+      
+      if (skuExists) {
+        updateStatusDisplay('SKU_EXISTS', productData);
+      } else {
+        updateStatusDisplay('NEW_PRODUCT', productData);
+      }
+    } else {
+      updateStatusDisplay('NEW_PRODUCT', productData);
+    }
+  } catch (e) {
+    console.error('Error checking status:', e);
+  }
+}
+
+function updateStatusDisplay(status, productData) {
+  const statusDiv = document.getElementById('status');
+  const button = document.getElementById('scrape');
+  const refreshButton = document.getElementById('refresh');
+  
+  // Hide refresh button by default
+  refreshButton.style.display = 'none';
+  button.disabled = false;
+  
+  switch (status) {
+    case 'URL_EXISTS':
+      statusDiv.textContent = 'Product already saved';
+      statusDiv.className = 'status-success';
+      button.textContent = 'Re-scrape Product';
+      break;
+      
+    case 'SKU_EXISTS':
+      statusDiv.textContent = 'SKU exists - refresh needed for accurate data';
+      statusDiv.className = 'status-info';
+      button.textContent = 'Scrape Product';
+      refreshButton.style.display = 'block';
+      break;
+      
+    case 'NEW_PRODUCT':
+      statusDiv.textContent = 'Ready to scrape new product';
+      statusDiv.className = 'status-info';
+      button.textContent = 'Scrape Product';
+      break;
+      
+    case 'NOT_PRODUCT':
+      statusDiv.textContent = 'No product detected on this page';
+      statusDiv.className = 'status-error';
+      button.disabled = true;
+      button.textContent = 'No Product Found';
+      break;
+  }
+}
+
 document.getElementById('scrape').addEventListener('click', async () => {
   const button = document.getElementById('scrape');
   const status = document.getElementById('status');
@@ -5,8 +128,8 @@ document.getElementById('scrape').addEventListener('click', async () => {
   
   // Disable button during operation
   button.disabled = true;
-  button.textContent = 'Reloading...';
-  status.textContent = 'Refreshing page to get latest data...';
+  button.textContent = 'Scraping...';
+  status.textContent = 'Extracting product data...';
   status.className = 'status-info';
 
   try {
@@ -18,17 +141,6 @@ document.getElementById('scrape').addEventListener('click', async () => {
     if (!tabs || !tabs[0]) {
       throw new Error('No active tab found');
     }
-
-    // Reload the page to ensure fresh JSON-LD data
-    await new Promise((resolve) => {
-      chrome.tabs.reload(tabs[0].id, () => {
-        // Wait for page to fully load
-        setTimeout(resolve, 3000);
-      });
-    });
-
-    status.textContent = 'Extracting product data...';
-    button.textContent = 'Scraping...';
 
     // Execute parser script
     const results = await new Promise((resolve, reject) => {
@@ -146,3 +258,19 @@ document.getElementById('comment').addEventListener('input', updateCharCount);
 
 // Initialize character count on load
 document.addEventListener('DOMContentLoaded', updateCharCount);
+
+// Refresh button handler
+document.getElementById('refresh').addEventListener('click', async () => {
+  try {
+    const tabs = await new Promise((resolve) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, resolve);
+    });
+
+    if (tabs && tabs[0]) {
+      chrome.tabs.reload(tabs[0].id);
+      window.close(); // Close popup after refresh
+    }
+  } catch (e) {
+    console.error('Error refreshing page:', e);
+  }
+});
