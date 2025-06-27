@@ -1,31 +1,96 @@
 // Check current product status when popup opens
 document.addEventListener('DOMContentLoaded', async () => {
-  await checkCurrentStatus();
+  await loadProductInfo();
 });
 
-async function checkCurrentStatus() {
+async function loadProductInfo() {
+  const productInfoDiv = document.getElementById('product-info');
+  
   try {
     const tabs = await new Promise((resolve) => {
       chrome.tabs.query({ active: true, currentWindow: true }, resolve);
     });
 
-    if (!tabs || !tabs[0]) return;
+    if (!tabs || !tabs[0]) {
+      productInfoDiv.innerHTML = '<div style="color: #e74c3c;">No active tab found</div>';
+      return;
+    }
 
-    // Get current product data
+    // Start with immediate check
+    let productData = await extractProductData(tabs[0].id);
+    
+    if (!productData) {
+      // Show waiting message and start background waiting
+      productInfoDiv.innerHTML = '<div style="color: #f39c12;">Waiting for product data to load...</div>';
+      
+      // Background waiting logic
+      productData = await waitForProductData(tabs[0].id, 15000); // Wait up to 15 seconds
+    }
+    
+    if (productData) {
+      await displayProductInfo(productData);
+    } else {
+      productInfoDiv.innerHTML = '<div style="color: #6c757d;">No product detected on this page</div>';
+      updateStatusDisplay('NOT_PRODUCT', null);
+    }
+    
+  } catch (e) {
+    console.error('Error loading product info:', e);
+    productInfoDiv.innerHTML = '<div style="color: #e74c3c;">Error loading product data</div>';
+  }
+}
+
+async function extractProductData(tabId) {
+  try {
     const results = await new Promise((resolve, reject) => {
       chrome.scripting.executeScript(
         {
-          target: { tabId: tabs[0].id },
+          target: { tabId: tabId },
           func: () => {
             try {
+              // Check main script first
               const jsonLdScript = document.getElementById('StructuredDataPDP-json-ld');
-              if (!jsonLdScript) return null;
-              const data = JSON.parse(jsonLdScript.textContent);
-              return {
-                url: window.location.href,
-                sku: data.sku,
-                name: data.name
-              };
+              if (jsonLdScript && jsonLdScript.textContent.trim()) {
+                const data = JSON.parse(jsonLdScript.textContent);
+                if (data.name || data.sku) {
+                  return {
+                    url: window.location.href,
+                    name: data.name,
+                    sku: data.sku,
+                    brand: data.brand?.name,
+                    price: data.offers?.price,
+                    currency: data.offers?.priceCurrency,
+                    availability: data.offers?.availability,
+                    images: data.image?.length || 0,
+                    source: 'main-script'
+                  };
+                }
+              }
+              
+              // Fallback: check all JSON-LD scripts
+              const allScripts = document.querySelectorAll('script[type="application/ld+json"]');
+              for (let script of allScripts) {
+                try {
+                  const data = JSON.parse(script.textContent);
+                  if (data['@type'] === 'Product' || (data.name && data.sku)) {
+                    return {
+                      url: window.location.href,
+                      name: data.name,
+                      sku: data.sku,
+                      brand: data.brand?.name,
+                      price: data.offers?.price,
+                      currency: data.offers?.priceCurrency,
+                      availability: data.offers?.availability,
+                      images: data.image?.length || 0,
+                      source: 'fallback-script'
+                    };
+                  }
+                } catch (e) {
+                  continue;
+                }
+              }
+              
+              return null;
             } catch (e) {
               return null;
             }
@@ -40,14 +105,43 @@ async function checkCurrentStatus() {
         }
       );
     });
+    
+    return results?.[0]?.result;
+  } catch (e) {
+    return null;
+  }
+}
 
-    const productData = results?.[0]?.result;
-    if (!productData) {
-      updateStatusDisplay('NOT_PRODUCT', null);
-      return;
+async function waitForProductData(tabId, maxWaitTime = 15000) {
+  const checkInterval = 1000; // Check every second
+  let waited = 0;
+  
+  while (waited < maxWaitTime) {
+    await new Promise(resolve => setTimeout(resolve, checkInterval));
+    waited += checkInterval;
+    
+    const productData = await extractProductData(tabId);
+    if (productData) {
+      return productData;
     }
+    
+    // Update waiting message
+    const productInfoDiv = document.getElementById('product-info');
+    if (productInfoDiv) {
+      const remainingSeconds = Math.ceil((maxWaitTime - waited) / 1000);
+      productInfoDiv.innerHTML = `<div style="color: #f39c12;">Waiting for product data... (${remainingSeconds}s remaining)</div>`;
+    }
+  }
+  
+  return null;
+}
 
-    // Check backend for status
+async function displayProductInfo(productData) {
+  const productInfoDiv = document.getElementById('product-info');
+  
+  // Check backend status
+  let backendStatus = 'unknown';
+  try {
     const urlResponse = await fetch(`http://127.0.0.1:8000/api/v1/products/search?q=${encodeURIComponent(productData.url)}`);
     let urlExists = false;
     if (urlResponse.ok) {
@@ -58,9 +152,9 @@ async function checkCurrentStatus() {
     }
 
     if (urlExists) {
+      backendStatus = 'URL_EXISTS';
       updateStatusDisplay('URL_EXISTS', productData);
     } else if (productData.sku) {
-      // Check if SKU exists (exact match)
       const skuResponse = await fetch(`http://127.0.0.1:8000/api/v1/products/search?q=${encodeURIComponent(productData.sku)}`);
       let skuExists = false;
       if (skuResponse.ok) {
@@ -71,16 +165,52 @@ async function checkCurrentStatus() {
       }
       
       if (skuExists) {
+        backendStatus = 'SKU_EXISTS';
         updateStatusDisplay('SKU_EXISTS', productData);
       } else {
+        backendStatus = 'NEW_PRODUCT';
         updateStatusDisplay('NEW_PRODUCT', productData);
       }
     } else {
+      backendStatus = 'NEW_PRODUCT';
       updateStatusDisplay('NEW_PRODUCT', productData);
     }
   } catch (e) {
-    console.error('Error checking status:', e);
+    console.error('Error checking backend:', e);
   }
+  
+  // Format product info display
+  let infoHtml = '<div style="font-weight: bold; margin-bottom: 6px;">Product Information:</div>';
+  
+  if (productData.name) {
+    infoHtml += `<div><strong>Name:</strong> ${productData.name}</div>`;
+  }
+  
+  if (productData.sku) {
+    infoHtml += `<div><strong>SKU:</strong> ${productData.sku}</div>`;
+  }
+  
+  if (productData.brand) {
+    infoHtml += `<div><strong>Brand:</strong> ${productData.brand}</div>`;
+  }
+  
+  if (productData.price) {
+    const priceText = productData.currency ? `${productData.price} ${productData.currency}` : productData.price;
+    infoHtml += `<div><strong>Price:</strong> ${priceText}</div>`;
+  }
+  
+  if (productData.availability) {
+    const availText = productData.availability.includes('InStock') ? 'In Stock' : 'Out of Stock';
+    infoHtml += `<div><strong>Availability:</strong> ${availText}</div>`;
+  }
+  
+  if (productData.images > 0) {
+    infoHtml += `<div><strong>Images:</strong> ${productData.images}</div>`;
+  }
+  
+  infoHtml += `<div style="margin-top: 6px; font-size: 10px; color: #6c757d;">Source: ${productData.source}</div>`;
+  
+  productInfoDiv.innerHTML = infoHtml;
 }
 
 function updateStatusDisplay(status, productData) {
@@ -274,3 +404,4 @@ document.getElementById('refresh').addEventListener('click', async () => {
     console.error('Error refreshing page:', e);
   }
 });
+
