@@ -4,7 +4,7 @@ Enhanced delete operations supporting soft and hard delete with cascading
 import os
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List
 from pathlib import Path
 
 from models.product import Product, Image, Size

@@ -1,12 +1,12 @@
 """
 Service for posting products to Telegram channels with template rendering
 """
-import asyncio
+
 import os
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
-from models.product import Product, TelegramChannel, TelegramPost, MessageTemplate
+from models.product import Product, TelegramChannel, TelegramPost
 from schemas.telegram import TelegramPostCreate, PostStatus
 from services.telegram_service import telegram_service
 from services.template_service import template_renderer
@@ -14,7 +14,7 @@ from crud.telegram import create_post, update_post_status, get_channel_by_id
 from crud.template import get_template_by_id
 from crud.product import get_product_by_id
 from utils.logger import get_logger
-from exceptions.base import ValidationException, ExternalServiceException
+from exceptions.base import ValidationException
 
 logger = get_logger(__name__)
 

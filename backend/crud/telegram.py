@@ -3,7 +3,7 @@ CRUD operations for Telegram channels and posts
 """
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import and_, desc, func
+from sqlalchemy import and_, desc
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 

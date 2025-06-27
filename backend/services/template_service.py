@@ -4,12 +4,11 @@ Supports dynamic placeholder replacement using product data.
 """
 
 import re
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
 
 from models.product import Product
-from models.template import MessageTemplate
 from crud.product import get_product_by_id
 from crud.template import get_template_by_id
 from utils.logger import get_logger

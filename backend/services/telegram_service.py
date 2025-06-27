@@ -1,12 +1,9 @@
 """
 Telegram service for sending messages and media
 """
-import asyncio
 import httpx
 from typing import List, Optional, Dict, Any
-from urllib.parse import quote_plus
 import os
-from datetime import datetime
 
 from utils.logger import get_logger
 from exceptions.base import ExternalServiceException, ValidationException

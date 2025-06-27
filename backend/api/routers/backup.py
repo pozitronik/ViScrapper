@@ -1,11 +1,10 @@
 """
 API endpoints for database backup management
 """
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Body
 from typing import List, Optional
-from datetime import datetime
 
-from services.backup_service import backup_service, BackupInfo
+from services.backup_service import backup_service
 from api.models.responses import SuccessResponse, FileDeleteResponse
 from utils.logger import get_logger
 

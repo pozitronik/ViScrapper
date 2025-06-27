@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError, OperationalError
 from typing import List, Optional
 from models.product import Product, Image, Size
-from schemas.product import ProductCreate, ProductBase, ProductUpdate
+from schemas.product import ProductCreate, ProductUpdate
 from utils.logger import get_logger
 from utils.database import atomic_transaction, validate_product_constraints, bulk_create_relationships
 from exceptions.base import DatabaseException, ValidationException, ProductException

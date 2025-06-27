@@ -3,12 +3,12 @@ API router for Telegram functionality
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional
 
 from database.session import get_db
 from schemas.telegram import (
     TelegramChannel, TelegramChannelCreate, TelegramChannelUpdate,
-    TelegramPost, TelegramPostCreate, TelegramPostPreview, TelegramPostPreviewResponse,
+    TelegramPost, TelegramPostPreview, TelegramPostPreviewResponse,
     SendPostRequest, SendPostResponse, TelegramChannelTest, TelegramChannelTestResponse,
     TelegramStatsResponse, PostStatus
 )

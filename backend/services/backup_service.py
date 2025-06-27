@@ -5,11 +5,9 @@ import os
 import shutil
 import sqlite3
 import asyncio
-import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
-import json
 import hashlib
 import gzip
 

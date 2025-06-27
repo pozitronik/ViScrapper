@@ -2,7 +2,7 @@ import asyncio
 import httpx
 import os
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from utils.logger import get_logger
 from exceptions.base import ImageDownloadException, ExternalServiceException
 

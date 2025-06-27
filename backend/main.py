@@ -33,35 +33,37 @@ logger = get_logger(__name__)
 
 Base.metadata.create_all(bind=engine)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan with proper startup and shutdown"""
     # Startup
     logger.info("Starting VIParser application...")
-    
+
     # Start scheduled backups if enabled
     if backup_service:
         logger.info("Starting backup service...")
         await backup_service.start_scheduled_backups()
     else:
         logger.info("Backup service disabled via BACKUP_ENABLED=false")
-    
+
     logger.info("VIParser application started successfully")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down VIParser application...")
-    
+
     # Stop scheduled backups if enabled
     if backup_service:
         logger.info("Stopping backup service...")
         await backup_service.stop_scheduled_backups()
-    
+
     logger.info("VIParser application shut down successfully")
 
+
 app = FastAPI(
-    title="VIParser API", 
+    title="VIParser API",
     description="Comprehensive product scraping and management API with full CRUD operations",
     version="1.0.0",
     docs_url="/docs",
@@ -98,7 +100,7 @@ async def websocket_endpoint(websocket: WebSocket):
             # Keep connection alive and handle any incoming messages
             data = await websocket.receive_text()
             logger.info(f"Received WebSocket message: {data}")
-            
+
             # Echo back or handle specific commands if needed
             await websocket_manager.send_personal_message(
                 f"Message received: {data}", websocket
@@ -127,7 +129,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
         DatabaseException: If database operation fails
     """
     logger.info(f"Starting product scrape for URL: {product.product_url}")
-    
+
     # Check if product already exists
     db_product = get_product_by_url(db, url=str(product.product_url))
     if db_product:
@@ -144,15 +146,15 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
 
     # Replace image URLs with local IDs for storage
     product.all_image_urls = image_ids
-    
+
     logger.info(f"Creating product in database: {product.product_url}")
     created_product = create_product(db=db, product=product)
-    
+
     # Broadcast the new product to all connected WebSocket clients
     from schemas.product import Product as ProductSchema
     product_dict = ProductSchema.from_orm(created_product).dict()
     await websocket_manager.broadcast_product_created(product_dict)
-    
+
     # Auto-post to telegram channels if configured
     try:
         auto_post_result = await telegram_post_service.auto_post_product(db=db, product_id=created_product.id)
@@ -163,17 +165,19 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error auto-posting product {created_product.id} to telegram: {e}")
         # Don't fail the main product creation if telegram auto-post fails
-    
+
     logger.info(f"Successfully created product with ID: {created_product.id} for URL: {product.product_url}")
     return created_product
 
 
 # Frontend serving routes
 import os
+
 if os.path.exists("images"):
     app.mount("/images", StaticFiles(directory="images"), name="images")
 
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
+
 
 @app.get("/")
 async def serve_frontend():

@@ -2,7 +2,7 @@
 Base schemas for API responses
 """
 from pydantic import BaseModel
-from typing import TypeVar, Generic, Optional, Any, Dict
+from typing import TypeVar, Generic, Optional
 
 T = TypeVar('T')
 

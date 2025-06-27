@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, func, desc, asc
+from sqlalchemy import or_, desc, asc
 from typing import List, Optional
 from datetime import datetime, timedelta
 
 from database.session import get_db
-from schemas.product import Product, ProductCreate, ProductBase, ProductUpdate
+from schemas.product import Product, ProductCreate, ProductUpdate
 from crud.product import (
     get_product_by_url, create_product, get_product_by_id, 
-    update_product, delete_product, get_products
+    update_product
 )
 from crud.delete_operations import (
     delete_product_with_mode, restore_product, get_deleted_products,
@@ -18,9 +18,9 @@ from enums.delete_mode import DeleteMode
 from services.image_downloader import download_images
 from api.models.responses import (
     SuccessResponse, PaginatedResponse, PaginationInfo, SearchFilters, 
-    SortOptions, DeleteResponse, ProductStats
+    DeleteResponse, ProductStats
 )
-from exceptions.base import ProductException, ValidationException
+from exceptions.base import ProductException
 from utils.logger import get_logger
 from models.product import Product as ProductModel, Image, Size
 from services.websocket_service import websocket_manager
