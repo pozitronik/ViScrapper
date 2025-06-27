@@ -370,6 +370,7 @@ class TemplateManager {
             name: 'Sample Product Name',
             sku: 'SKU12345',
             price: '99.99',
+            sell_price: '129.99',
             currency: 'USD',
             availability: 'In Stock',
             color: 'Blue',
@@ -546,6 +547,7 @@ class TemplateManager {
             { key: 'name', description: 'Product name' },
             { key: 'sku', description: 'Product SKU' },
             { key: 'price', description: 'Product price' },
+            { key: 'sell_price', description: 'Product sell price (calculated)' },
             { key: 'currency', description: 'Price currency' },
             { key: 'availability', description: 'Product availability' },
             { key: 'color', description: 'Product color' },
@@ -582,6 +584,7 @@ class TemplateManager {
             name: 'Sample Product Name',
             sku: 'SKU12345',
             price: '99.99',
+            sell_price: '129.99',
             currency: 'USD',
             availability: 'In Stock',
             color: 'Blue',
@@ -634,7 +637,7 @@ class TemplateManager {
         
         // Check for valid placeholders
         const placeholderPattern = /\{([^}]+)\}/g;
-        const validPlaceholders = ['name', 'sku', 'price', 'currency', 'availability', 'color', 'composition', 'item', 'comment', 'product_url', 'created_at'];
+        const validPlaceholders = ['name', 'sku', 'price', 'sell_price', 'currency', 'availability', 'color', 'composition', 'item', 'comment', 'product_url', 'created_at'];
         const matches = content.matchAll(placeholderPattern);
         
         for (const match of matches) {

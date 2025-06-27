@@ -1,6 +1,7 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, computed_field
 from typing import List, Optional
 from datetime import datetime
+import os
 
 
 class ImageBase(BaseModel):
@@ -73,6 +74,19 @@ class Product(ProductBase):
     telegram_posted_at: Optional[datetime] = None
     images: List[Image] = []
     sizes: List[Size] = []
+
+    @computed_field
+    @property
+    def sell_price(self) -> Optional[float]:
+        """Calculate sell price using PRICE_MULTIPLIER environment variable"""
+        if self.price is None:
+            return None
+        
+        try:
+            multiplier = float(os.getenv('PRICE_MULTIPLIER', '1.0'))
+            return round(self.price * multiplier, 2)
+        except (ValueError, TypeError):
+            return None
 
     class Config:
         from_attributes = True

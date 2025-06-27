@@ -26,6 +26,7 @@ class TemplateRenderer:
         '{name}': 'Product name',
         '{sku}': 'Product SKU', 
         '{price}': 'Product price',
+        '{sell_price}': 'Product sell price (calculated)',
         '{currency}': 'Product currency',
         '{availability}': 'Product availability status',
         '{color}': 'Product color',
@@ -43,6 +44,7 @@ class TemplateRenderer:
         '{product_name}': 'Product name',
         '{product_sku}': 'Product SKU',
         '{product_price}': 'Product price',
+        '{product_sell_price}': 'Product sell price (calculated)',
         '{product_currency}': 'Product currency',
         '{product_availability}': 'Product availability status',
         '{product_color}': 'Product color',
@@ -103,12 +105,23 @@ class TemplateRenderer:
         # Format creation date
         created_at_str = product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else 'Unknown'
         
+        # Calculate sell price
+        sell_price = None
+        if product.price is not None:
+            try:
+                import os
+                multiplier = float(os.getenv('PRICE_MULTIPLIER', '1.0'))
+                sell_price = round(product.price * multiplier, 2)
+            except (ValueError, TypeError):
+                sell_price = None
+        
         # Return both short and long format for compatibility
         product_data = {
             # Short format (user-friendly)
             'name': product.name or 'Unnamed Product',
             'sku': product.sku or 'No SKU',
             'price': str(product.price) if product.price is not None else '0.00',
+            'sell_price': str(sell_price) if sell_price is not None else '0.00',
             'currency': product.currency or 'USD',
             'availability': product.availability or 'Unknown',
             'color': product.color or 'Not specified',
@@ -126,6 +139,7 @@ class TemplateRenderer:
             'product_name': product.name or 'Unnamed Product',
             'product_sku': product.sku or 'No SKU',
             'product_price': str(product.price) if product.price is not None else '0.00',
+            'product_sell_price': str(sell_price) if sell_price is not None else '0.00',
             'product_currency': product.currency or 'USD',
             'product_availability': product.availability or 'Unknown',
             'product_color': product.color or 'Not specified',

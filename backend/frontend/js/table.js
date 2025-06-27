@@ -206,7 +206,15 @@ class ProductTable {
         
         if (product.price !== null && product.price !== undefined) {
             const formattedPrice = formatCurrency(product.price, product.currency);
-            cell.innerHTML = `<span class="cell-price">${formattedPrice}</span>`;
+            let priceDisplay = formattedPrice;
+            
+            // Add sell price if available
+            if (product.sell_price !== null && product.sell_price !== undefined) {
+                const formattedSellPrice = formatCurrency(product.sell_price, product.currency);
+                priceDisplay = `${formattedPrice} / ${formattedSellPrice}`;
+            }
+            
+            cell.innerHTML = `<span class="cell-price" title="Original Price / Sell Price">${priceDisplay}</span>`;
         } else {
             cell.innerHTML = '<span class="text-muted">-</span>';
         }
