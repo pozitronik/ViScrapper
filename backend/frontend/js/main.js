@@ -3,7 +3,7 @@
 class VIParserApp {
     constructor() {
         this.currentPage = 1;
-        this.itemsPerPage = 20;
+        this.itemsPerPage = this.loadPageSizePreference();
         this.isLoading = false;
         this.currentSearch = '';
         this.currentSort = { sortBy: 'created_at', sortOrder: 'desc' };
@@ -46,6 +46,9 @@ class VIParserApp {
         
         // Set up event listeners
         this.setupEventListeners();
+        
+        // Set initial page size in UI
+        this.setPageSizeUI();
         
         // Test API connection
         const connected = await this.testConnection();
@@ -180,21 +183,17 @@ class VIParserApp {
     }
 
     /**
-     * Load products from API
+     * Fetch all products by getting all pages
      */
-    async loadProducts(page = this.currentPage, showLoadingState = true) {
-        if (this.isLoading) return;
+    async fetchAllProducts() {
+        const allProducts = [];
+        let currentPage = 1;
+        let totalItems = 0;
         
-        this.isLoading = true;
-        
-        if (showLoadingState) {
-            showLoading(true);
-        }
-
-        try {
+        while (true) {
             const options = {
-                page,
-                perPage: this.itemsPerPage,
+                page: currentPage,
+                perPage: 100, // Use maximum allowed per page
                 sortBy: this.currentSort.sortBy,
                 sortOrder: this.currentSort.sortOrder
             };
@@ -208,21 +207,97 @@ class VIParserApp {
             Object.assign(options, this.currentFilters);
 
             const response = await api.getProducts(options);
+            
+            // Add products from this page
+            allProducts.push(...response.data);
+            totalItems = response.pagination.total;
+            
+            // Check if we have more pages
+            if (!response.pagination.has_next || response.data.length === 0) {
+                break;
+            }
+            
+            currentPage++;
+        }
+        
+        return {
+            data: allProducts,
+            total: totalItems
+        };
+    }
 
-            // Update table with products
-            this.table.updateData(response.data, response.pagination.total);
-            
-            // Update pagination
-            this.pagination.update(response.pagination);
-            
-            // Update current page
-            this.currentPage = response.pagination.page;
+    /**
+     * Load products from API
+     */
+    async loadProducts(page = this.currentPage, showLoadingState = true) {
+        if (this.isLoading) return;
+        
+        this.isLoading = true;
+        
+        if (showLoadingState) {
+            showLoading(true);
+        }
+
+        try {
+            if (this.itemsPerPage === 'all') {
+                // Fetch all products by getting all pages
+                const allProducts = await this.fetchAllProducts();
+                
+                // Update table with all products
+                this.table.updateData(allProducts.data, allProducts.total);
+                
+                // Hide pagination
+                this.pagination.container.innerHTML = '';
+                
+                // Set current page to 1 for consistency
+                this.currentPage = 1;
+            } else {
+                // Normal pagination
+                const options = {
+                    page,
+                    perPage: this.itemsPerPage,
+                    sortBy: this.currentSort.sortBy,
+                    sortOrder: this.currentSort.sortOrder
+                };
+
+                // Add search if present
+                if (this.currentSearch.trim()) {
+                    options.search = this.currentSearch.trim();
+                }
+
+                // Add filters if present
+                Object.assign(options, this.currentFilters);
+
+                const response = await api.getProducts(options);
+
+                // Update table with products
+                this.table.updateData(response.data, response.pagination.total);
+                
+                // Update pagination
+                this.pagination.update(response.pagination);
+                
+                // Update current page
+                this.currentPage = response.pagination.page;
+            }
             
             showLoading(false);
             
         } catch (error) {
             console.error('Failed to load products:', error);
             showError(`Failed to load products: ${error.message}`);
+            
+            // If this was caused by "all" option, reset to a reasonable default
+            if (this.itemsPerPage === 'all') {
+                console.log('Resetting page size from "all" to 20 due to error');
+                this.itemsPerPage = 20;
+                this.savePageSizePreference(20);
+                this.setPageSizeUI();
+                
+                // Try loading again with the default page size
+                setTimeout(() => {
+                    this.loadProducts(1, false);
+                }, 1000);
+            }
         } finally {
             this.isLoading = false;
         }
@@ -419,7 +494,9 @@ class VIParserApp {
      * Handle page size change from select dropdown
      */
     async handlePageSizeChange(event) {
-        const newPageSize = parseInt(event.target.value);
+        const newPageSizeValue = event.target.value;
+        let newPageSize = newPageSizeValue === 'all' ? 'all' : parseInt(newPageSizeValue);
+        
         if (newPageSize && newPageSize !== this.itemsPerPage) {
             console.log(`Changing page size from ${this.itemsPerPage} to ${newPageSize}`);
             
@@ -427,10 +504,13 @@ class VIParserApp {
             this.itemsPerPage = newPageSize;
             this.currentPage = 1;
             
+            // Save preference to localStorage
+            this.savePageSizePreference(newPageSize);
+            
             // Update select dropdown to current selection
             const pageSizeSelect = document.getElementById('page-size-select');
             if (pageSizeSelect) {
-                pageSizeSelect.value = newPageSize.toString();
+                pageSizeSelect.value = newPageSizeValue;
             }
             
             // Reload data with new page size
@@ -691,6 +771,49 @@ class VIParserApp {
                 notification.remove();
             }
         }, 5000);
+    }
+
+    /**
+     * Load page size preference from localStorage
+     */
+    loadPageSizePreference() {
+        try {
+            const savedPageSize = localStorage.getItem('viparser_page_size');
+            if (savedPageSize) {
+                if (savedPageSize === 'all') {
+                    return 'all';
+                }
+                const pageSize = parseInt(savedPageSize);
+                // Validate that it's one of the allowed values
+                if ([10, 20, 50, 100].includes(pageSize)) {
+                    return pageSize;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading page size preference:', error);
+        }
+        return 20; // Default value
+    }
+
+    /**
+     * Save page size preference to localStorage
+     */
+    savePageSizePreference(pageSize) {
+        try {
+            localStorage.setItem('viparser_page_size', pageSize.toString());
+        } catch (error) {
+            console.error('Error saving page size preference:', error);
+        }
+    }
+
+    /**
+     * Set the page size in the UI dropdown
+     */
+    setPageSizeUI() {
+        const pageSizeSelect = document.getElementById('page-size-select');
+        if (pageSizeSelect) {
+            pageSizeSelect.value = this.itemsPerPage === 'all' ? 'all' : this.itemsPerPage.toString();
+        }
     }
 }
 
