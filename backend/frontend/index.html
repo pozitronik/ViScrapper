@@ -52,6 +52,9 @@
                     <button id="refresh-btn" class="btn btn-secondary" title="Refresh data">
                         <span class="refresh-icon">↻</span> Refresh
                     </button>
+                    <button id="manage-templates" class="btn btn-outline" title="Manage templates">
+                        📝 Templates
+                    </button>
                     <div class="page-size-controls">
                         <label for="page-size-select" class="page-size-label">Per page:</label>
                         <select id="page-size-select" class="page-size-select">
@@ -375,6 +378,7 @@
     <script src="/static/js/keyboard-shortcuts.js"></script>
     <script src="/static/js/websocket-client.js"></script>
     <script src="/static/js/telegram.js"></script>
+    <script src="/static/js/template-management.js"></script>
     <script src="/static/js/table.js"></script>
     <script src="/static/js/main.js"></script>
 
@@ -486,6 +490,179 @@
                     <button id="channel-cancel" class="btn btn-outline">Cancel</button>
                     <button id="channel-save" class="btn btn-primary" disabled>
                         ➕ Create Channel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Management Modal -->
+    <div id="template-management-modal" class="telegram-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content template-management-content">
+            <div class="modal-header">
+                <h3 class="modal-title">📝 Template Management</h3>
+                <button class="modal-close" id="template-management-close" title="Close (Esc)">×</button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Template List Section -->
+                <div class="template-list-section">
+                    <div class="template-list-header">
+                        <h4>Message Templates</h4>
+                        <div class="template-list-actions">
+                            <button id="add-template" class="btn btn-primary btn-sm">
+                                ➕ Add Template
+                            </button>
+                            <button id="refresh-templates-list" class="btn btn-outline btn-sm">
+                                ↻ Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="template-search">
+                        <input 
+                            type="text" 
+                            id="template-search" 
+                            placeholder="Search templates..." 
+                            class="form-input"
+                        >
+                    </div>
+
+                    <div id="template-list-loading" class="loading-spinner hidden">
+                        <div class="spinner"></div>
+                        <span>Loading templates...</span>
+                    </div>
+
+                    <div id="template-list-container" class="template-list-container">
+                        <!-- Template list will be populated here -->
+                    </div>
+
+                    <div id="no-templates" class="no-templates hidden">
+                        <p>No templates found.</p>
+                        <p class="text-muted">Create your first template to get started.</p>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div id="template-pagination" class="template-pagination hidden">
+                        <!-- Pagination controls will be added here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <div class="modal-footer-info">
+                    <span id="template-count">0 templates</span>
+                </div>
+                
+                <div class="modal-footer-actions">
+                    <button id="template-management-cancel" class="btn btn-outline">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Editor Modal -->
+    <div id="template-editor-modal" class="telegram-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content template-editor-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="template-editor-title">➕ Add Template</h3>
+                <button class="modal-close" id="template-editor-close" title="Close (Esc)">×</button>
+            </div>
+
+            <div class="modal-body">
+                <form id="template-form" class="template-form">
+                    <div class="form-section">
+                        <label for="template-name-input" class="form-label">Template Name *</label>
+                        <input 
+                            type="text" 
+                            id="template-name-input" 
+                            name="name"
+                            class="form-input" 
+                            placeholder="e.g., Product Announcement"
+                            required
+                            maxlength="100"
+                        >
+                        <small class="form-help">A descriptive name for this template</small>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="template-description-input" class="form-label">Description</label>
+                        <textarea 
+                            id="template-description-input" 
+                            name="description"
+                            class="form-textarea" 
+                            placeholder="Template description (optional)"
+                            maxlength="500"
+                            rows="2"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="template-content-input" class="form-label">Template Content *</label>
+                        <div class="template-editor-container">
+                            <textarea 
+                                id="template-content-input" 
+                                name="template_content"
+                                class="form-textarea template-content-editor" 
+                                placeholder="Enter your template content here...&#10;&#10;Use placeholders like {product_name}, {product_price}, etc."
+                                required
+                                rows="8"
+                            ></textarea>
+                            
+                            <div class="template-editor-tools">
+                                <button type="button" id="show-template-placeholders" class="btn btn-outline btn-sm">
+                                    📋 Show Placeholders
+                                </button>
+                                <button type="button" id="preview-template" class="btn btn-outline btn-sm">
+                                    👁️ Preview
+                                </button>
+                                <button type="button" id="validate-template" class="btn btn-outline btn-sm">
+                                    ✅ Validate
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="template-placeholders-help" class="placeholders-help hidden">
+                        <h5>Available Placeholders:</h5>
+                        <div class="placeholders-grid" id="template-placeholders-list">
+                            <!-- Placeholders will be loaded here -->
+                        </div>
+                    </div>
+
+                    <div id="template-validation-result" class="template-validation-result hidden">
+                        <!-- Validation results will appear here -->
+                    </div>
+
+                    <div id="template-preview-result" class="template-preview-result hidden">
+                        <h5>Preview:</h5>
+                        <div id="template-preview-content" class="template-preview-content">
+                            <!-- Preview content will appear here -->
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-checkboxes">
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="template-active" name="is_active" checked>
+                                <span class="checkbox-label">✅ Template is active</span>
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <div class="modal-footer-info">
+                    <span id="template-editor-status">Fill in the required fields</span>
+                </div>
+                
+                <div class="modal-footer-actions">
+                    <button id="template-editor-cancel" class="btn btn-outline">Cancel</button>
+                    <button id="template-save" class="btn btn-primary" disabled>
+                        ➕ Create Template
                     </button>
                 </div>
             </div>

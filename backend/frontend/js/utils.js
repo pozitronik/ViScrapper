@@ -117,6 +117,37 @@ function showError(message) {
 }
 
 /**
+ * Show success notification
+ */
+function showSuccess(message) {
+    // Create notification element
+    const notification = createElement('div', {
+        className: 'notification notification-success'
+    });
+    
+    notification.innerHTML = `
+        <span>${escapeHtml(message)}</span>
+        <button class="notification-close" onclick="this.parentElement.remove()">×</button>
+    `;
+    
+    // Add to page
+    let notificationContainer = document.querySelector('.notification-container');
+    if (!notificationContainer) {
+        notificationContainer = createElement('div', { className: 'notification-container' });
+        document.body.appendChild(notificationContainer);
+    }
+    
+    notificationContainer.appendChild(notification);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 3000);
+}
+
+/**
  * Create DOM element with attributes and content
  */
 function createElement(tag, attributes = {}, content = '') {

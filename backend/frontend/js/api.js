@@ -150,6 +150,51 @@ class ApiClient {
             return false;
         }
     }
+
+    // Template Management API methods
+
+    /**
+     * Get all templates
+     */
+    async getTemplates() {
+        return await this.request('/templates');
+    }
+
+    /**
+     * Get template by ID
+     */
+    async getTemplate(id) {
+        return await this.request(`/templates/${id}`);
+    }
+
+    /**
+     * Create new template
+     */
+    async createTemplate(templateData) {
+        return await this.request('/templates', {
+            method: 'POST',
+            body: JSON.stringify(templateData)
+        });
+    }
+
+    /**
+     * Update template by ID
+     */
+    async updateTemplate(id, templateData) {
+        return await this.request(`/templates/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(templateData)
+        });
+    }
+
+    /**
+     * Delete template by ID
+     */
+    async deleteTemplate(id) {
+        return await this.request(`/templates/${id}`, {
+            method: 'DELETE'
+        });
+    }
 }
 
 // Create global API client instance
