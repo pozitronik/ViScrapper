@@ -10,3 +10,5 @@ pytest-httpx
 pytest-asyncio
 pytest-mock
 websockets
+faker
+requests
