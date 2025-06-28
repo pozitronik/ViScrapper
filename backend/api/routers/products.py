@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, desc, asc
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database.session import get_db
 from schemas.product import Product, ProductCreate, ProductUpdate
@@ -193,7 +193,7 @@ async def get_product_statistics(db: Session = Depends(get_db)):
     total_sizes = db.query(Size).filter(Size.deleted_at.is_(None)).count()
     
     # Products added in last 24 hours
-    twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+    twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
     recent_products_24h = db.query(ProductModel).filter(
         ProductModel.deleted_at.is_(None),
         ProductModel.created_at >= twenty_four_hours_ago
@@ -389,7 +389,7 @@ async def create_new_product(
     
     # Broadcast the new product to all connected WebSocket clients
     from schemas.product import Product as ProductSchema
-    product_dict = ProductSchema.from_orm(created_product).dict()
+    product_dict = ProductSchema.model_validate(created_product).model_dump()
     await websocket_manager.broadcast_product_created(product_dict)
     
     logger.info(f"Successfully created product with ID: {created_product.id}")
@@ -420,7 +420,7 @@ async def update_existing_product(
     
     # Broadcast the updated product to all connected WebSocket clients
     from schemas.product import Product as ProductSchema
-    product_dict = ProductSchema.from_orm(updated_product).dict()
+    product_dict = ProductSchema.model_validate(updated_product).model_dump()
     await websocket_manager.broadcast_product_updated(product_dict)
     
     logger.info(f"Successfully updated product with ID: {product_id}")
@@ -494,7 +494,7 @@ async def restore_deleted_product(
     
     # Broadcast the product restoration to all connected WebSocket clients
     from schemas.product import Product as ProductSchema
-    product_dict = ProductSchema.from_orm(restored_product).dict()
+    product_dict = ProductSchema.model_validate(restored_product).model_dump()
     await websocket_manager.broadcast_product_created(product_dict)  # Reuse created event
     
     logger.info(f"Successfully restored product with ID: {product_id}")

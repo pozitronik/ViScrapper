@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import time
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from database.session import get_db
 from api.models.responses import SuccessResponse, HealthStatus
@@ -106,7 +106,7 @@ async def system_status(db: Session = Depends(get_db)):
         "overall_status": "healthy" if database_info["status"] == "connected" else "unhealthy",
         "uptime_seconds": round(uptime, 2),
         "uptime_formatted": format_uptime(uptime),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "database": database_info,
         "system": system_info,
         "environment": env_info
@@ -143,4 +143,4 @@ def format_uptime(uptime_seconds: float) -> str:
 @router.get("/ping")
 async def ping():
     """Simple ping endpoint for basic connectivity testing."""
-    return {"message": "pong", "timestamp": datetime.utcnow().isoformat()}
+    return {"message": "pong", "timestamp": datetime.now(timezone.utc).isoformat()}

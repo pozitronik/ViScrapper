@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl, computed_field
+from pydantic import BaseModel, HttpUrl, computed_field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 import os
@@ -16,8 +16,7 @@ class Image(ImageBase):
     id: int
     product_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SizeBase(BaseModel):
@@ -32,8 +31,7 @@ class Size(SizeBase):
     id: int
     product_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProductBase(BaseModel):
@@ -88,5 +86,4 @@ class Product(ProductBase):
         except (ValueError, TypeError):
             return None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

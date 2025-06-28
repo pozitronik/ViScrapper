@@ -2,7 +2,7 @@
 Enhanced delete operations supporting soft and hard delete with cascading
 """
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from typing import List
 from pathlib import Path
@@ -49,7 +49,7 @@ def soft_delete_product(db: Session, product_id: int) -> bool:
                 logger.warning(f"Product {product_id} is already soft deleted at {product.deleted_at}")
                 return True
             
-            delete_timestamp = datetime.utcnow()
+            delete_timestamp = datetime.now(timezone.utc)
             
             # Soft delete associated images
             images_updated = db.query(Image).filter(
@@ -317,7 +317,7 @@ def permanently_delete_old_soft_deleted(db: Session, days_old: int = 30) -> int:
     logger.info(f"Permanently deleting products soft-deleted more than {days_old} days ago")
     
     try:
-        cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
         
         # Get products to be permanently deleted
         # Use <= for cutoff to include products deleted exactly at the cutoff time

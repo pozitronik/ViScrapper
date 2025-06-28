@@ -166,7 +166,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
 
     # Broadcast the new product to all connected WebSocket clients
     from schemas.product import Product as ProductSchema
-    product_dict = ProductSchema.from_orm(created_product).dict()
+    product_dict = ProductSchema.model_validate(created_product).model_dump()
     await websocket_manager.broadcast_product_created(product_dict)
 
     # Auto-post to telegram channels if configured

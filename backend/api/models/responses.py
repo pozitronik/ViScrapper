@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Generic, TypeVar, List, Optional, Any, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 
 T = TypeVar('T')
 
@@ -10,14 +10,14 @@ class SuccessResponse(BaseModel, Generic[T]):
     success: bool = True
     message: str = "Operation completed successfully"
     data: T
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ErrorResponse(BaseModel):
     """Standard error response."""
     success: bool = False
     error: Dict[str, Any]
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class PaginationInfo(BaseModel):
@@ -36,7 +36,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     message: str = "Data retrieved successfully"
     data: List[T]
     pagination: PaginationInfo
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class HealthStatus(BaseModel):
@@ -45,7 +45,7 @@ class HealthStatus(BaseModel):
     version: str = Field(description="API version")
     uptime: float = Field(description="System uptime in seconds")
     database: str = Field(description="Database connection status")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ProductStats(BaseModel):
@@ -84,7 +84,7 @@ class DeleteResponse(BaseModel):
     success: bool = True
     message: str = "Resource deleted successfully"
     deleted_id: int = Field(description="ID of the deleted resource")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FileDeleteResponse(BaseModel):
@@ -92,7 +92,7 @@ class FileDeleteResponse(BaseModel):
     success: bool = True
     message: str = "File deleted successfully"
     deleted_filename: str = Field(description="Name of the deleted file")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class BulkOperationResponse(BaseModel):
@@ -103,4 +103,4 @@ class BulkOperationResponse(BaseModel):
     succeeded: int = Field(ge=0, description="Number of items that succeeded")
     failed: int = Field(ge=0, description="Number of items that failed")
     errors: Optional[List[str]] = Field(None, description="List of error messages for failed items")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
