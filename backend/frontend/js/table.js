@@ -103,6 +103,21 @@ class ProductTable {
     createIdCell(product) {
         const cell = createElement('td', { className: 'id-cell' });
         
+        // Determine Quick post button state based on telegram_posted_at
+        const isPosted = product.telegram_posted_at;
+        let quickPostClass, quickPostIcon, quickPostTitle;
+        
+        if (isPosted) {
+            quickPostClass = 'btn btn-sm btn-outline-success posted';
+            quickPostIcon = '✅';
+            const postedDate = new Date(product.telegram_posted_at);
+            quickPostTitle = `Posted to Telegram on ${postedDate.toLocaleString()}. Click to post again.`;
+        } else {
+            quickPostClass = 'btn btn-sm btn-success';
+            quickPostIcon = '⚡';
+            quickPostTitle = 'Quick post to Telegram';
+        }
+        
         cell.innerHTML = `
             <div class="id-content">
                 <span class="cell-id">${product.id}</span>
@@ -113,8 +128,8 @@ class ProductTable {
                     <button class="btn btn-sm btn-outline" data-product-id="${product.id}" data-action="telegram" title="Send to Telegram">
                         📤
                     </button>
-                    <button class="btn btn-sm btn-success" data-product-id="${product.id}" data-action="quick-post" title="Quick post to Telegram">
-                        ⚡
+                    <button class="${quickPostClass}" data-product-id="${product.id}" data-action="quick-post" title="${quickPostTitle}">
+                        ${quickPostIcon}
                     </button>
                 </div>
             </div>

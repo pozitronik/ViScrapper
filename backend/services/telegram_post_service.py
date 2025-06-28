@@ -4,6 +4,7 @@ Service for posting products to Telegram channels with template rendering
 
 import os
 from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from models.product import Product, TelegramChannel, TelegramPost
@@ -334,6 +335,10 @@ class TelegramPostService:
             
             # Update post as sent
             update_post_status(db, post.id, PostStatus.SENT, message_id=message_id)
+            
+            # Update product's telegram_posted_at timestamp
+            product.telegram_posted_at = datetime.now(timezone.utc)
+            db.add(product)
             db.commit()
             
             logger.info(f"Successfully sent post {post.id} to channel {channel.name}")

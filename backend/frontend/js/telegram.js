@@ -610,6 +610,16 @@ class TelegramModal {
                     }
                 }
                 
+                // Update button appearance immediately for successful posts
+                if (data.success_count > 0) {
+                    this.updateQuickPostButtonAppearance(this.selectedProducts[0]);
+                    
+                    // Also try to refresh the full table if available
+                    if (window.app && window.app.refreshProducts) {
+                        window.app.refreshProducts();
+                    }
+                }
+                
                 // Always close modal after sending (whether successful or not)
                 this.closeModal();
             } else {
@@ -1244,6 +1254,16 @@ class TelegramModal {
                         this.showNotification(`All ${data.failed_count} posts failed`, 'error');
                     }
                 }
+                
+                // Update button appearance immediately for successful posts
+                if (data.success_count > 0) {
+                    this.updateQuickPostButtonAppearance(productsToPost[0]);
+                    
+                    // Also try to refresh the full table if available
+                    if (window.app && window.app.refreshProducts) {
+                        window.app.refreshProducts();
+                    }
+                }
                 // Success posts complete silently
             } else {
                 throw new Error(data.detail || 'Failed to send posts');
@@ -1252,6 +1272,20 @@ class TelegramModal {
             console.error('Quick post error:', error);
             this.showNotification(error.message || 'Failed to send quick post', 'error');
         }
+    }
+
+    updateQuickPostButtonAppearance(productId) {
+        // Find the Quick post button for the specific product
+        const quickPostBtn = document.querySelector(`[data-product-id="${productId}"][data-action="quick-post"]`);
+        if (!quickPostBtn) return;
+
+        // Update button appearance to "posted" state
+        quickPostBtn.className = 'btn btn-sm btn-outline-success posted';
+        quickPostBtn.innerHTML = '✅';
+        
+        // Update tooltip with current timestamp
+        const now = new Date();
+        quickPostBtn.title = `Posted to Telegram on ${now.toLocaleString()}. Click to post again.`;
     }
 
     async openQuickPostConfig() {

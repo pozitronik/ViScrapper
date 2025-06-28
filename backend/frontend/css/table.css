@@ -1135,3 +1135,22 @@
 .control-buttons a.btn:visited {
     color: inherit;
 }
+
+/* Posted Quick Post Button Styling */
+.control-buttons .btn.posted {
+    background-color: #dcfce7 !important;
+    border-color: #16a34a !important;
+    color: #15803d !important;
+    opacity: 0.8;
+}
+
+.control-buttons .btn.posted:hover {
+    background-color: #bbf7d0 !important;
+    border-color: #15803d !important;
+    color: #166534 !important;
+    opacity: 1;
+}
+
+.control-buttons .btn.posted:focus {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1) !important;
+}
