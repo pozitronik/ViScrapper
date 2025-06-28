@@ -1075,3 +1075,63 @@
         font-size: 0.6875rem;
     }
 }
+/* Product row highlighting */
+.products-table tbody tr.highlighted {
+    background-color: #fef3c7 !important;
+    border: 2px solid #f59e0b;
+    transition: all 0.3s ease;
+    animation: highlight-pulse 0.5s ease;
+}
+
+@keyframes highlight-pulse {
+    0% {
+        background-color: #fed7aa;
+        transform: scale(1.02);
+    }
+    50% {
+        background-color: #fbbf24;
+        transform: scale(1.01);
+    }
+    100% {
+        background-color: #fef3c7;
+        transform: scale(1);
+    }
+}
+
+/* ID Cell and Control Buttons */
+.id-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.control-buttons {
+    display: flex;
+    gap: 0.25rem;
+    opacity: 1;
+}
+
+.control-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    min-width: auto;
+    border-radius: 4px;
+}
+
+/* Button-styled links */
+.control-buttons a.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: inherit;
+}
+
+.control-buttons a.btn:hover {
+    text-decoration: none;
+}
+
+.control-buttons a.btn:visited {
+    color: inherit;
+}

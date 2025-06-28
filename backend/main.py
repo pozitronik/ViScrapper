@@ -189,6 +189,12 @@ async def serve_frontend():
     return FileResponse("frontend/index.html")
 
 
+@app.get("/product/{product_id}")
+async def serve_product_page(product_id: int):
+    """Serve the product detail HTML page"""
+    return FileResponse("frontend/product.html")
+
+
 if __name__ == "__main__":
     import uvicorn
 

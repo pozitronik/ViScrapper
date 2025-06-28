@@ -107,6 +107,9 @@ class ProductTable {
             <div class="id-content">
                 <span class="cell-id">${product.id}</span>
                 <div class="control-buttons">
+                    <a href="/product/${product.id}" class="btn btn-sm btn-primary" title="View product details">
+                        👁️
+                    </a>
                     <button class="btn btn-sm btn-outline" data-product-id="${product.id}" data-action="telegram" title="Send to Telegram">
                         📤
                     </button>

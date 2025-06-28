@@ -6,7 +6,7 @@ class VIParserApp {
         this.itemsPerPage = this.loadPageSizePreference();
         this.isLoading = false;
         this.currentSearch = '';
-        this.currentSort = { sortBy: 'created_at', sortOrder: 'desc' };
+        this.currentSort = this.loadSortPreference();
         this.currentFilters = {};
         
         // Initialize components
@@ -50,6 +50,9 @@ class VIParserApp {
         // Set initial page size in UI
         this.setPageSizeUI();
         
+        // Set initial sort indicators in UI
+        this.setSortUI();
+        
         // Test API connection
         const connected = await this.testConnection();
         if (!connected) {
@@ -59,6 +62,9 @@ class VIParserApp {
         
         // Load initial data
         await this.loadProducts();
+        
+        // Check for product highlighting from URL
+        this.handleProductHighlighting();
         
         // Connect WebSocket for real-time updates
         console.log('Connecting WebSocket...');
@@ -618,6 +624,9 @@ class VIParserApp {
         this.currentSort.sortBy = column;
         this.currentSort.sortOrder = newOrder;
 
+        // Save preference to localStorage
+        this.saveSortPreference(this.currentSort);
+
         // Update visual indicators
         this.updateSortIndicators(column, newOrder);
 
@@ -813,6 +822,83 @@ class VIParserApp {
         const pageSizeSelect = document.getElementById('page-size-select');
         if (pageSizeSelect) {
             pageSizeSelect.value = this.itemsPerPage === 'all' ? 'all' : this.itemsPerPage.toString();
+        }
+    }
+
+    /**
+     * Set the sort indicators in the UI
+     */
+    setSortUI() {
+        this.updateSortIndicators(this.currentSort.sortBy, this.currentSort.sortOrder);
+    }
+
+    /**
+     * Handle product highlighting from URL parameters
+     */
+    handleProductHighlighting() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const highlightId = urlParams.get('highlight');
+        
+        if (highlightId) {
+            // Remove the parameter from URL without refreshing
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, newUrl);
+            
+            // Highlight the product row
+            setTimeout(() => {
+                this.highlightProductRow(parseInt(highlightId));
+            }, 500);
+        }
+    }
+
+    /**
+     * Highlight a specific product row
+     */
+    highlightProductRow(productId) {
+        const row = document.querySelector(`tr[data-product-id="${productId}"]`);
+        if (row) {
+            // Add highlight class
+            row.classList.add('highlighted');
+            
+            // Scroll to the row
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Remove highlight after 3 seconds
+            setTimeout(() => {
+                row.classList.remove('highlighted');
+            }, 3000);
+        }
+    }
+
+    /**
+     * Load sort preference from localStorage
+     */
+    loadSortPreference() {
+        try {
+            const savedSort = localStorage.getItem('viparser_sort');
+            if (savedSort) {
+                const sortData = JSON.parse(savedSort);
+                // Validate the data
+                if (sortData.sortBy && sortData.sortOrder && 
+                    ['asc', 'desc'].includes(sortData.sortOrder)) {
+                    return sortData;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading sort preference:', error);
+        }
+        // Default sort: newest first
+        return { sortBy: 'created_at', sortOrder: 'desc' };
+    }
+
+    /**
+     * Save sort preference to localStorage
+     */
+    saveSortPreference(sortData) {
+        try {
+            localStorage.setItem('viparser_sort', JSON.stringify(sortData));
+        } catch (error) {
+            console.error('Error saving sort preference:', error);
         }
     }
 }
