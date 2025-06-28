@@ -24,6 +24,7 @@ from api.routers.health import router as health_router
 from api.routers.backup import router as backup_router
 from api.routers.templates import router as templates_router
 from api.routers.telegram import router as telegram_router
+from api.routers.maintenance import router as maintenance_router
 
 # Setup backup service with environment variable support
 from services.backup_service import backup_service
@@ -101,6 +102,7 @@ app.include_router(health_router)
 app.include_router(backup_router)
 app.include_router(templates_router)
 app.include_router(telegram_router)
+app.include_router(maintenance_router)
 
 
 @app.websocket("/ws")

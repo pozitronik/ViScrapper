@@ -23,9 +23,6 @@ class VIParserException(Exception):
         self.details = details or {}
         self.original_exception = original_exception
         
-        # Log the exception when it's created
-        self._log_exception()
-        
         super().__init__(self.message)
     
     def _log_exception(self):

@@ -320,9 +320,10 @@ def permanently_delete_old_soft_deleted(db: Session, days_old: int = 30) -> int:
         cutoff_date = datetime.utcnow() - timedelta(days=days_old)
         
         # Get products to be permanently deleted
+        # Use <= for cutoff to include products deleted exactly at the cutoff time
         products_to_delete = db.query(Product).filter(
             Product.deleted_at.isnot(None),
-            Product.deleted_at < cutoff_date
+            Product.deleted_at <= cutoff_date
         ).all()
         
         deleted_count = 0

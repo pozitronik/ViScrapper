@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, desc, asc
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -148,8 +148,11 @@ async def list_products(
         created_after=created_after, created_before=created_before
     )
     
-    # Build query
-    query = db.query(ProductModel)
+    # Build query with eager loading to prevent N+1 queries
+    query = db.query(ProductModel).options(
+        joinedload(ProductModel.images),
+        joinedload(ProductModel.sizes)
+    )
     query = apply_filters(query, filters, include_deleted=False)
     query = apply_sorting(query, sort_by, sort_order)
     
@@ -257,7 +260,10 @@ async def get_recent_products(
     """Get recently added products."""
     logger.info(f"Fetching {limit} recent products")
     
-    products = db.query(ProductModel).filter(
+    products = db.query(ProductModel).options(
+        joinedload(ProductModel.images),
+        joinedload(ProductModel.sizes)
+    ).filter(
         ProductModel.deleted_at.is_(None)
     ).order_by(desc(ProductModel.created_at)).limit(limit).all()
     
@@ -299,7 +305,10 @@ async def search_products(
     logger.info(f"Searching products with query: '{q}'")
     
     search_term = f"%{q}%"
-    query = db.query(ProductModel).filter(
+    query = db.query(ProductModel).options(
+        joinedload(ProductModel.images),
+        joinedload(ProductModel.sizes)
+    ).filter(
         ProductModel.deleted_at.is_(None),
         or_(
             ProductModel.name.ilike(search_term),
