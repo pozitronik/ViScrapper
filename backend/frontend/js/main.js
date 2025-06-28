@@ -704,8 +704,41 @@ class VIParserApp {
     onProductUpdated(product) {
         console.log('Product updated:', product);
         
-        // Show notification
-        this.showNotification(`Product updated: ${product.name || 'Unnamed Product'}`, 'info');
+        // Show appropriate notification based on update info
+        let message = `Product updated: ${product.name || 'Unnamed Product'}`;
+        let type = 'info';
+        
+        if (product._update_info) {
+            const updateInfo = product._update_info;
+            const matchType = updateInfo.match_type ? updateInfo.match_type.toUpperCase() : '';
+            
+            if (updateInfo.was_updated) {
+                const summary = updateInfo.update_summary;
+                const updates = [];
+                
+                if (summary.fields_updated && summary.fields_updated.length > 0) {
+                    updates.push(`${summary.fields_updated.length} field(s)`);
+                }
+                if (summary.images_added > 0) {
+                    updates.push(`${summary.images_added} image(s)`);
+                }
+                if (summary.sizes_added > 0) {
+                    updates.push(`${summary.sizes_added} size(s)`);
+                }
+                
+                if (updates.length > 0) {
+                    message = `Product updated (${matchType} match): ${updates.join(', ')} updated`;
+                } else {
+                    message = `Product updated (${matchType} match)`;
+                }
+                type = 'success';
+            } else {
+                message = `Product already exists with identical data (${matchType} match)`;
+                type = 'info';
+            }
+        }
+        
+        this.showNotification(message, type);
         
         // Find and update the product in current data
         const productIndex = this.table.products.findIndex(p => p.id === product.id);

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from crud.product import get_product_by_url, create_product
+from crud.product import get_product_by_url, create_product, find_existing_product, compare_product_data, update_existing_product_with_changes
 from models.product import Base
 from schemas.product import Product, ProductCreate
 from services.image_downloader import download_images
@@ -128,45 +128,99 @@ async def websocket_endpoint(websocket: WebSocket):
 async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
     """
     Scrape and store product information with images.
+    Now handles existing products by checking for differences and updating when needed.
     
     Args:
         product: Product data to scrape and store
         db: Database session
     
     Returns:
-        Created product with images and sizes
+        Created or updated product with images and sizes
     
     Raises:
-        ProductException: If product already exists
         ValidationException: If product data is invalid
         ExternalServiceException: If image download fails
         DatabaseException: If database operation fails
     """
     logger.info(f"Starting product scrape for URL: {product.product_url}")
 
-    # Check if product already exists
-    db_product = get_product_by_url(db, url=str(product.product_url))
-    if db_product:
-        logger.warning(f"Product already exists for URL: {product.product_url}")
-        raise ProductException(
-            message="Product with this URL already exists",
-            product_url=str(product.product_url),
-            details={"existing_product_id": db_product.id}
-        )
+    # Check if product already exists by URL or SKU
+    existing_result = find_existing_product(db, url=str(product.product_url), sku=product.sku)
+    existing_product = existing_result['product']
+    match_type = existing_result['match_type']
 
+    if existing_product:
+        logger.info(f"Found existing product (match: {match_type}) with ID: {existing_product.id}")
+        
+        # Compare the existing product with new data
+        changes = compare_product_data(existing_product, product)
+        
+        if changes['has_changes']:
+            logger.info(f"Differences detected for product {existing_product.id}, updating...")
+            
+            # Download new images first if there are any
+            downloaded_images_metadata = []
+            if product.all_image_urls:
+                logger.info(f"Downloading {len(product.all_image_urls)} images for product update: {product.product_url}")
+                downloaded_images_metadata = await download_images(product.all_image_urls)
+                # Replace image URLs with local IDs for storage
+                product.all_image_urls = [img['image_id'] if isinstance(img, dict) else img for img in downloaded_images_metadata]
+            
+            # Update the existing product with changes
+            updated_product, update_summary = await update_existing_product_with_changes(
+                db, existing_product, product, changes, 
+                download_new_images=bool(downloaded_images_metadata),
+                downloaded_images_metadata=downloaded_images_metadata
+            )
+            
+            # Broadcast the updated product to all connected WebSocket clients
+            from schemas.product import Product as ProductSchema
+            product_dict = ProductSchema.model_validate(updated_product).model_dump()
+            # Add update information for frontend
+            product_dict['_update_info'] = {
+                'was_updated': True,
+                'match_type': match_type,
+                'update_summary': update_summary
+            }
+            await websocket_manager.broadcast_product_updated(product_dict)
+            
+            logger.info(f"Successfully updated existing product {existing_product.id} with summary: {update_summary}")
+            return updated_product
+        else:
+            logger.info(f"No changes detected for existing product {existing_product.id}")
+            # Still broadcast to frontend with info that no changes were needed
+            from schemas.product import Product as ProductSchema
+            product_dict = ProductSchema.model_validate(existing_product).model_dump()
+            product_dict['_update_info'] = {
+                'was_updated': False,
+                'match_type': match_type,
+                'message': 'Product already exists with identical data'
+            }
+            await websocket_manager.broadcast_product_updated(product_dict)
+            return existing_product
+
+    # No existing product found - create new one
+    logger.info(f"No existing product found, creating new product for: {product.product_url}")
+    
     # Download images and get their local IDs
-    logger.info(f"Downloading {len(product.all_image_urls)} images for product: {product.product_url}")
-    image_ids = await download_images(product.all_image_urls)
-
-    # Replace image URLs with local IDs for storage
-    product.all_image_urls = image_ids
+    downloaded_images_metadata = []
+    if product.all_image_urls:
+        logger.info(f"Downloading {len(product.all_image_urls)} images for new product: {product.product_url}")
+        downloaded_images_metadata = await download_images(product.all_image_urls)
+        # Replace image URLs with local IDs for storage
+        product.all_image_urls = [img['image_id'] if isinstance(img, dict) else img for img in downloaded_images_metadata]
 
     logger.info(f"Creating product in database: {product.product_url}")
-    created_product = create_product(db=db, product=product)
+    created_product = create_product(db=db, product=product, downloaded_images_metadata=downloaded_images_metadata)
 
     # Broadcast the new product to all connected WebSocket clients
     from schemas.product import Product as ProductSchema
     product_dict = ProductSchema.model_validate(created_product).model_dump()
+    product_dict['_update_info'] = {
+        'was_updated': False,
+        'match_type': None,
+        'message': 'New product created'
+    }
     await websocket_manager.broadcast_product_created(product_dict)
 
     # Auto-post to telegram channels if configured

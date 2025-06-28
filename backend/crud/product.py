@@ -36,13 +36,161 @@ def get_product_by_url(db: Session, url: str, include_deleted: bool = False):
     return product
 
 
-def create_product(db: Session, product: ProductCreate):
+def get_product_by_sku(db: Session, sku: str, include_deleted: bool = False):
+    """
+    Get a product by its SKU.
+    
+    Args:
+        db: Database session
+        sku: Product SKU to search for
+        include_deleted: Whether to include soft-deleted products
+        
+    Returns:
+        Product instance if found, None otherwise
+    """
+    logger.debug(f"Searching for product with SKU: {sku}")
+    query = db.query(Product).options(
+        joinedload(Product.images),
+        joinedload(Product.sizes)
+    ).filter(Product.sku == sku)
+    
+    if not include_deleted:
+        query = query.filter(Product.deleted_at.is_(None))
+    
+    product = query.first()
+    if product:
+        logger.debug(f"Found product with ID: {product.id} for SKU: {sku}")
+    else:
+        logger.debug(f"No product found for SKU: {sku}")
+    return product
+
+
+def find_existing_product(db: Session, url: str, sku: str = None, include_deleted: bool = False):
+    """
+    Find an existing product by URL or SKU.
+    
+    Args:
+        db: Database session
+        url: Product URL to search for
+        sku: Product SKU to search for (optional)
+        include_deleted: Whether to include soft-deleted products
+        
+    Returns:
+        Dict with keys: 'product', 'match_type' ('url', 'sku', or None)
+    """
+    logger.debug(f"Searching for existing product with URL: {url}, SKU: {sku}")
+    
+    # First check for URL match
+    url_product = get_product_by_url(db, url, include_deleted)
+    if url_product:
+        return {'product': url_product, 'match_type': 'url'}
+    
+    # Then check for SKU match if SKU is provided
+    if sku:
+        sku_product = get_product_by_sku(db, sku, include_deleted)
+        if sku_product:
+            return {'product': sku_product, 'match_type': 'sku'}
+    
+    return {'product': None, 'match_type': None}
+
+
+def compare_product_data(existing_product: Product, new_data: ProductCreate):
+    """
+    Compare existing product with new data to determine what has changed.
+    
+    Args:
+        existing_product: The existing product from database
+        new_data: New product data from scraping
+        
+    Returns:
+        Dict with keys: 'has_changes', 'field_changes', 'image_changes', 'size_changes'
+    """
+    logger.debug(f"Comparing product data for product ID: {existing_product.id}")
+    
+    field_changes = {}
+    has_changes = False
+    
+    # Define fields to compare (excluding relationship fields)
+    compare_fields = [
+        'name', 'price', 'currency', 'availability', 
+        'color', 'composition', 'item', 'comment'
+    ]
+    
+    # Compare basic fields
+    for field in compare_fields:
+        existing_value = getattr(existing_product, field)
+        new_value = getattr(new_data, field)
+        
+        # Handle None values and normalize strings
+        if existing_value != new_value:
+            # Special handling for strings - normalize whitespace
+            if isinstance(existing_value, str) and isinstance(new_value, str):
+                if existing_value.strip() != new_value.strip():
+                    field_changes[field] = {
+                        'old': existing_value,
+                        'new': new_value
+                    }
+                    has_changes = True
+            # Handle numeric and None values
+            elif existing_value != new_value:
+                field_changes[field] = {
+                    'old': existing_value,
+                    'new': new_value
+                }
+                has_changes = True
+    
+    # Compare images using hash-based comparison
+    # First, get existing image hashes and URLs
+    existing_image_hashes = {img.file_hash for img in existing_product.images if not img.deleted_at and img.file_hash}
+    existing_image_urls = {img.url for img in existing_product.images if not img.deleted_at}
+    
+    # For new images, we need to check what we have
+    new_image_urls = set(new_data.all_image_urls) if new_data.all_image_urls else set()
+    
+    # Note: At this point, new_data.all_image_urls might contain hashes if images were downloaded
+    # or URLs if they haven't been downloaded yet. We'll handle this in the update function.
+    
+    image_changes = {
+        'to_add': new_image_urls - existing_image_urls,
+        'to_remove': existing_image_urls - new_image_urls,
+        'existing': existing_image_urls & new_image_urls,
+        'existing_hashes': existing_image_hashes
+    }
+    
+    if image_changes['to_add'] or image_changes['to_remove']:
+        has_changes = True
+    
+    # Compare sizes
+    existing_size_names = {size.name for size in existing_product.sizes if not size.deleted_at}
+    new_size_names = set(new_data.available_sizes) if new_data.available_sizes else set()
+    
+    size_changes = {
+        'to_add': new_size_names - existing_size_names,
+        'to_remove': existing_size_names - new_size_names,
+        'existing': existing_size_names & new_size_names
+    }
+    
+    if size_changes['to_add'] or size_changes['to_remove']:
+        has_changes = True
+    
+    logger.debug(f"Product comparison complete. Has changes: {has_changes}")
+    
+    return {
+        'has_changes': has_changes,
+        'field_changes': field_changes,
+        'image_changes': image_changes,
+        'size_changes': size_changes
+    }
+
+
+def create_product(db: Session, product: ProductCreate, downloaded_images_metadata: list = None):
     """
     Create a new product with images and sizes in a single atomic transaction.
     
     Args:
         db: Database session
         product: Product data to create
+        downloaded_images_metadata: List of downloaded image metadata (if available)
         
     Returns:
         Created product with relationships loaded
@@ -91,7 +239,13 @@ def create_product(db: Session, product: ProductCreate):
             # Add images using bulk creation for better performance
             if product.all_image_urls:
                 logger.info(f"Adding {len(product.all_image_urls)} images to product ID: {db_product.id}")
-                bulk_create_relationships(db, db_product.id, product.all_image_urls, Image, 'url')
+                
+                if downloaded_images_metadata:
+                    # Pass the full metadata objects directly instead of just image IDs
+                    bulk_create_relationships(db, db_product.id, downloaded_images_metadata, Image, 'url')
+                else:
+                    # Fallback for existing behavior
+                    bulk_create_relationships(db, db_product.id, product.all_image_urls, Image, 'url')
 
             # Add sizes using bulk creation for better performance
             if product.available_sizes:
@@ -174,6 +328,150 @@ def create_product(db: Session, product: ProductCreate):
             operation="get_product",
             table="products",
             details={"product_url": str(product.product_url)},
+            original_exception=e
+        )
+
+
+def filter_duplicate_images_by_hash(new_images_metadata: list, existing_hashes: set) -> list:
+    """
+    Filter out images that already exist based on their hash.
+    
+    Args:
+        new_images_metadata: List of image metadata dicts with 'file_hash' and other info
+        existing_hashes: Set of existing image hashes
+        
+    Returns:
+        List of unique image metadata that don't already exist
+    """
+    unique_images = []
+    for img_meta in new_images_metadata:
+        if isinstance(img_meta, dict) and img_meta.get('file_hash'):
+            if img_meta['file_hash'] not in existing_hashes:
+                unique_images.append(img_meta)
+            else:
+                logger.debug(f"Skipping duplicate image with hash: {img_meta['file_hash'][:16]}...")
+        else:
+            # If no hash available, include it (might be a URL that needs downloading)
+            unique_images.append(img_meta)
+    
+    return unique_images
+
+
+async def update_existing_product_with_changes(db: Session, existing_product: Product, new_data: ProductCreate, changes: dict, download_new_images: bool = True, downloaded_images_metadata: list = None):
+    """
+    Update an existing product with new data based on detected changes.
+    
+    Args:
+        db: Database session
+        existing_product: The existing product to update
+        new_data: New product data from scraping
+        changes: Changes detected by compare_product_data
+        download_new_images: Whether to download new images
+        downloaded_images_metadata: List of downloaded image metadata (if images were already downloaded)
+        
+    Returns:
+        Updated product instance and summary of changes made
+        
+    Raises:
+        DatabaseException: If update fails
+    """
+    from services.image_downloader import download_images
+    from utils.database import bulk_create_relationships
+    
+    logger.info(f"Updating existing product ID: {existing_product.id} with detected changes")
+    
+    try:
+        with atomic_transaction(db):
+            # Update basic fields
+            if changes['field_changes']:
+                for field, change in changes['field_changes'].items():
+                    setattr(existing_product, field, change['new'])
+                    logger.debug(f"Updated field {field}: {change['old']} -> {change['new']}")
+            
+            # Handle image changes with duplicate detection
+            images_added = []
+            if changes['image_changes']['to_add'] and download_new_images:
+                existing_hashes = changes['image_changes'].get('existing_hashes', set())
+                
+                # If we already have downloaded images metadata, use it
+                if downloaded_images_metadata:
+                    # Filter out duplicates by hash
+                    unique_images_metadata = filter_duplicate_images_by_hash(downloaded_images_metadata, existing_hashes)
+                    
+                    if unique_images_metadata:
+                        # Pass the metadata objects directly
+                        bulk_create_relationships(db, existing_product.id, unique_images_metadata, Image, 'url')
+                        images_added = [img['image_id'] for img in unique_images_metadata]
+                        logger.info(f"Added {len(images_added)} unique new images to product {existing_product.id}")
+                    else:
+                        logger.info(f"No unique images to add to product {existing_product.id} - all were duplicates")
+                else:
+                    # Download new images and filter duplicates
+                    new_image_urls = list(changes['image_changes']['to_add'])
+                    logger.info(f"Downloading {len(new_image_urls)} new images for product {existing_product.id}")
+                    
+                    downloaded_results = await download_images(new_image_urls)
+                    if downloaded_results:
+                        # Filter out duplicates by hash
+                        unique_images_metadata = filter_duplicate_images_by_hash(downloaded_results, existing_hashes)
+                        
+                        if unique_images_metadata:
+                            # Pass the metadata objects directly
+                            bulk_create_relationships(db, existing_product.id, unique_images_metadata, Image, 'url')
+                            images_added = [img['image_id'] for img in unique_images_metadata]
+                            logger.info(f"Added {len(images_added)} unique new images to product {existing_product.id}")
+                        else:
+                            logger.info(f"No unique images to add to product {existing_product.id} - all were duplicates")
+            
+            # Handle size changes
+            sizes_added = []
+            if changes['size_changes']['to_add']:
+                new_sizes = list(changes['size_changes']['to_add'])
+                bulk_create_relationships(db, existing_product.id, new_sizes, Size, 'name')
+                sizes_added = new_sizes
+                logger.info(f"Added {len(sizes_added)} new sizes to product {existing_product.id}")
+            
+            # Note: We don't remove existing images or sizes to preserve data
+            # Only add new ones that weren't present before
+            
+            db.flush()
+            
+    except Exception as e:
+        logger.error(f"Failed to update product {existing_product.id}: {e}")
+        raise DatabaseException(
+            message="Failed to update existing product",
+            operation="update_existing_product",
+            table="products",
+            details={"product_id": existing_product.id},
+            original_exception=e
+        )
+    
+    try:
+        # Return updated product with relationships
+        updated_product = db.query(Product).options(
+            joinedload(Product.images),
+            joinedload(Product.sizes)
+        ).filter(Product.id == existing_product.id).first()
+        
+        # Create summary of changes made
+        update_summary = {
+            'fields_updated': list(changes['field_changes'].keys()),
+            'images_added': len(images_added),
+            'sizes_added': len(sizes_added),
+            'total_images': len([img for img in updated_product.images if not img.deleted_at]),
+            'total_sizes': len([size for size in updated_product.sizes if not size.deleted_at])
+        }
+        
+        logger.info(f"Successfully updated product {existing_product.id}. Summary: {update_summary}")
+        
+        return updated_product, update_summary
+        
+    except Exception as e:
+        raise DatabaseException(
+            message="Failed to retrieve updated product",
+            operation="get_updated_product",
+            table="products",
+            details={"product_id": existing_product.id},
             original_exception=e
         )
 

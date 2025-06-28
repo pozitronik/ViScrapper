@@ -32,6 +32,8 @@ class Image(Base):
     id = Column(Integer, primary_key=True, index=True)
     url = Column(String, unique=True)
     product_id = Column(Integer, ForeignKey("products.id"))
+    file_hash = Column(String, nullable=True, index=True)  # SHA256 hash of image content
+    file_size = Column(Integer, nullable=True)  # File size in bytes
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     product = relationship("Product", back_populates="images")

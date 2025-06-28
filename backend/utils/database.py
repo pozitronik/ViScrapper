@@ -117,7 +117,7 @@ def validate_product_constraints(product_data: dict) -> None:
     logger.debug(f"Product data validation passed for URL: {product_url}")
 
 
-def bulk_create_relationships(db: Session, parent_id: int, relationships: list, relationship_class, field_name: str):
+def bulk_create_relationships(db: Session, parent_id: int, relationships: list, relationship_class, field_name: str, **kwargs):
     """
     Efficiently create multiple relationship records.
     
@@ -127,6 +127,7 @@ def bulk_create_relationships(db: Session, parent_id: int, relationships: list, 
         relationships: List of relationship data
         relationship_class: SQLAlchemy model class for relationships
         field_name: Name of the field containing the relationship data
+        **kwargs: Additional data for relationships (e.g., image_metadata for Images)
     """
     if not relationships:
         return
@@ -135,9 +136,29 @@ def bulk_create_relationships(db: Session, parent_id: int, relationships: list, 
     
     # Create all relationship objects
     relationship_objects = []
+    image_metadata = kwargs.get('image_metadata', {})
+    
     for item in relationships:
         if relationship_class.__name__ == 'Image':
-            obj = relationship_class(url=str(item), product_id=parent_id)
+            # For images, item could be just URL string or dict with metadata
+            if isinstance(item, dict):
+                # Item is a metadata dict from download_images
+                url = item.get('image_id')  # Use image_id as the URL for database storage
+                file_hash = item.get('file_hash')
+                file_size = item.get('size_bytes')
+            else:
+                url = str(item)
+                # Look for metadata by URL if available
+                metadata = image_metadata.get(url, {})
+                file_hash = metadata.get('file_hash')
+                file_size = metadata.get('size_bytes')
+            
+            obj = relationship_class(
+                url=url, 
+                product_id=parent_id,
+                file_hash=file_hash,
+                file_size=file_size
+            )
         elif relationship_class.__name__ == 'Size':
             obj = relationship_class(name=str(item), product_id=parent_id)
         else:

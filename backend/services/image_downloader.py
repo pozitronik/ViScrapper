@@ -2,6 +2,7 @@ import asyncio
 import httpx
 import os
 import uuid
+import hashlib
 from typing import List, Dict, Any
 from utils.logger import get_logger
 from exceptions.base import ImageDownloadException, ExternalServiceException
@@ -68,6 +69,9 @@ async def download_single_image(
                         "size_bytes": content_length
                     }
                 
+                # Calculate SHA256 hash of image content
+                image_hash = hashlib.sha256(response.content).hexdigest()
+                
                 # Generate unique filename
                 image_id = f"{uuid.uuid4()}.jpg"
                 file_path = os.path.join(IMAGE_DIR, image_id)
@@ -76,13 +80,14 @@ async def download_single_image(
                 with open(file_path, "wb") as f:
                     f.write(response.content)
                 
-                logger.info(f"Successfully downloaded image {index}/{total}: {url} -> {image_id}")
+                logger.info(f"Successfully downloaded image {index}/{total}: {url} -> {image_id} (hash: {image_hash[:16]}...)")
                 return {
                     "success": True,
                     "url": url,
                     "image_id": image_id,
                     "size_bytes": content_length,
-                    "content_type": content_type
+                    "content_type": content_type,
+                    "file_hash": image_hash
                 }
                 
             except httpx.HTTPStatusError as e:
@@ -139,7 +144,7 @@ async def download_single_image(
         }
 
 
-async def download_images(image_urls: List[str]) -> List[str]:
+async def download_images(image_urls: List[str]) -> List[Dict[str, Any]]:
     """
     Download images from URLs in parallel and save them locally.
     
@@ -147,7 +152,7 @@ async def download_images(image_urls: List[str]) -> List[str]:
         image_urls: List of image URLs to download
         
     Returns:
-        List of local image IDs (filenames) for successfully downloaded images
+        List of metadata dictionaries for successfully downloaded images
         
     Raises:
         ExternalServiceException: If directory creation fails
@@ -198,7 +203,7 @@ async def download_images(image_urls: List[str]) -> List[str]:
         )
     
     # Process results
-    saved_image_ids = []
+    saved_images_metadata = []
     failed_downloads = []
     
     for i, result in enumerate(results):
@@ -212,7 +217,7 @@ async def download_images(image_urls: List[str]) -> List[str]:
             })
         elif isinstance(result, dict):
             if result.get("success"):
-                saved_image_ids.append(result["image_id"])
+                saved_images_metadata.append(result)
             else:
                 failed_downloads.append({
                     "url": result["url"],
@@ -228,7 +233,7 @@ async def download_images(image_urls: List[str]) -> List[str]:
                 "details": str(result)
             })
     
-    success_count = len(saved_image_ids)
+    success_count = len(saved_images_metadata)
     failure_count = len(failed_downloads)
     
     logger.info(f"Parallel image download completed: {success_count}/{total_count} successful, {failure_count} failed")
@@ -248,4 +253,4 @@ async def download_images(image_urls: List[str]) -> List[str]:
             }
         )
     
-    return saved_image_ids
+    return saved_images_metadata

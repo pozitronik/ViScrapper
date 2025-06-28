@@ -332,18 +332,48 @@ document.getElementById('scrape').addEventListener('click', async () => {
       throw new Error(errorMessage);
     }
 
-    // Success
-    status.textContent = 'Product saved successfully!';
+    // Success - check if product was updated or created
+    let successMessage = 'Product saved successfully!';
+    let updateDetails = '';
+    
+    if (result._update_info) {
+      if (result._update_info.was_updated) {
+        const summary = result._update_info.update_summary;
+        const matchType = result._update_info.match_type;
+        
+        successMessage = `Product updated successfully! (${matchType.toUpperCase()} match)`;
+        
+        // Build update details
+        const updates = [];
+        if (summary.fields_updated && summary.fields_updated.length > 0) {
+          updates.push(`${summary.fields_updated.length} field(s) updated`);
+        }
+        if (summary.images_added > 0) {
+          updates.push(`${summary.images_added} image(s) added`);
+        }
+        if (summary.sizes_added > 0) {
+          updates.push(`${summary.sizes_added} size(s) added`);
+        }
+        
+        if (updates.length > 0) {
+          updateDetails = `\nChanges: ${updates.join(', ')}`;
+        }
+      } else if (result._update_info.match_type) {
+        successMessage = `Product already exists with identical data (${result._update_info.match_type.toUpperCase()} match)`;
+      }
+    }
+    
+    status.textContent = successMessage + updateDetails;
     status.className = 'status-success';
     
     // Clear comment field on success
     document.getElementById('comment').value = '';
     updateCharCount();
     
-    // Auto-reset after 3 seconds
+    // Auto-reset after 5 seconds (longer for update info)
     setTimeout(() => {
       resetUI();
-    }, 3000);
+    }, 5000);
     
   } catch (error) {
     console.error('Scraping error:', error);
