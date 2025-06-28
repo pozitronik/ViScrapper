@@ -195,8 +195,8 @@ def initialize_database_with_migrations() -> bool:
     auto_migrate = os.getenv("AUTO_MIGRATE", "false").lower() in ("true", "1", "yes", "on")
     
     if not auto_migrate:
-        logger.info("Automated migrations disabled (AUTO_MIGRATE=false). Skipping migration initialization.")
-        return False
+        logger.info("Automated migrations disabled (AUTO_MIGRATE=false). Manual migration expected.")
+        return True
     
     try:
         logger.info("Initializing database with Alembic migrations...")
