@@ -69,6 +69,7 @@ class SearchFilters(BaseModel):
     color: Optional[str] = Field(None, description="Color filter")
     has_images: Optional[bool] = Field(None, description="Filter products with/without images")
     has_sizes: Optional[bool] = Field(None, description="Filter products with/without sizes")
+    telegram_posted: Optional[bool] = Field(None, description="Filter products by telegram posting status")
     created_after: Optional[datetime] = Field(None, description="Created after date filter")
     created_before: Optional[datetime] = Field(None, description="Created before date filter")
 

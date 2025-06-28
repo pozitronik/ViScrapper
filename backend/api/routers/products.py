@@ -93,6 +93,12 @@ def apply_filters(query, filters: SearchFilters, include_deleted: bool = False):
     if filters.created_before:
         query = query.filter(ProductModel.created_at <= filters.created_before)
     
+    if filters.telegram_posted is not None:
+        if filters.telegram_posted:
+            query = query.filter(ProductModel.telegram_posted_at.isnot(None))
+        else:
+            query = query.filter(ProductModel.telegram_posted_at.is_(None))
+    
     return query
 
 
@@ -120,6 +126,7 @@ async def list_products(
     color: Optional[str] = Query(None, description="Color filter"),
     has_images: Optional[bool] = Query(None, description="Filter by image presence"),
     has_sizes: Optional[bool] = Query(None, description="Filter by size presence"),
+    telegram_posted: Optional[bool] = Query(None, description="Filter by telegram posting status"),
     created_after: Optional[datetime] = Query(None, description="Created after date"),
     created_before: Optional[datetime] = Query(None, description="Created before date"),
     sort_by: str = Query("created_at", description="Field to sort by"),
@@ -134,6 +141,7 @@ async def list_products(
     - Price range
     - Currency, availability, color
     - Presence of images/sizes
+    - Telegram posting status
     - Creation date range
     
     Supports sorting by any product field.
@@ -144,7 +152,7 @@ async def list_products(
     filters = SearchFilters(
         q=q, min_price=min_price, max_price=max_price,
         currency=currency, availability=availability, color=color,
-        has_images=has_images, has_sizes=has_sizes,
+        has_images=has_images, has_sizes=has_sizes, telegram_posted=telegram_posted,
         created_after=created_after, created_before=created_before
     )
     
