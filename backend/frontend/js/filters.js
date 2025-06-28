@@ -22,6 +22,10 @@ class ProductFilters {
         this.dateFromInput = document.getElementById('date-from');
         this.dateToInput = document.getElementById('date-to');
         this.imagesSelect = document.getElementById('images-filter');
+        this.postedSelect = document.getElementById('posted-filter');
+        
+        // Load persisted filters
+        this.loadPersistedFilters();
         
         this.setupEventListeners();
     }
@@ -97,6 +101,13 @@ class ProductFilters {
                 this.updateFilter('hasImages', this.imagesSelect.value);
             });
         }
+
+        // Posted filter
+        if (this.postedSelect) {
+            this.postedSelect.addEventListener('change', () => {
+                this.updateFilter('posted', this.postedSelect.value);
+            });
+        }
     }
 
     /**
@@ -129,6 +140,9 @@ class ProductFilters {
         this.updateClearFiltersButton();
         this.updateFilterSummary();
         
+        // Save filters persistently
+        this.savePersistedFilters();
+        
         if (this.onFiltersChange) {
             this.onFiltersChange(this.getApiFilters());
         }
@@ -148,9 +162,13 @@ class ProductFilters {
         if (this.dateFromInput) this.dateFromInput.value = '';
         if (this.dateToInput) this.dateToInput.value = '';
         if (this.imagesSelect) this.imagesSelect.value = '';
+        if (this.postedSelect) this.postedSelect.value = '';
         
         this.updateClearFiltersButton();
         this.updateFilterSummary();
+        
+        // Clear persisted filters
+        this.clearPersistedFilters();
         
         if (this.onFiltersChange) {
             this.onFiltersChange({});
@@ -229,6 +247,8 @@ class ProductFilters {
                 return `To: ${new Date(value).toLocaleDateString()}`;
             case 'hasImages':
                 return value === 'true' ? 'With Images' : 'Without Images';
+            case 'posted':
+                return value === 'posted' ? 'Posted to Telegram' : 'Not Posted';
             default:
                 return null;
         }
@@ -261,6 +281,9 @@ class ProductFilters {
             case 'hasImages':
                 if (this.imagesSelect) this.imagesSelect.value = '';
                 break;
+            case 'posted':
+                if (this.postedSelect) this.postedSelect.value = '';
+                break;
         }
 
         // Remove from active filters
@@ -269,6 +292,9 @@ class ProductFilters {
         // Update UI
         this.updateClearFiltersButton();
         this.updateFilterSummary();
+        
+        // Save filters persistently
+        this.savePersistedFilters();
 
         // Notify change
         if (this.onFiltersChange) {
@@ -325,6 +351,11 @@ class ProductFilters {
         // Has images
         if (this.activeFilters.hasImages) {
             apiFilters.has_images = this.activeFilters.hasImages === 'true';
+        }
+
+        // Posted status
+        if (this.activeFilters.posted) {
+            apiFilters.telegram_posted = this.activeFilters.posted === 'posted';
         }
 
         return apiFilters;
@@ -392,11 +423,88 @@ class ProductFilters {
                     if (this.imagesSelect) this.imagesSelect.value = value ? 'true' : 'false';
                     this.activeFilters.hasImages = value ? 'true' : 'false';
                     break;
+                case 'telegram_posted':
+                    if (this.postedSelect) this.postedSelect.value = value ? 'posted' : 'not_posted';
+                    this.activeFilters.posted = value ? 'posted' : 'not_posted';
+                    break;
             }
         });
 
         this.updateClearFiltersButton();
         this.updateFilterSummary();
+    }
+
+    /**
+     * Load persisted filters from localStorage
+     */
+    loadPersistedFilters() {
+        try {
+            const savedFilters = localStorage.getItem('viparser_filters');
+            if (savedFilters) {
+                const filters = JSON.parse(savedFilters);
+                
+                // Apply filters to UI elements
+                Object.entries(filters).forEach(([key, value]) => {
+                    switch (key) {
+                        case 'priceMin':
+                            if (this.priceMinInput) this.priceMinInput.value = value;
+                            break;
+                        case 'priceMax':
+                            if (this.priceMaxInput) this.priceMaxInput.value = value;
+                            break;
+                        case 'availability':
+                            if (this.availabilitySelect) this.availabilitySelect.value = value;
+                            break;
+                        case 'color':
+                            if (this.colorInput) this.colorInput.value = value;
+                            break;
+                        case 'dateFrom':
+                            if (this.dateFromInput) this.dateFromInput.value = value;
+                            break;
+                        case 'dateTo':
+                            if (this.dateToInput) this.dateToInput.value = value;
+                            break;
+                        case 'hasImages':
+                            if (this.imagesSelect) this.imagesSelect.value = value;
+                            break;
+                        case 'posted':
+                            if (this.postedSelect) this.postedSelect.value = value;
+                            break;
+                    }
+                });
+                
+                // Set active filters
+                this.activeFilters = filters;
+                
+                // Update UI
+                this.updateClearFiltersButton();
+                this.updateFilterSummary();
+            }
+        } catch (error) {
+            console.error('Error loading persisted filters:', error);
+        }
+    }
+
+    /**
+     * Save current filters to localStorage
+     */
+    savePersistedFilters() {
+        try {
+            localStorage.setItem('viparser_filters', JSON.stringify(this.activeFilters));
+        } catch (error) {
+            console.error('Error saving persisted filters:', error);
+        }
+    }
+
+    /**
+     * Clear persisted filters from localStorage
+     */
+    clearPersistedFilters() {
+        try {
+            localStorage.removeItem('viparser_filters');
+        } catch (error) {
+            console.error('Error clearing persisted filters:', error);
+        }
     }
 }
 

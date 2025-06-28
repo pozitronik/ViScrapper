@@ -5,7 +5,7 @@ class VIParserApp {
         this.currentPage = 1;
         this.itemsPerPage = this.loadPageSizePreference();
         this.isLoading = false;
-        this.currentSearch = '';
+        this.currentSearch = this.loadSearchPreference();
         this.currentSort = this.loadSortPreference();
         this.currentFilters = {};
         
@@ -52,6 +52,9 @@ class VIParserApp {
         
         // Set initial sort indicators in UI
         this.setSortUI();
+        
+        // Set initial search value in UI
+        this.setSearchUI();
         
         // Test API connection
         const connected = await this.testConnection();
@@ -530,6 +533,9 @@ class VIParserApp {
     async handleSearch(query, immediate = false) {
         this.currentSearch = query;
         
+        // Save search persistently
+        this.saveSearchPreference(query);
+        
         // Reset to first page when searching
         this.currentPage = 1;
         
@@ -548,6 +554,10 @@ class VIParserApp {
         }
         
         this.currentSearch = '';
+        
+        // Clear persistent search
+        this.saveSearchPreference('');
+        
         this.toggleClearButton('');
         await this.loadProducts(1, false);
     }
@@ -899,6 +909,41 @@ class VIParserApp {
             localStorage.setItem('viparser_sort', JSON.stringify(sortData));
         } catch (error) {
             console.error('Error saving sort preference:', error);
+        }
+    }
+
+    /**
+     * Load search preference from localStorage
+     */
+    loadSearchPreference() {
+        try {
+            const savedSearch = localStorage.getItem('viparser_search');
+            return savedSearch || '';
+        } catch (error) {
+            console.error('Error loading search preference:', error);
+            return '';
+        }
+    }
+
+    /**
+     * Save search preference to localStorage
+     */
+    saveSearchPreference(searchQuery) {
+        try {
+            localStorage.setItem('viparser_search', searchQuery);
+        } catch (error) {
+            console.error('Error saving search preference:', error);
+        }
+    }
+
+    /**
+     * Set the search value in the UI input
+     */
+    setSearchUI() {
+        const searchInput = document.getElementById('search-input');
+        if (searchInput && this.currentSearch) {
+            searchInput.value = this.currentSearch;
+            this.toggleClearButton(this.currentSearch);
         }
     }
 }
