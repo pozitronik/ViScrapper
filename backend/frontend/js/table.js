@@ -454,15 +454,9 @@ class ProductTable {
      * Handle quick post for individual product
      */
     handleQuickPost(productId) {
-        // First select the product in the row selection system
-        if (this.rowSelection) {
-            this.rowSelection.clearSelection();
-            this.rowSelection.selectProducts([productId]);
-        }
-        
-        // Trigger quick post
+        // Trigger quick post with specific product ID (don't modify selection)
         if (window.telegramModal) {
-            window.telegramModal.quickPost();
+            window.telegramModal.quickPost(productId);
         } else {
             console.warn('Telegram modal not available');
         }

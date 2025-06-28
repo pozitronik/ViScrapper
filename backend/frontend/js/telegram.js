@@ -1197,11 +1197,16 @@ class TelegramModal {
     }
 
     // Quick Post Methods
-    async quickPost() {
-        // Get selected products
-        const selectedProducts = this.getSelectedProductIds();
+    async quickPost(productId = null) {
+        // Get products to post - either specific product or selected products
+        let productsToPost = [];
+        if (productId) {
+            productsToPost = [productId];
+        } else {
+            productsToPost = this.getSelectedProductIds();
+        }
         
-        if (!selectedProducts.length) {
+        if (!productsToPost.length) {
             this.showNotification('Please select products to post', 'warning');
             return;
         }
@@ -1215,7 +1220,7 @@ class TelegramModal {
         // Send immediately without confirmation
         try {
             const requestData = {
-                product_id: selectedProducts[0], // Post first selected product
+                product_id: productsToPost[0], // Post first product (either specific or selected)
                 channel_ids: this.quickPostConfig.channels,
                 template_id: this.quickPostConfig.template_id,
                 send_photos: this.quickPostConfig.send_photos,
