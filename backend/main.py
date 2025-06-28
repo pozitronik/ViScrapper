@@ -35,7 +35,15 @@ from services.telegram_post_service import telegram_post_service
 setup_logger()
 logger = get_logger(__name__)
 
-Base.metadata.create_all(bind=engine)
+# Initialize database with migrations instead of create_all
+from utils.migrations import initialize_database_with_migrations
+
+# Run migrations on startup
+migration_success = initialize_database_with_migrations()
+if not migration_success:
+    logger.error("Failed to initialize database with migrations. Falling back to create_all()")
+    # Fallback to old method if migrations fail
+    Base.metadata.create_all(bind=engine)
 
 
 @asynccontextmanager
