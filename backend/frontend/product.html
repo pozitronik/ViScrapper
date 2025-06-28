@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Details - VIParser</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/table.css">
+    <style>
+        .product-detail-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .product-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .product-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .product-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .product-images {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .main-image {
+            width: 100%;
+            max-width: 500px;
+            height: 400px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .image-thumbnails {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .thumbnail {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        
+        .thumbnail:hover {
+            border-color: #3b82f6;
+        }
+        
+        .thumbnail.active {
+            border-color: #1d4ed8;
+        }
+        
+        .product-info {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .info-section {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .info-section h3 {
+            margin: 0 0 15px 0;
+            color: #1f2937;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .info-row:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        
+        .info-label {
+            font-weight: 500;
+            color: #6b7280;
+            min-width: 120px;
+        }
+        
+        .info-value {
+            color: #1f2937;
+            text-align: right;
+            flex: 1;
+        }
+        
+        .price-display {
+            font-size: 24px;
+            font-weight: 700;
+            color: #059669;
+        }
+        
+        .sell-price {
+            font-size: 18px;
+            color: #7c3aed;
+            margin-left: 10px;
+        }
+        
+        .sizes-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .size-tag {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .no-data {
+            color: #9ca3af;
+            font-style: italic;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 18px;
+            color: #6b7280;
+        }
+        
+        .error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        @media (max-width: 768px) {
+            .product-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .product-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="product-detail-container">
+        <!-- Loading State -->
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <span>Loading product details...</span>
+        </div>
+
+        <!-- Error State -->
+        <div id="error" class="error hidden">
+            <h3>Product Not Found</h3>
+            <p id="error-message">The requested product could not be found.</p>
+            <button id="back-btn" class="btn btn-primary" onclick="history.back()">← Go Back</button>
+        </div>
+
+        <!-- Product Content -->
+        <div id="product-content" class="hidden">
+            <div class="product-header">
+                <div>
+                    <h1 id="product-name">Product Name</h1>
+                    <p class="text-muted">Product ID: <span id="product-id"></span></p>
+                </div>
+                <div class="product-actions">
+                    <button id="edit-btn" class="btn btn-outline">✏️ Edit</button>
+                    <button id="telegram-btn" class="btn btn-outline">📤 Post to Telegram</button>
+                    <button id="quick-post-btn" class="btn btn-success">⚡ Quick Post</button>
+                    <button id="back-btn-header" class="btn btn-secondary" onclick="history.back()">← Back</button>
+                </div>
+            </div>
+
+            <div class="product-content">
+                <!-- Images Section -->
+                <div class="product-images">
+                    <img id="main-image" class="main-image" src="" alt="Product image">
+                    <div id="image-thumbnails" class="image-thumbnails">
+                        <!-- Thumbnails will be inserted here -->
+                    </div>
+                    <div id="no-images" class="no-data hidden">No images available</div>
+                </div>
+
+                <!-- Product Information -->
+                <div class="product-info">
+                    <div class="info-section">
+                        <h3>Basic Information</h3>
+                        <div class="info-row">
+                            <span class="info-label">SKU:</span>
+                            <span class="info-value" id="product-sku">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Price:</span>
+                            <span class="info-value">
+                                <span id="product-price" class="price-display">-</span>
+                                <span id="product-sell-price" class="sell-price hidden"></span>
+                            </span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Availability:</span>
+                            <span class="info-value" id="product-availability">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Color:</span>
+                            <span class="info-value" id="product-color">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Item Type:</span>
+                            <span class="info-value" id="product-item">-</span>
+                        </div>
+                    </div>
+
+                    <div class="info-section">
+                        <h3>Details</h3>
+                        <div class="info-row">
+                            <span class="info-label">Composition:</span>
+                            <span class="info-value" id="product-composition">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Sizes:</span>
+                            <div class="info-value">
+                                <div id="product-sizes" class="sizes-list"></div>
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Comment:</span>
+                            <span class="info-value" id="product-comment">-</span>
+                        </div>
+                    </div>
+
+                    <div class="info-section">
+                        <h3>Metadata</h3>
+                        <div class="info-row">
+                            <span class="info-label">Created:</span>
+                            <span class="info-value" id="product-created">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Original URL:</span>
+                            <span class="info-value">
+                                <a id="product-url" href="#" target="_blank" rel="noopener noreferrer">View Original</a>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/telegram.js"></script>
+    <script>
+        // Product detail page controller
+        class ProductDetailPage {
+            constructor() {
+                this.productId = this.getProductIdFromUrl();
+                this.currentImageIndex = 0;
+                this.product = null;
+                this.images = [];
+            }
+
+            getProductIdFromUrl() {
+                const pathParts = window.location.pathname.split('/');
+                return parseInt(pathParts[pathParts.length - 1]);
+            }
+
+            async init() {
+                if (!this.productId || isNaN(this.productId)) {
+                    this.showError('Invalid product ID');
+                    return;
+                }
+
+                try {
+                    await this.loadProduct();
+                    this.renderProduct();
+                    this.setupEventListeners();
+                } catch (error) {
+                    console.error('Failed to load product:', error);
+                    this.showError(error.message);
+                }
+            }
+
+            async loadProduct() {
+                const response = await api.getProduct(this.productId);
+                this.product = response.data || response;
+                this.images = this.product.images || [];
+            }
+
+            renderProduct() {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('product-content').classList.remove('hidden');
+
+                // Basic information
+                document.getElementById('product-id').textContent = this.product.id;
+                document.getElementById('product-name').textContent = this.product.name || 'Unnamed Product';
+                document.getElementById('product-sku').textContent = this.product.sku || '-';
+                document.getElementById('product-availability').textContent = this.product.availability || '-';
+                document.getElementById('product-color').textContent = this.product.color || '-';
+                document.getElementById('product-item').textContent = this.product.item || '-';
+                document.getElementById('product-composition').textContent = this.product.composition || '-';
+                document.getElementById('product-comment').textContent = this.product.comment || '-';
+
+                // Price information
+                if (this.product.price !== null && this.product.price !== undefined) {
+                    const formattedPrice = formatCurrency(this.product.price, this.product.currency);
+                    document.getElementById('product-price').textContent = formattedPrice;
+                    
+                    if (this.product.sell_price !== null && this.product.sell_price !== undefined) {
+                        const formattedSellPrice = formatCurrency(this.product.sell_price, this.product.currency);
+                        const sellPriceElement = document.getElementById('product-sell-price');
+                        sellPriceElement.textContent = `(Sell: ${formattedSellPrice})`;
+                        sellPriceElement.classList.remove('hidden');
+                    }
+                } else {
+                    document.getElementById('product-price').textContent = '-';
+                }
+
+                // Sizes
+                this.renderSizes();
+
+                // Images
+                this.renderImages();
+
+                // Metadata
+                document.getElementById('product-created').textContent = formatDate(this.product.created_at);
+                
+                const urlElement = document.getElementById('product-url');
+                if (this.product.product_url) {
+                    urlElement.href = this.product.product_url;
+                    urlElement.textContent = 'View Original';
+                } else {
+                    urlElement.textContent = 'No URL available';
+                    urlElement.removeAttribute('href');
+                }
+
+                // Update page title
+                document.title = `${this.product.name || 'Product'} - VIParser`;
+            }
+
+            renderSizes() {
+                const sizesContainer = document.getElementById('product-sizes');
+                
+                if (!this.product.sizes || this.product.sizes.length === 0) {
+                    sizesContainer.innerHTML = '<span class="no-data">No sizes available</span>';
+                    return;
+                }
+
+                sizesContainer.innerHTML = this.product.sizes
+                    .map(size => `<span class="size-tag">${escapeHtml(size.name)}</span>`)
+                    .join('');
+            }
+
+            renderImages() {
+                if (!this.images || this.images.length === 0) {
+                    document.getElementById('main-image').style.display = 'none';
+                    document.getElementById('image-thumbnails').style.display = 'none';
+                    document.getElementById('no-images').classList.remove('hidden');
+                    return;
+                }
+
+                // Main image
+                const mainImage = document.getElementById('main-image');
+                mainImage.src = this.getImageUrl(this.images[0].url);
+                mainImage.alt = this.product.name || 'Product image';
+
+                // Thumbnails
+                const thumbnailsContainer = document.getElementById('image-thumbnails');
+                thumbnailsContainer.innerHTML = this.images
+                    .map((image, index) => `
+                        <img 
+                            class="thumbnail ${index === 0 ? 'active' : ''}" 
+                            src="${this.getImageUrl(image.url)}" 
+                            alt="Thumbnail ${index + 1}"
+                            data-index="${index}"
+                        >
+                    `)
+                    .join('');
+
+                // Add thumbnail click events
+                thumbnailsContainer.querySelectorAll('.thumbnail').forEach(thumb => {
+                    thumb.addEventListener('click', (e) => {
+                        const index = parseInt(e.target.dataset.index);
+                        this.setActiveImage(index);
+                    });
+                });
+            }
+
+            setActiveImage(index) {
+                if (index < 0 || index >= this.images.length) return;
+
+                this.currentImageIndex = index;
+                
+                // Update main image
+                document.getElementById('main-image').src = this.getImageUrl(this.images[index].url);
+                
+                // Update thumbnail active state
+                document.querySelectorAll('.thumbnail').forEach((thumb, i) => {
+                    thumb.classList.toggle('active', i === index);
+                });
+            }
+
+            getImageUrl(filename) {
+                if (filename.startsWith('http://') || filename.startsWith('https://')) {
+                    return filename;
+                }
+                return `/images/${filename}`;
+            }
+
+            setupEventListeners() {
+                // Telegram buttons
+                document.getElementById('telegram-btn').addEventListener('click', () => {
+                    this.openTelegramModal();
+                });
+
+                document.getElementById('quick-post-btn').addEventListener('click', () => {
+                    this.quickPost();
+                });
+
+                // Edit button
+                document.getElementById('edit-btn').addEventListener('click', () => {
+                    // Navigate back to main page with this product selected/highlighted
+                    window.location.href = `/?highlight=${this.productId}`;
+                });
+            }
+
+            openTelegramModal() {
+                // Simulate product selection for telegram modal
+                if (window.telegramModal) {
+                    // Set selected products
+                    window.telegramModal.selectedProducts = [this.productId];
+                    window.telegramModal.openModal();
+                } else {
+                    alert('Telegram functionality not available');
+                }
+            }
+
+            quickPost() {
+                if (window.telegramModal) {
+                    // Set selected products and trigger quick post
+                    window.telegramModal.selectedProducts = [this.productId];
+                    window.telegramModal.quickPost();
+                } else {
+                    alert('Quick post functionality not available');
+                }
+            }
+
+            showError(message) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error-message').textContent = message;
+                document.getElementById('error').classList.remove('hidden');
+            }
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            const productPage = new ProductDetailPage();
+            productPage.init();
+        });
+    </script>
+</body>
+</html>
