@@ -58,6 +58,9 @@
                     <button id="manage-templates" class="btn btn-outline" title="Manage templates">
                         📝 Templates
                     </button>
+                    <button id="configure-columns" class="btn btn-outline" title="Configure columns">
+                        ⚙️ Columns
+                    </button>
                     <div class="page-size-controls">
                         <label for="page-size-select" class="page-size-label">Per page:</label>
                         <select id="page-size-select" class="page-size-select">
@@ -395,6 +398,7 @@
     <script src="/static/js/websocket-client.js"></script>
     <script src="/static/js/telegram.js"></script>
     <script src="/static/js/template-management.js"></script>
+    <script src="/static/js/column-config.js"></script>
     <script src="/static/js/table.js"></script>
     <script src="/static/js/main.js"></script>
 
@@ -792,6 +796,70 @@
                     <button id="template-editor-cancel" class="btn btn-outline">Cancel</button>
                     <button id="template-save" class="btn btn-primary" disabled>
                         ➕ Create Template
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column Configuration Modal -->
+    <div id="column-config-modal" class="telegram-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">⚙️ Configure Table Columns</h3>
+                <button class="modal-close" id="column-config-close" title="Close (Esc)">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="column-config-content">
+                    <div class="column-config-header">
+                        <p class="config-description">Drag columns to reorder them, and use the toggles to show or hide columns.</p>
+                        <div class="config-actions">
+                            <button id="reset-columns" class="btn btn-outline btn-sm">
+                                🔄 Reset to Default
+                            </button>
+                            <button id="show-all-columns" class="btn btn-outline btn-sm">
+                                👁️ Show All
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="column-list-container">
+                        <div class="column-list-header">
+                            <span class="column-header-text">Column</span>
+                            <span class="visibility-header-text">Visible</span>
+                        </div>
+                        
+                        <div id="column-list" class="column-list">
+                            <!-- Column items will be populated here -->
+                        </div>
+                    </div>
+
+                    <div class="column-config-preview">
+                        <h4>Preview</h4>
+                        <div class="preview-table-container">
+                            <table class="preview-table">
+                                <thead>
+                                    <tr id="preview-headers">
+                                        <!-- Preview headers will be shown here -->
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <div class="modal-footer-info">
+                    <span id="visible-columns-count">0 of 0 columns visible</span>
+                </div>
+                
+                <div class="modal-footer-actions">
+                    <button id="column-config-cancel" class="btn btn-outline">Cancel</button>
+                    <button id="column-config-save" class="btn btn-primary">
+                        💾 Save Configuration
                     </button>
                 </div>
             </div>

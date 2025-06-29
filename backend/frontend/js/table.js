@@ -36,6 +36,13 @@ class ProductTable {
         // Initialize row selection for new data
         this.rowSelection.initializeTable(this.table, products);
         
+        // Apply column configuration after rendering
+        if (window.columnConfig) {
+            setTimeout(() => {
+                window.columnConfig.applyConfiguration();
+            }, 0);
+        }
+        
         if (this.onDataChange) {
             this.onDataChange(products, totalCount);
         }
@@ -92,7 +99,10 @@ class ProductTable {
      * Create select cell
      */
     createSelectCell(product) {
-        return createElement('td', { className: 'select-column' }, `
+        return createElement('td', { 
+            className: 'select-column',
+            dataset: { column: 'select' }
+        }, `
             <input type="checkbox" class="row-checkbox" data-product-id="${product.id}" title="Select product">
         `);
     }
@@ -101,7 +111,10 @@ class ProductTable {
      * Create ID cell with control buttons
      */
     createIdCell(product) {
-        const cell = createElement('td', { className: 'id-cell' });
+        const cell = createElement('td', { 
+            className: 'id-cell',
+            dataset: { column: 'id' }
+        });
         
         // Determine Quick post button state based on telegram_posted_at
         const isPosted = product.telegram_posted_at;
@@ -160,7 +173,9 @@ class ProductTable {
      * Create images cell with thumbnails
      */
     createImagesCell(product) {
-        const cell = createElement('td');
+        const cell = createElement('td', {
+            dataset: { column: 'images' }
+        });
         
         if (!product.images || product.images.length === 0) {
             cell.innerHTML = '<span class="text-muted">No images</span>';
@@ -203,7 +218,9 @@ class ProductTable {
      */
     createNameCell(product) {
         const name = product.name || 'Unnamed Product';
-        const cell = createElement('td', {}, `
+        const cell = createElement('td', {
+            dataset: { column: 'name' }
+        }, `
             <span class="cell-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
         `);
         
@@ -218,7 +235,9 @@ class ProductTable {
      */
     createSkuCell(product) {
         const sku = product.sku || '-';
-        const cell = createElement('td', {}, `
+        const cell = createElement('td', {
+            dataset: { column: 'sku' }
+        }, `
             <span title="${escapeHtml(sku)}">${escapeHtml(sku)}</span>
         `);
         
@@ -232,7 +251,9 @@ class ProductTable {
      * Create price cell
      */
     createPriceCell(product) {
-        const cell = createElement('td');
+        const cell = createElement('td', {
+            dataset: { column: 'price' }
+        });
         
         if (product.price !== null && product.price !== undefined) {
             const formattedPrice = formatCurrency(product.price, product.currency);
@@ -262,7 +283,9 @@ class ProductTable {
         const availability = product.availability || 'Unknown';
         const availabilityClass = getAvailabilityClass(availability);
         
-        const cell = createElement('td', {}, `
+        const cell = createElement('td', {
+            dataset: { column: 'availability' }
+        }, `
             <span class="cell-availability ${availabilityClass}">${escapeHtml(availability)}</span>
         `);
         
@@ -277,7 +300,9 @@ class ProductTable {
      */
     createColorCell(product) {
         const color = product.color || '-';
-        const cell = createElement('td', {}, `
+        const cell = createElement('td', {
+            dataset: { column: 'color' }
+        }, `
             <span title="${escapeHtml(color)}">${escapeHtml(color)}</span>
         `);
         
@@ -292,7 +317,9 @@ class ProductTable {
      */
     createCompositionCell(product) {
         const composition = product.composition || '-';
-        const cell = createElement('td');
+        const cell = createElement('td', {
+            dataset: { column: 'composition' }
+        });
         
         if (composition === '-') {
             cell.innerHTML = '<span class="cell-composition">-</span>';
@@ -316,7 +343,9 @@ class ProductTable {
      */
     createItemCell(product) {
         const item = product.item || '-';
-        const cell = createElement('td', {}, `
+        const cell = createElement('td', {
+            dataset: { column: 'item' }
+        }, `
             <span class="cell-item" title="${escapeHtml(item)}">${escapeHtml(item)}</span>
         `);
         
@@ -330,7 +359,9 @@ class ProductTable {
      * Create sizes cell
      */
     createSizesCell(product) {
-        const cell = createElement('td');
+        const cell = createElement('td', {
+            dataset: { column: 'sizes' }
+        });
         
         if (!product.sizes || product.sizes.length === 0) {
             cell.innerHTML = '<span class="text-muted">No sizes</span>';
@@ -398,7 +429,9 @@ class ProductTable {
         const comment = product.comment || '';
         const displayComment = comment || '-';
         
-        const cell = createElement('td', {}, `
+        const cell = createElement('td', {
+            dataset: { column: 'comment' }
+        }, `
             <span class="cell-comment" title="${escapeHtml(comment)}">${escapeHtml(displayComment)}</span>
         `);
         
@@ -415,7 +448,9 @@ class ProductTable {
         const date = formatRelativeTime(product.created_at);
         const fullDate = formatDate(product.created_at);
         
-        return createElement('td', {}, `
+        return createElement('td', {
+            dataset: { column: 'created_at' }
+        }, `
             <span class="cell-date" title="${fullDate}">${date}</span>
         `);
     }
@@ -424,7 +459,10 @@ class ProductTable {
      * Create URL cell
      */
     createUrlCell(product) {
-        return createElement('td', { className: 'cell-url' }, `
+        return createElement('td', { 
+            className: 'cell-url',
+            dataset: { column: 'product_url' }
+        }, `
             <a href="${escapeHtml(product.product_url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(product.product_url)}">
                 View
             </a>
