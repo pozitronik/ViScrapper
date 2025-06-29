@@ -158,9 +158,55 @@
       const sizeContainer1 = document.querySelector('[data-testid="BoxSelector-size1"]');
       const sizeContainer2 = document.querySelector('[data-testid="BoxSelector-size2"]');
       
+      // Check if both containers are related (share the same parent section)
+      let areContainersRelated = false;
       if (sizeContainer1 && sizeContainer2) {
-        // Dual size selectors detected - extract combinations
-        console.log('Dual size selectors detected, extracting combinations...');
+        // Check if both containers share a common parent within reasonable distance
+        const container1Parent = sizeContainer1.closest('.sc-s4utl4-0, .size-selection, .product-variants, .variant-selector, [class*="size"], [class*="variant"]');
+        const container2Parent = sizeContainer2.closest('.sc-s4utl4-0, .size-selection, .product-variants, .variant-selector, [class*="size"], [class*="variant"]');
+        
+        if (container1Parent && container2Parent) {
+          areContainersRelated = container1Parent === container2Parent || 
+                                container1Parent.contains(sizeContainer2) || 
+                                container2Parent.contains(sizeContainer1);
+        }
+        
+        console.log(`Containers related check: ${areContainersRelated}`);
+        console.log(`Container1 parent:`, container1Parent?.className);
+        console.log(`Container2 parent:`, container2Parent?.className);
+      }
+      
+      // Check if containers have meaningful content
+      let hasValidSize1 = false;
+      let hasValidSize2 = false;
+      let size1Options = [];
+      let size2Options = [];
+      
+      if (sizeContainer1) {
+        size1Options = Array.from(sizeContainer1.querySelectorAll('[role="radio"]'));
+        const enabledSize1Options = size1Options.filter(opt => opt.getAttribute('aria-disabled') !== 'true');
+        hasValidSize1 = enabledSize1Options.length > 0;
+        size1Options = enabledSize1Options; // Use only enabled options
+      }
+      
+      if (sizeContainer2 && areContainersRelated) {
+        size2Options = Array.from(sizeContainer2.querySelectorAll('[role="radio"]'));
+        const enabledSize2Options = size2Options.filter(opt => opt.getAttribute('aria-disabled') !== 'true');
+        hasValidSize2 = enabledSize2Options.length > 0;
+        size2Options = enabledSize2Options; // Use only enabled options
+      }
+      
+      console.log(`Size detection: Container1 exists: ${!!sizeContainer1}, Container2 exists: ${!!sizeContainer2}, Related: ${areContainersRelated}`);
+      console.log(`Size detection: Size1 valid: ${hasValidSize1} (${size1Options.length} options), Size2 valid: ${hasValidSize2} (${size2Options.length} options)`);
+      
+      // Combination detection - both containers must be related and have options
+      const isRealCombination = hasValidSize1 && hasValidSize2 && areContainersRelated;
+      
+      console.log(`Is real combination product: ${isRealCombination}`);
+      
+      if (isRealCombination) {
+        // Both containers are related and have valid options - this is truly a combination product
+        console.log('True dual size selectors detected, extracting combinations...');
         const combinationResult = await extractSizeCombinations(sizeContainer1, sizeContainer2);
         if (combinationResult.success) {
           productData.size_combinations = combinationResult.data;
@@ -169,10 +215,20 @@
           console.error('Failed to extract size combinations:', combinationResult.error);
           productData.size_combinations = null;
         }
-      } else if (sizeContainer1) {
-        // Single size selector - use existing logic
-        const availableSizes = Array.from(sizeContainer1.querySelectorAll('[role="radio"][aria-disabled="false"]')).map(btn => btn.textContent.trim());
+      } else if (hasValidSize1) {
+        // Only size1 has valid options OR containers not related - treat as single size
+        console.log('Single size selector detected (using size1), extracting simple sizes...');
+        const availableSizes = size1Options.map(btn => btn.textContent.trim()).filter(size => size);
         productData.available_sizes = availableSizes;
+        console.log('Simple sizes extracted:', availableSizes);
+      } else if (hasValidSize2 && !areContainersRelated) {
+        // Size2 exists but not related to size1 - treat as single size product
+        console.log('Single size selector detected (using unrelated size2), extracting simple sizes...');
+        const availableSizes = size2Options.map(btn => btn.textContent.trim()).filter(size => size);
+        productData.available_sizes = availableSizes;
+        console.log('Simple sizes extracted:', availableSizes);
+      } else {
+        console.log('No valid size options found');
       }
     } catch (e) {
       console.error('Could not find size information:', e);
