@@ -117,13 +117,13 @@ class TemplateRenderer:
         formatted_parts = []
         
         for size in active_sizes:
-            if size.size_type == 'combination' and size.size_combination_data:
+            if size.size_type == 'combination' and size.combination_data:
                 # Handle size combinations
                 combinations_found = True
                 combo_lines = []
                 
                 # Sort size1 values for consistent display
-                sorted_combinations = dict(sorted(size.size_combination_data.items()))
+                sorted_combinations = dict(sorted(size.combination_data.items()))
                 
                 for size1, size2_options in sorted_combinations.items():
                     # Format: "32: A B D"
@@ -135,11 +135,10 @@ class TemplateRenderer:
                         all_sizes_for_list.append(f"{size1}{size2}")
                 
                 formatted_parts.append('\n'.join(combo_lines))
-            else:
+            elif size.size_type == 'simple' and size.size_value:
                 # Handle simple sizes
-                if size.name:
-                    simple_sizes.append(size.name)
-                    all_sizes_for_list.append(size.name)
+                simple_sizes.append(size.size_value)
+                all_sizes_for_list.append(size.size_value)
         
         # Build display string for {size} placeholder (without headers)
         if combinations_found and formatted_parts:

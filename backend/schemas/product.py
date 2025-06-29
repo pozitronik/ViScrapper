@@ -20,9 +20,11 @@ class Image(ImageBase):
 
 
 class SizeBase(BaseModel):
-    name: str
-    size_type: Optional[str] = None  # e.g., "Band", "Cup", or null for simple sizes
-    size_combination_data: Optional[Dict[str, List[str]]] = None  # {"34": ["B", "C"], "36": ["A"]}
+    size_type: str  # 'simple' or 'combination'
+    size_value: Optional[str] = None  # For simple sizes: the size value (e.g., "M", "L")
+    size1_type: Optional[str] = None  # For combinations: first size type (e.g., "Band")
+    size2_type: Optional[str] = None  # For combinations: second size type (e.g., "Cup") 
+    combination_data: Optional[Dict[str, List[str]]] = None  # For combinations: {"34": ["B", "C"], "36": ["A"]}
 
 
 class SizeCreate(SizeBase):

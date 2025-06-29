@@ -247,15 +247,15 @@ def create_product(db: Session, product: ProductCreate, downloaded_images_metada
                     # Fallback for existing behavior
                     bulk_create_relationships(db, db_product.id, product.all_image_urls, Image, 'url')
 
-            # Add sizes using bulk creation for better performance
+            # Add sizes using improved size handling
             if product.size_combinations:
                 # Handle dual size selectors with combinations
                 logger.info(f"Adding size combinations to product ID: {db_product.id}")
-                create_size_combinations(db, db_product.id, product.size_combinations)
+                create_size_combinations_new(db, db_product.id, product.size_combinations)
             elif product.available_sizes:
                 # Handle simple sizes
                 logger.info(f"Adding {len(product.available_sizes)} simple sizes to product ID: {db_product.id}")
-                bulk_create_relationships(db, db_product.id, product.available_sizes, Size, 'name')
+                create_simple_sizes(db, db_product.id, product.available_sizes)
 
             # Transaction will be committed by the context manager
             logger.debug("All product data prepared for atomic commit")
@@ -337,9 +337,9 @@ def create_product(db: Session, product: ProductCreate, downloaded_images_metada
         )
 
 
-def create_size_combinations(db: Session, product_id: int, size_combinations_data: dict):
+def create_size_combinations_new(db: Session, product_id: int, size_combinations_data: dict):
     """
-    Create size combinations from browser extension data.
+    Create size combinations from browser extension data using new structure.
     
     Args:
         db: Database session
@@ -361,14 +361,51 @@ def create_size_combinations(db: Session, product_id: int, size_combinations_dat
     
     # Create a single Size record to store all combinations
     size_record = Size(
-        name=f"{size1_type} + {size2_type} combinations",
         product_id=product_id,
         size_type="combination",
-        size_combination_data=combinations
+        size1_type=size1_type,
+        size2_type=size2_type,
+        combination_data=combinations
     )
     
     db.add(size_record)
     logger.info(f"Created size combination record for product {product_id} with {len(combinations)} size1 options")
+
+
+def create_simple_sizes(db: Session, product_id: int, available_sizes: list):
+    """
+    Create simple size records from available sizes list.
+    
+    Args:
+        db: Database session
+        product_id: ID of the product
+        available_sizes: List of size strings (e.g., ["S", "M", "L"])
+    """
+    from models.product import Size
+    
+    logger.debug(f"Creating simple sizes for product {product_id}: {available_sizes}")
+    
+    if not available_sizes:
+        logger.warning(f"No available sizes found for product {product_id}")
+        return
+    
+    # Create a Size record for each simple size
+    for size_value in available_sizes:
+        size_record = Size(
+            product_id=product_id,
+            size_type="simple",
+            size_value=size_value
+        )
+        db.add(size_record)
+    
+    logger.info(f"Created {len(available_sizes)} simple size records for product {product_id}")
+
+
+def create_size_combinations(db: Session, product_id: int, size_combinations_data: dict):
+    """
+    Legacy function - kept for backward compatibility.
+    """
+    return create_size_combinations_new(db, product_id, size_combinations_data)
 
 
 def filter_duplicate_images_by_hash(new_images_metadata: list, existing_hashes: set) -> list:

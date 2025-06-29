@@ -372,7 +372,7 @@ class ProductTable {
         
         // Show all sizes
         product.sizes.forEach(size => {
-            if (size.size_type === 'combination' && size.size_combination_data) {
+            if (size.size_type === 'combination' && size.combination_data) {
                 // Special handling for size combinations - display as visual grid
                 const gridContainer = createElement('div', {
                     className: 'size-combination-grid'
@@ -380,13 +380,13 @@ class ProductTable {
                 
                 // First, collect all unique size2 options to create columns
                 const allSize2Options = new Set();
-                Object.values(size.size_combination_data).forEach(options => {
+                Object.values(size.combination_data).forEach(options => {
                     options.forEach(opt => allSize2Options.add(opt));
                 });
                 const size2Columns = Array.from(allSize2Options).sort();
                 
                 // Create grid rows
-                Object.entries(size.size_combination_data).forEach(([size1, size2Options]) => {
+                Object.entries(size.combination_data).forEach(([size1, size2Options]) => {
                     const row = createElement('div', {
                         className: 'combination-row'
                     });
@@ -409,11 +409,11 @@ class ProductTable {
                 });
                 
                 container.appendChild(gridContainer);
-            } else {
-                // Regular size display
+            } else if (size.size_type === 'simple' && size.size_value) {
+                // Regular size display for simple sizes
                 const tag = createElement('span', {
                     className: 'size-tag'
-                }, escapeHtml(size.name));
+                }, escapeHtml(size.size_value));
                 container.appendChild(tag);
             }
         });

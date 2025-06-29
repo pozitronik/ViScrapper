@@ -43,10 +43,12 @@ class Size(Base):
     __tablename__ = "sizes"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)  # For simple sizes or combination display name
-    product_id = Column(Integer, ForeignKey("products.id"))
-    size_type = Column(String, nullable=True)  # e.g., "Band", "Cup", or null for simple sizes
-    size_combination_data = Column(JSON, nullable=True)  # JSON data for combinations: {"34": ["B", "C"], "36": ["A"]}
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    size_type = Column(String, nullable=False)  # 'simple' or 'combination'
+    size_value = Column(String, nullable=True)  # For simple sizes: the size value (e.g., "M", "L")
+    size1_type = Column(String, nullable=True)  # For combinations: first size type (e.g., "Band")
+    size2_type = Column(String, nullable=True)  # For combinations: second size type (e.g., "Cup")
+    combination_data = Column(JSON, nullable=True)  # For combinations: {"34": ["B", "C"], "36": ["A"]}
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     product = relationship("Product", back_populates="sizes")

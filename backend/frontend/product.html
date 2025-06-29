@@ -145,6 +145,68 @@
             font-size: 12px;
             font-weight: 500;
         }
+
+        /* Size combination grid styles */
+        .size-combination-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-width: 100%;
+            overflow-x: auto;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        .combination-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            min-height: 24px;
+        }
+
+        .size1-label {
+            min-width: 40px;
+            padding: 2px 6px;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-align: center;
+            color: #374151;
+            flex-shrink: 0;
+        }
+
+        .size2-cell {
+            min-width: 30px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 500;
+            border-radius: 2px;
+            border: 1px solid #d1d5db;
+        }
+
+        .size2-cell.available {
+            background: #dbeafe;
+            color: #1e40af;
+            border-color: #93c5fd;
+        }
+
+        .size2-cell.empty {
+            background: #f9fafb;
+            border-color: #e5e7eb;
+        }
+
+        .sizes-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
         
         .no-data {
             color: #9ca3af;
@@ -261,7 +323,7 @@
                         <div class="info-row">
                             <span class="info-label">Sizes:</span>
                             <div class="info-value">
-                                <div id="product-sizes" class="sizes-list"></div>
+                                <div id="product-sizes" class="sizes-container"></div>
                             </div>
                         </div>
                         <div class="info-row">
@@ -388,9 +450,96 @@
                     return;
                 }
 
-                sizesContainer.innerHTML = this.product.sizes
-                    .map(size => `<span class="size-tag">${escapeHtml(size.name)}</span>`)
-                    .join('');
+                // Clear container
+                sizesContainer.innerHTML = '';
+                
+                // Process each size
+                this.product.sizes.forEach(size => {
+                    if (size.size_type === 'combination' && size.combination_data) {
+                        // Create size combination grid
+                        const gridContainer = this.createElement('div', {
+                            className: 'size-combination-grid'
+                        });
+                        
+                        // First, collect all unique size2 options to create columns
+                        const allSize2Options = new Set();
+                        Object.values(size.combination_data).forEach(options => {
+                            options.forEach(opt => allSize2Options.add(opt));
+                        });
+                        const size2Columns = Array.from(allSize2Options).sort();
+                        
+                        // Create grid rows
+                        Object.entries(size.combination_data).forEach(([size1, size2Options]) => {
+                            const row = this.createElement('div', {
+                                className: 'combination-row'
+                            });
+                            
+                            // Size1 label
+                            const label = this.createElement('span', {
+                                className: 'size1-label'
+                            });
+                            label.textContent = `${size1}:`;
+                            row.appendChild(label);
+                            
+                            // Size2 columns
+                            size2Columns.forEach(columnOption => {
+                                const cell = this.createElement('span', {
+                                    className: `size2-cell ${size2Options.includes(columnOption) ? 'available' : 'empty'}`
+                                });
+                                if (size2Options.includes(columnOption)) {
+                                    cell.textContent = columnOption;
+                                }
+                                row.appendChild(cell);
+                            });
+                            
+                            gridContainer.appendChild(row);
+                        });
+                        
+                        sizesContainer.appendChild(gridContainer);
+                    } else if (size.size_type === 'simple' && size.size_value) {
+                        // Regular size display
+                        const sizeTagsContainer = sizesContainer.querySelector('.sizes-list') || 
+                                                 this.createSizeTagsContainer();
+                        
+                        const tag = this.createElement('span', {
+                            className: 'size-tag'
+                        });
+                        tag.textContent = size.size_value;
+                        sizeTagsContainer.appendChild(tag);
+                    }
+                });
+            }
+
+            createSizeTagsContainer() {
+                const sizesContainer = document.getElementById('product-sizes');
+                let container = sizesContainer.querySelector('.sizes-list');
+                
+                if (!container) {
+                    container = this.createElement('div', {
+                        className: 'sizes-list'
+                    });
+                    sizesContainer.appendChild(container);
+                }
+                
+                return container;
+            }
+
+            createElement(tagName, attributes = {}) {
+                const element = document.createElement(tagName);
+                
+                Object.keys(attributes).forEach(key => {
+                    if (key === 'className') {
+                        element.className = attributes[key];
+                    } else if (key === 'dataset') {
+                        Object.keys(attributes[key]).forEach(dataKey => {
+                            element.dataset[dataKey] = attributes[key][dataKey];
+                        });
+                    } else {
+                        element.setAttribute(key, attributes[key]);
+                    }
+                });
+                
+                return element;
             }
 
             renderImages() {
