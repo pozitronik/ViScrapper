@@ -34,16 +34,21 @@ class TestParallelImageDownloader:
             )
         
         start_time = time.time()
-        saved_files = await download_images(image_urls)
+        saved_metadata = await download_images(image_urls)
         end_time = time.time()
         
         # Verify results
-        assert len(saved_files) == 3
+        assert len(saved_metadata) == 3
         
         # Verify all files exist and contain correct content
         image_dir = os.getenv("IMAGE_DIR", "./images")
-        for i, image_id in enumerate(saved_files):
-            file_path = os.path.join(image_dir, image_id)
+        for i, metadata in enumerate(saved_metadata):
+            assert metadata["success"] is True
+            assert metadata["url"] == image_urls[i]
+            assert "image_id" in metadata
+            assert "file_hash" in metadata
+            
+            file_path = os.path.join(image_dir, metadata["image_id"])
             assert os.path.exists(file_path)
             
             with open(file_path, "rb") as f:
@@ -90,14 +95,15 @@ class TestParallelImageDownloader:
             headers={"content-type": "text/html"}
         )
         
-        saved_files = await download_images(image_urls)
+        saved_metadata = await download_images(image_urls)
         
-        # Should have 2 successful downloads
-        assert len(saved_files) == 2
+        # Should have 2 successful downloads (some failures expected)
+        successful_downloads = [m for m in saved_metadata if m["success"]]
+        assert len(successful_downloads) == 2
         
         # Clean up files
-        for image_id in saved_files:
-            file_path = os.path.join("./images", image_id)
+        for metadata in successful_downloads:
+            file_path = os.path.join("./images", metadata["image_id"])
             if os.path.exists(file_path):
                 os.remove(file_path)
 
@@ -135,15 +141,16 @@ class TestParallelImageDownloader:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client_class.return_value = mock_client
             
-            saved_files = await download_images(image_urls)
+            saved_metadata = await download_images(image_urls)
             
             # Verify concurrency was limited
             assert max_concurrent <= MAX_CONCURRENT_DOWNLOADS
-            assert len(saved_files) == 10
+            successful_downloads = [m for m in saved_metadata if m["success"]]
+            assert len(successful_downloads) == 10
             
             # Clean up files
-            for image_id in saved_files:
-                file_path = os.path.join("./images", image_id)
+            for metadata in successful_downloads:
+                file_path = os.path.join("./images", metadata["image_id"])
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
@@ -272,14 +279,15 @@ class TestParallelImageDownloader:
             headers={"content-type": "image/jpeg"}
         )
         
-        saved_files = await download_images(image_urls)
+        saved_metadata = await download_images(image_urls)
         
-        # Should only save the small image
-        assert len(saved_files) == 1
+        # Should only save the small image (large one should be rejected)
+        successful_downloads = [m for m in saved_metadata if m["success"]]
+        assert len(successful_downloads) == 1
         
         # Clean up
-        for image_id in saved_files:
-            file_path = os.path.join("./images", image_id)
+        for metadata in successful_downloads:
+            file_path = os.path.join("./images", metadata["image_id"])
             if os.path.exists(file_path):
                 os.remove(file_path)
 
@@ -317,19 +325,20 @@ class TestParallelImageDownloader:
             )
         
         start_time = time.time()
-        saved_files = await download_images(image_urls)
+        saved_metadata = await download_images(image_urls)
         end_time = time.time()
         
         download_time = end_time - start_time
         
         # Verify all downloads succeeded
-        assert len(saved_files) == 5
+        successful_downloads = [m for m in saved_metadata if m["success"]]
+        assert len(successful_downloads) == 5
         
         # Parallel download should complete quickly with mocked responses
         assert download_time < 2.0  # Should complete quickly
         
         # Clean up
-        for image_id in saved_files:
-            file_path = os.path.join("./images", image_id)
+        for metadata in successful_downloads:
+            file_path = os.path.join("./images", metadata["image_id"])
             if os.path.exists(file_path):
                 os.remove(file_path)

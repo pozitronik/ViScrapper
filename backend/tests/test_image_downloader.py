@@ -13,9 +13,18 @@ async def test_download_images(httpx_mock):
         headers={"content-type": "image/jpeg"}
     )
 
-    saved_files = await image_downloader.download_images([IMAGE_URL])
-    assert len(saved_files) == 1
-    image_path = os.path.join(image_downloader.IMAGE_DIR, saved_files[0])
+    saved_metadata = await image_downloader.download_images([IMAGE_URL])
+    assert len(saved_metadata) == 1
+    
+    # Check metadata structure
+    metadata = saved_metadata[0]
+    assert metadata["success"] is True
+    assert metadata["url"] == IMAGE_URL
+    assert "image_id" in metadata
+    assert "file_hash" in metadata
+    
+    # Check file was actually saved
+    image_path = os.path.join(image_downloader.IMAGE_DIR, metadata["image_id"])
     assert os.path.exists(image_path)
     with open(image_path, "rb") as f:
         assert f.read() == b"fake image data"
