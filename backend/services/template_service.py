@@ -39,6 +39,7 @@ class TemplateRenderer:
         '{images_count}': 'Number of product images',
         '{sizes_count}': 'Number of available sizes',
         '{sizes}': 'Available sizes (comma-separated)',
+        '{size}': 'Size information (formatted for display)',
         '{images}': 'Image URLs (comma-separated)',
         # Long format (backwards compatibility)
         '{product_name}': 'Product name',
@@ -57,6 +58,7 @@ class TemplateRenderer:
         '{product_images_count}': 'Number of product images',
         '{product_sizes_count}': 'Number of available sizes',
         '{product_sizes}': 'Available sizes (comma-separated)',
+        '{product_size}': 'Size information (formatted for display)',
         '{product_images}': 'Image URLs (comma-separated)',
         # Date/time placeholders
         '{current_date}': 'Current date (YYYY-MM-DD)',
@@ -92,11 +94,74 @@ class TemplateRenderer:
         
         return invalid_placeholders
     
+    def _format_sizes_for_display(self, product: Product) -> tuple[str, list]:
+        """
+        Format sizes for display, handling both simple sizes and combinations.
+        
+        Args:
+            product: Product with sizes
+            
+        Returns:
+            Tuple of (formatted_display_string, all_sizes_list)
+        """
+        if not product.sizes:
+            return 'None', []
+        
+        active_sizes = [size for size in product.sizes if size.deleted_at is None]
+        if not active_sizes:
+            return 'None', []
+        
+        simple_sizes = []
+        all_sizes_for_list = []
+        combinations_found = False
+        formatted_parts = []
+        
+        for size in active_sizes:
+            if size.size_type == 'combination' and size.size_combination_data:
+                # Handle size combinations
+                combinations_found = True
+                combo_lines = []
+                
+                # Sort size1 values for consistent display
+                sorted_combinations = dict(sorted(size.size_combination_data.items()))
+                
+                for size1, size2_options in sorted_combinations.items():
+                    # Format: "32: A B D"
+                    size2_str = ' '.join(size2_options)
+                    combo_lines.append(f"{size1}: {size2_str}")
+                    
+                    # For the {sizes} placeholder, create individual size combinations
+                    for size2 in size2_options:
+                        all_sizes_for_list.append(f"{size1}{size2}")
+                
+                formatted_parts.append('\n'.join(combo_lines))
+            else:
+                # Handle simple sizes
+                if size.name:
+                    simple_sizes.append(size.name)
+                    all_sizes_for_list.append(size.name)
+        
+        # Build display string for {size} placeholder (without headers)
+        if combinations_found and formatted_parts:
+            if simple_sizes:
+                # Mix of combinations and simple sizes
+                display_str = f"{chr(10).join(formatted_parts)}\n{', '.join(simple_sizes)}"
+            else:
+                # Only combinations (no header)
+                display_str = chr(10).join(formatted_parts)
+        elif simple_sizes:
+            # Only simple sizes
+            display_str = ', '.join(simple_sizes)
+        else:
+            display_str = 'None'
+        
+        return display_str, all_sizes_for_list
+    
     def _get_product_data(self, product: Product) -> Dict[str, Any]:
         """Extract product data for placeholder replacement"""
-        # Get sizes as comma-separated string
-        sizes = [size.name for size in product.sizes if size.deleted_at is None] if product.sizes else []
-        sizes_str = ', '.join(sizes) if sizes else 'None'
+        # Get sizes and format for display
+        sizes_display, all_sizes_list = self._format_sizes_for_display(product)
+        sizes_str = ', '.join(all_sizes_list) if all_sizes_list else 'None'
         
         # Get images as comma-separated string
         images = [image.url for image in product.images if image.deleted_at is None] if product.images else []
@@ -132,8 +197,9 @@ class TemplateRenderer:
             'id': str(product.id),
             'created_at': created_at_str,
             'images_count': str(len(images)),
-            'sizes_count': str(len(sizes)),
+            'sizes_count': str(len(all_sizes_list)),
             'sizes': sizes_str,
+            'size': sizes_display,
             'images': images_str,
             # Long format (backwards compatibility)
             'product_name': product.name or 'Unnamed Product',
@@ -150,8 +216,9 @@ class TemplateRenderer:
             'product_id': str(product.id),
             'product_created_at': created_at_str,
             'product_images_count': str(len(images)),
-            'product_sizes_count': str(len(sizes)),
+            'product_sizes_count': str(len(all_sizes_list)),
             'product_sizes': sizes_str,
+            'product_size': sizes_display,
             'product_images': images_str,
         }
         

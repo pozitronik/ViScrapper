@@ -179,16 +179,19 @@ class TemplateManager {
             const descriptionInput = modal.querySelector('#template-description-input');
             const contentInput = modal.querySelector('#template-content-input');
             const modalTitle = modal.querySelector('.modal-title');
+            const saveBtn = modal.querySelector('#template-save');
             
             if (template) {
                 // Editing existing template
                 if (modalTitle) modalTitle.textContent = 'Edit Template';
+                if (saveBtn) saveBtn.textContent = 'Save Changes';
                 if (nameInput) nameInput.value = template.name || '';
                 if (descriptionInput) descriptionInput.value = template.description || '';
                 if (contentInput) contentInput.value = template.template_content || '';
             } else {
                 // Creating new template
                 if (modalTitle) modalTitle.textContent = 'Create Template';
+                if (saveBtn) saveBtn.textContent = 'Create Template';
                 if (nameInput) nameInput.value = '';
                 if (descriptionInput) descriptionInput.value = '';
                 if (contentInput) contentInput.value = '';
@@ -377,7 +380,9 @@ class TemplateManager {
             composition: 'Cotton 100%',
             item: 'Shirt',
             comment: 'Sample comment',
-            product_url: 'https://example.com/product'
+            product_url: 'https://example.com/product',
+            size: 'S, M, L, XL',
+            sizes: 'S, M, L, XL'
         };
         
         // Replace placeholders with sample data
@@ -465,10 +470,10 @@ class TemplateManager {
             console.error('Failed to save template:', error);
             showError(`Failed to save template: ${error.message}`);
         } finally {
-            // Re-enable save button
+            // Re-enable save button with correct text
             if (saveBtn) {
                 saveBtn.disabled = false;
-                saveBtn.textContent = 'Save Template';
+                saveBtn.textContent = this.currentTemplate ? 'Save Changes' : 'Create Template';
             }
         }
     }
@@ -539,31 +544,59 @@ class TemplateManager {
     /**
      * Load available placeholders
      */
-    loadPlaceholders() {
+    async loadPlaceholders() {
         const container = document.getElementById('template-placeholders-list');
         if (!container) return;
         
-        const placeholders = [
-            { key: 'name', description: 'Product name' },
-            { key: 'sku', description: 'Product SKU' },
-            { key: 'price', description: 'Product price' },
-            { key: 'sell_price', description: 'Product sell price (calculated)' },
-            { key: 'currency', description: 'Price currency' },
-            { key: 'availability', description: 'Product availability' },
-            { key: 'color', description: 'Product color' },
-            { key: 'composition', description: 'Product composition' },
-            { key: 'item', description: 'Product item type' },
-            { key: 'comment', description: 'Product comment' },
-            { key: 'product_url', description: 'Product URL' },
-            { key: 'created_at', description: 'Creation date' }
-        ];
-        
-        container.innerHTML = placeholders.map(placeholder => `
-            <div class="placeholder-item">
-                <code>{${placeholder.key}}</code>
-                <span>${placeholder.description}</span>
-            </div>
-        `).join('');
+        try {
+            // Fetch placeholders from backend
+            const response = await fetch('/api/v1/templates/placeholders/available');
+            const data = await response.json();
+            
+            if (data && data.data && data.data.placeholders) {
+                // Convert object to array and sort
+                const placeholders = Object.entries(data.data.placeholders).map(([key, description]) => ({
+                    key: key.replace(/[{}]/g, ''), // Remove braces for display
+                    description
+                })).sort((a, b) => a.key.localeCompare(b.key));
+                
+                container.innerHTML = placeholders.map(placeholder => `
+                    <div class="placeholder-item">
+                        <code>{${placeholder.key}}</code>
+                        <span>${placeholder.description}</span>
+                    </div>
+                `).join('');
+            } else {
+                throw new Error('Invalid response format');
+            }
+        } catch (error) {
+            console.error('Failed to load placeholders:', error);
+            
+            // Fallback to basic placeholders
+            const fallbackPlaceholders = [
+                { key: 'name', description: 'Product name' },
+                { key: 'sku', description: 'Product SKU' },
+                { key: 'price', description: 'Product price' },
+                { key: 'sell_price', description: 'Product sell price (calculated)' },
+                { key: 'currency', description: 'Price currency' },
+                { key: 'availability', description: 'Product availability' },
+                { key: 'color', description: 'Product color' },
+                { key: 'composition', description: 'Product composition' },
+                { key: 'item', description: 'Product item type' },
+                { key: 'comment', description: 'Product comment' },
+                { key: 'size', description: 'Size information (formatted for display)' },
+                { key: 'sizes', description: 'Available sizes (comma-separated)' },
+                { key: 'product_url', description: 'Product URL' },
+                { key: 'created_at', description: 'Creation date' }
+            ];
+            
+            container.innerHTML = fallbackPlaceholders.map(placeholder => `
+                <div class="placeholder-item">
+                    <code>{${placeholder.key}}</code>
+                    <span>${placeholder.description}</span>
+                </div>
+            `).join('');
+        }
     }
 
     /**
@@ -592,7 +625,9 @@ class TemplateManager {
             item: 'Shirt',
             comment: 'Sample comment',
             product_url: 'https://example.com/product',
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            size: 'S, M, L, XL',
+            sizes: 'S, M, L, XL'
         };
         
         // Replace placeholders with sample data
@@ -609,7 +644,7 @@ class TemplateManager {
     /**
      * Validate template content
      */
-    validateTemplate() {
+    async validateTemplate() {
         console.log('Validate button clicked!');
         const nameInput = document.querySelector('#template-name-input');
         const contentInput = document.querySelector('#template-content-input');
@@ -635,22 +670,51 @@ class TemplateManager {
             errors.push('Template content is required');
         }
         
-        // Check for valid placeholders
-        const placeholderPattern = /\{([^}]+)\}/g;
-        const validPlaceholders = ['name', 'sku', 'price', 'sell_price', 'currency', 'availability', 'color', 'composition', 'item', 'comment', 'product_url', 'created_at'];
-        const matches = content.matchAll(placeholderPattern);
-        
-        for (const match of matches) {
-            const placeholder = match[1];
-            if (!validPlaceholders.includes(placeholder)) {
-                errors.push(`Invalid placeholder: {${placeholder}}`);
+        try {
+            // Use backend validation
+            const response = await fetch(`/api/v1/templates/validate?template_content=${encodeURIComponent(content)}`, {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            const validationData = data.data || data;
+            
+            if (validationData.is_valid) {
+                if (errors.length === 0) {
+                    alert('✅ Template validation passed!\n\nNo errors found.');
+                } else {
+                    alert('❌ Template validation failed:\n\n' + errors.join('\n'));
+                }
+            } else {
+                // Add placeholder validation errors
+                if (validationData.invalid_placeholders && validationData.invalid_placeholders.length > 0) {
+                    validationData.invalid_placeholders.forEach(placeholder => {
+                        errors.push(`Invalid placeholder: ${placeholder}`);
+                    });
+                }
+                
+                alert('❌ Template validation failed:\n\n' + errors.join('\n'));
             }
-        }
-        
-        if (errors.length === 0) {
-            alert('✅ Template validation passed!\n\nNo errors found.');
-        } else {
-            alert('❌ Template validation failed:\n\n' + errors.join('\n'));
+        } catch (error) {
+            console.error('Validation request failed:', error);
+            
+            // Fallback to basic validation
+            const placeholderPattern = /\{([^}]+)\}/g;
+            const validPlaceholders = ['name', 'sku', 'price', 'sell_price', 'currency', 'availability', 'color', 'composition', 'item', 'comment', 'size', 'sizes', 'product_url', 'created_at'];
+            const matches = content.matchAll(placeholderPattern);
+            
+            for (const match of matches) {
+                const placeholder = match[1];
+                if (!validPlaceholders.includes(placeholder)) {
+                    errors.push(`Invalid placeholder: {${placeholder}}`);
+                }
+            }
+            
+            if (errors.length === 0) {
+                alert('✅ Template validation passed!\n\nNo errors found.');
+            } else {
+                alert('❌ Template validation failed:\n\n' + errors.join('\n'));
+            }
         }
     }
 }
