@@ -1,14 +1,15 @@
 # Load environment variables from .env file FIRST
-from dotenv import load_dotenv
-load_dotenv()
-
+import os
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from crud.product import get_product_by_url, create_product, find_existing_product, compare_product_data, update_existing_product_with_changes
+
+from crud.product import create_product, find_existing_product, compare_product_data, update_existing_product_with_changes
 from models.product import Base
 from schemas.product import Product, ProductCreate
 from services.image_downloader import download_images
@@ -16,7 +17,6 @@ from services.websocket_service import websocket_manager
 from database.session import get_db, engine
 from utils.logger import setup_logger, get_logger
 from utils.error_handlers import setup_error_handlers
-from exceptions.base import ProductException
 
 # Import new API routers
 from api.routers.products import router as products_router
@@ -32,12 +32,14 @@ from services.backup_service import backup_service
 # Setup telegram post service for auto-posting
 from services.telegram_post_service import telegram_post_service
 
+# Initialize database with migrations instead of create_all
+from utils.migrations import initialize_database_with_migrations
+
+load_dotenv()
+
 # Set up logging
 setup_logger()
 logger = get_logger(__name__)
-
-# Initialize database with migrations instead of create_all
-from utils.migrations import initialize_database_with_migrations
 
 # Run migrations on startup
 migration_success = initialize_database_with_migrations()
@@ -239,7 +241,6 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
 
 
 # Frontend serving routes
-import os
 
 if os.path.exists("images"):
     app.mount("/images", StaticFiles(directory="images"), name="images")

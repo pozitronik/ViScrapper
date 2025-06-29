@@ -180,7 +180,7 @@ class ImageCleanupService:
                 results = self.delete_orphaned_images(orphaned_files, dry_run=dry_run)
                 
                 results['success'] = True
-                results['message'] = f"Cleanup completed successfully"
+                results['message'] = "Cleanup completed successfully"
                 
                 return results
                 

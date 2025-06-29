@@ -8,7 +8,12 @@ from utils.logger import get_logger
 from exceptions.base import ImageDownloadException, ExternalServiceException
 
 logger = get_logger(__name__)
-IMAGE_DIR = os.getenv("IMAGE_DIR", "./images")
+
+
+def get_image_dir() -> str:
+    """Get the image directory from environment variable at runtime."""
+    return os.getenv("IMAGE_DIR", "./images")
+
 
 # Configuration constants
 MAX_CONCURRENT_DOWNLOADS = int(os.getenv("MAX_CONCURRENT_DOWNLOADS", "5"))
@@ -74,7 +79,7 @@ async def download_single_image(
                 
                 # Generate unique filename
                 image_id = f"{uuid.uuid4()}.jpg"
-                file_path = os.path.join(IMAGE_DIR, image_id)
+                file_path = os.path.join(get_image_dir(), image_id)
                 
                 # Save file
                 with open(file_path, "wb") as f:
@@ -164,14 +169,15 @@ async def download_images(image_urls: List[str]) -> List[Dict[str, Any]]:
     
     # Ensure image directory exists
     try:
-        if not os.path.exists(IMAGE_DIR):
-            os.makedirs(IMAGE_DIR)
-            logger.info(f"Created image directory: {IMAGE_DIR}")
+        image_dir = get_image_dir()
+        if not os.path.exists(image_dir):
+            os.makedirs(image_dir)
+            logger.info(f"Created image directory: {image_dir}")
     except OSError as e:
         raise ExternalServiceException(
-            message=f"Failed to create image directory: {IMAGE_DIR}",
+            message=f"Failed to create image directory: {image_dir}",
             service="file_system",
-            details={"directory": IMAGE_DIR, "error": str(e)},
+            details={"directory": image_dir, "error": str(e)},
             original_exception=e
         )
 

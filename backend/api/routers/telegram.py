@@ -214,7 +214,6 @@ async def get_posts_list(
         )
         
         # Count total with same filters
-        from sqlalchemy import and_
         from models.product import TelegramPost as TelegramPostModel
         
         query = db.query(TelegramPostModel)

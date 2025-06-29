@@ -1,15 +1,18 @@
 # Load environment variables from .env file FIRST
-from dotenv import load_dotenv
-load_dotenv()
+import os
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-import os
+
+load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./viparser.db")
 
 # Database engine configuration with connection pooling
+
+
 def create_database_engine(database_url: str = DATABASE_URL):
     """Create database engine with appropriate configuration for the database type."""
     
@@ -39,6 +42,7 @@ def create_database_engine(database_url: str = DATABASE_URL):
         )
     
     return engine
+
 
 engine = create_database_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

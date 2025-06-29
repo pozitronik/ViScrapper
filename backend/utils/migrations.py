@@ -4,7 +4,6 @@ Handles running Alembic migrations on application startup.
 """
 
 import os
-import sys
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
