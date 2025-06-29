@@ -93,10 +93,11 @@ async def test_scrape_product_already_exists(client, session, mocker):
     }
     response = client.post("/api/v1/scrape", json=product_data)
 
-    assert response.status_code == 409
+    assert response.status_code == 200  # Should succeed with update
     response_data = response.json()
-    assert "error" in response_data
-    assert "already exists" in response_data["error"]["message"]
+    assert "id" in response_data  # Should have product ID
+    # Should return the existing product (potentially updated)
+    assert response_data["product_url"] == "http://example.com/product/existing"
 
 
 @pytest.mark.asyncio
