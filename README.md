@@ -1,5 +1,7 @@
 # VIParser - Product Management & Web Scraping Tool
 
+**📖 Documentation Languages:** [English](README.md) | [Русский](README_RU.md)
+
 VIParser is a comprehensive product management system that helps you scrape product information from websites, manage your product catalog, and automatically post to Telegram channels. It consists of a web-based backend service and a Chrome browser extension for easy product scraping.
 
 ## 📋 Table of Contents
