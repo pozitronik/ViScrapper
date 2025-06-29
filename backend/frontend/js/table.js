@@ -341,10 +341,50 @@ class ProductTable {
         
         // Show all sizes
         product.sizes.forEach(size => {
-            const tag = createElement('span', {
-                className: 'size-tag'
-            }, escapeHtml(size.name));
-            container.appendChild(tag);
+            if (size.size_type === 'combination' && size.size_combination_data) {
+                // Special handling for size combinations - display as visual grid
+                const gridContainer = createElement('div', {
+                    className: 'size-combination-grid'
+                });
+                
+                // First, collect all unique size2 options to create columns
+                const allSize2Options = new Set();
+                Object.values(size.size_combination_data).forEach(options => {
+                    options.forEach(opt => allSize2Options.add(opt));
+                });
+                const size2Columns = Array.from(allSize2Options).sort();
+                
+                // Create grid rows
+                Object.entries(size.size_combination_data).forEach(([size1, size2Options]) => {
+                    const row = createElement('div', {
+                        className: 'combination-row'
+                    });
+                    
+                    // Size1 label
+                    const label = createElement('span', {
+                        className: 'size1-label'
+                    }, `${escapeHtml(size1)}:`);
+                    row.appendChild(label);
+                    
+                    // Size2 columns
+                    size2Columns.forEach(columnOption => {
+                        const cell = createElement('span', {
+                            className: `size2-cell ${size2Options.includes(columnOption) ? 'available' : 'empty'}`
+                        }, size2Options.includes(columnOption) ? escapeHtml(columnOption) : '');
+                        row.appendChild(cell);
+                    });
+                    
+                    gridContainer.appendChild(row);
+                });
+                
+                container.appendChild(gridContainer);
+            } else {
+                // Regular size display
+                const tag = createElement('span', {
+                    className: 'size-tag'
+                }, escapeHtml(size.name));
+                container.appendChild(tag);
+            }
         });
 
         cell.appendChild(container);

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, HttpUrl, computed_field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 import os
 
@@ -21,6 +21,8 @@ class Image(ImageBase):
 
 class SizeBase(BaseModel):
     name: str
+    size_type: Optional[str] = None  # e.g., "Band", "Cup", or null for simple sizes
+    size_combination_data: Optional[Dict[str, List[str]]] = None  # {"34": ["B", "C"], "36": ["A"]}
 
 
 class SizeCreate(SizeBase):
@@ -50,6 +52,7 @@ class ProductBase(BaseModel):
 class ProductCreate(ProductBase):
     all_image_urls: Optional[List[str]] = []
     available_sizes: Optional[List[str]] = []
+    size_combinations: Optional[Dict[str, Any]] = None  # For dual size selectors: {"size1_type": "Band", "size2_type": "Cup", "combinations": {"34": ["B", "C"]}}
 
 
 class ProductUpdate(BaseModel):

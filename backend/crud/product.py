@@ -248,8 +248,13 @@ def create_product(db: Session, product: ProductCreate, downloaded_images_metada
                     bulk_create_relationships(db, db_product.id, product.all_image_urls, Image, 'url')
 
             # Add sizes using bulk creation for better performance
-            if product.available_sizes:
-                logger.info(f"Adding {len(product.available_sizes)} sizes to product ID: {db_product.id}")
+            if product.size_combinations:
+                # Handle dual size selectors with combinations
+                logger.info(f"Adding size combinations to product ID: {db_product.id}")
+                create_size_combinations(db, db_product.id, product.size_combinations)
+            elif product.available_sizes:
+                # Handle simple sizes
+                logger.info(f"Adding {len(product.available_sizes)} simple sizes to product ID: {db_product.id}")
                 bulk_create_relationships(db, db_product.id, product.available_sizes, Size, 'name')
 
             # Transaction will be committed by the context manager
@@ -330,6 +335,40 @@ def create_product(db: Session, product: ProductCreate, downloaded_images_metada
             details={"product_url": str(product.product_url)},
             original_exception=e
         )
+
+
+def create_size_combinations(db: Session, product_id: int, size_combinations_data: dict):
+    """
+    Create size combinations from browser extension data.
+    
+    Args:
+        db: Database session
+        product_id: ID of the product
+        size_combinations_data: Dict with size1_type, size2_type, and combinations
+    """
+    from models.product import Size
+    
+    logger.debug(f"Creating size combinations for product {product_id}: {size_combinations_data}")
+    
+    # Extract data from the combination structure
+    size1_type = size_combinations_data.get('size1_type', 'size1')
+    size2_type = size_combinations_data.get('size2_type', 'size2')
+    combinations = size_combinations_data.get('combinations', {})
+    
+    if not combinations:
+        logger.warning(f"No combinations data found for product {product_id}")
+        return
+    
+    # Create a single Size record to store all combinations
+    size_record = Size(
+        name=f"{size1_type} + {size2_type} combinations",
+        product_id=product_id,
+        size_type="combination",
+        size_combination_data=combinations
+    )
+    
+    db.add(size_record)
+    logger.info(f"Created size combination record for product {product_id} with {len(combinations)} size1 options")
 
 
 def filter_duplicate_images_by_hash(new_images_metadata: list, existing_hashes: set) -> list:

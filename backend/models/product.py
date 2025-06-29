@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -43,8 +43,10 @@ class Size(Base):
     __tablename__ = "sizes"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
+    name = Column(String)  # For simple sizes or combination display name
     product_id = Column(Integer, ForeignKey("products.id"))
+    size_type = Column(String, nullable=True)  # e.g., "Band", "Cup", or null for simple sizes
+    size_combination_data = Column(JSON, nullable=True)  # JSON data for combinations: {"34": ["B", "C"], "36": ["A"]}
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     product = relationship("Product", back_populates="sizes")

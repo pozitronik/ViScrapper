@@ -1,5 +1,123 @@
-(() => {
-  function parseHtmlContent() {
+(async () => {
+  async function extractSizeCombinations(sizeContainer1, sizeContainer2) {
+    try {
+      console.log('Starting size combination extraction...');
+      
+      // Get size type labels
+      const size1Type = getSizeTypeLabel(sizeContainer1);
+      const size2Type = getSizeTypeLabel(sizeContainer2);
+      
+      console.log(`Size types detected: ${size1Type} and ${size2Type}`);
+      
+      // Get all size1 options (both enabled and disabled)
+      const size1Options = Array.from(sizeContainer1.querySelectorAll('[role="radio"]'));
+      const combinations = {};
+      
+      console.log(`Found ${size1Options.length} size1 options to iterate through`);
+      
+      // Store original state to restore later
+      const originallySelected1 = sizeContainer1.querySelector('[role="radio"][aria-checked="true"]');
+      const originallySelected2 = sizeContainer2.querySelector('[role="radio"][aria-checked="true"]');
+      
+      // Iterate through each size1 option
+      for (let i = 0; i < size1Options.length; i++) {
+        const size1Option = size1Options[i];
+        const size1Value = size1Option.getAttribute('data-value');
+        
+        // Skip if this size1 option is disabled
+        if (size1Option.getAttribute('aria-disabled') === 'true') {
+          console.log(`Skipping disabled size1 option: ${size1Value}`);
+          continue;
+        }
+        
+        console.log(`Clicking size1 option: ${size1Value}`);
+        
+        // Click the size1 option
+        size1Option.click();
+        
+        // Wait for page to update
+        await wait(200);
+        
+        // Get available size2 options after this size1 selection
+        const availableSize2Options = Array.from(sizeContainer2.querySelectorAll('[role="radio"][aria-disabled="false"]'));
+        const size2Values = availableSize2Options.map(opt => opt.getAttribute('data-value'));
+        
+        console.log(`Size1 ${size1Value} -> Available size2 options:`, size2Values);
+        
+        if (size2Values.length > 0) {
+          combinations[size1Value] = size2Values;
+        }
+      }
+      
+      // Restore original selections
+      try {
+        if (originallySelected1) {
+          originallySelected1.click();
+          await wait(100);
+        }
+        if (originallySelected2) {
+          originallySelected2.click();
+          await wait(100);
+        }
+      } catch (e) {
+        console.warn('Could not restore original selections:', e);
+      }
+      
+      console.log('Final combinations extracted:', combinations);
+      
+      return {
+        success: true,
+        data: {
+          size1_type: size1Type,
+          size2_type: size2Type,
+          combinations: combinations
+        }
+      };
+      
+    } catch (error) {
+      console.error('Error extracting size combinations:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+  
+  function getSizeTypeLabel(sizeContainer) {
+    try {
+      // Look for the label in the parent container
+      const parent = sizeContainer.closest('.sc-s4utl4-0');
+      if (parent) {
+        const labelElement = parent.querySelector('[data-testid]');
+        if (labelElement) {
+          return labelElement.getAttribute('data-testid');
+        }
+      }
+      
+      // Fallback: use aria-label from the radiogroup
+      const ariaLabel = sizeContainer.getAttribute('aria-label');
+      if (ariaLabel) {
+        return ariaLabel;
+      }
+      
+      // Fallback: use data-testid attribute
+      const testId = sizeContainer.getAttribute('data-testid');
+      if (testId) {
+        return testId.replace('BoxSelector-', '');
+      }
+      
+      return 'Unknown';
+    } catch (e) {
+      console.warn('Could not determine size type label:', e);
+      return 'Unknown';
+    }
+  }
+  
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  
+  async function parseHtmlContent() {
     const productData = {};
 
     try {
@@ -37,9 +155,23 @@
     }
 
     try {
-      const sizeContainer = document.querySelector('[data-testid="BoxSelector-size1"]');
-      if (sizeContainer) {
-        const availableSizes = Array.from(sizeContainer.querySelectorAll('[role="radio"][aria-disabled="false"]')).map(btn => btn.textContent.trim());
+      const sizeContainer1 = document.querySelector('[data-testid="BoxSelector-size1"]');
+      const sizeContainer2 = document.querySelector('[data-testid="BoxSelector-size2"]');
+      
+      if (sizeContainer1 && sizeContainer2) {
+        // Dual size selectors detected - extract combinations
+        console.log('Dual size selectors detected, extracting combinations...');
+        const combinationResult = await extractSizeCombinations(sizeContainer1, sizeContainer2);
+        if (combinationResult.success) {
+          productData.size_combinations = combinationResult.data;
+          console.log('Size combinations extracted:', combinationResult.data);
+        } else {
+          console.error('Failed to extract size combinations:', combinationResult.error);
+          productData.size_combinations = null;
+        }
+      } else if (sizeContainer1) {
+        // Single size selector - use existing logic
+        const availableSizes = Array.from(sizeContainer1.querySelectorAll('[role="radio"][aria-disabled="false"]')).map(btn => btn.textContent.trim());
         productData.available_sizes = availableSizes;
       }
     } catch (e) {
@@ -72,5 +204,5 @@
     return productData;
   }
 
-  return parseHtmlContent();
+  return await parseHtmlContent();
 })();
