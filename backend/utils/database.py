@@ -160,7 +160,7 @@ def bulk_create_relationships(db: Session, parent_id: int, relationships: list, 
                 file_size=file_size
             )
         elif relationship_class.__name__ == 'Size':
-            obj = relationship_class(name=str(item), product_id=parent_id)
+            obj = relationship_class(size_type="simple", size_value=str(item), product_id=parent_id)
         else:
             raise ValueError(f"Unsupported relationship class: {relationship_class.__name__}")
         

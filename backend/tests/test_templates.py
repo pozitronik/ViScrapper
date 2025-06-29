@@ -54,8 +54,8 @@ class TestMessageTemplates:
         # Add some images and sizes
         image1 = Image(url="https://example.com/image1.jpg", product_id=None)
         image2 = Image(url="https://example.com/image2.jpg", product_id=None)
-        size1 = Size(name="M", product_id=None)
-        size2 = Size(name="L", product_id=None)
+        size1 = Size(size_type="simple", size_value="M", product_id=None)
+        size2 = Size(size_type="simple", size_value="L", product_id=None)
         
         db.add_all([image1, image2, size1, size2])
         db.commit()
@@ -205,8 +205,8 @@ class TestTemplateRenderer:
         # Add images and sizes
         image1 = Image(url="https://example.com/image1.jpg", product_id=product.id)
         image2 = Image(url="https://example.com/image2.jpg", product_id=product.id)
-        size1 = Size(name="M", product_id=product.id)
-        size2 = Size(name="L", product_id=product.id)
+        size1 = Size(size_type="simple", size_value="M", product_id=product.id)
+        size2 = Size(size_type="simple", size_value="L", product_id=product.id)
         
         db.add_all([image1, image2, size1, size2])
         db.commit()
@@ -429,3 +429,127 @@ class TestTemplateAPI:
         data = response.json()
         assert data["data"]["is_valid"] is False
         assert len(data["data"]["invalid_placeholders"]) > 0
+
+
+class TestTemplateRenderingWithCombinationSizes:
+    """Test template rendering with combination sizes"""
+    
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        """Set up test database and sample data"""
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
+        yield
+        self.test_db.close()
+        Base.metadata.drop_all(bind=self.test_engine)
+    
+    def create_combination_product(self, db: Session) -> Product:
+        """Helper to create a product with combination sizes"""
+        product = Product(
+            product_url="https://example.com/bra-product",
+            name="Premium Bra",
+            sku="BRA-001",
+            price=49.99,
+            currency="USD",
+            availability="In Stock",
+            color="Black",
+            item="Bra"
+        )
+        db.add(product)
+        db.commit()
+        
+        # Add combination size
+        combination_size = Size(
+            size_type="combination",
+            size1_type="Band",
+            size2_type="Cup",
+            combination_data={
+                "32": ["A", "B", "C"],
+                "34": ["B", "C", "D"],
+                "36": ["A", "C"]
+            },
+            product_id=product.id
+        )
+        
+        db.add(combination_size)
+        db.commit()
+        
+        db.refresh(product)
+        return product
+    
+    def test_template_rendering_with_combination_sizes(self):
+        """Test template rendering with combination size data"""
+        db = self.test_db
+        product = self.create_combination_product(db)
+        
+        # Test {sizes} placeholder (should show individual combinations)
+        template_content = "Available sizes: {sizes}"
+        rendered = template_renderer.render_template(template_content, product)
+        
+        # Should include individual size combinations like "32A, 32B, 32C, 34B, 34C, 34D, 36A, 36C"
+        assert "32A" in rendered
+        assert "32B" in rendered
+        assert "34D" in rendered
+        assert "36A" in rendered
+    
+    def test_template_rendering_with_combination_size_display(self):
+        """Test template rendering with {size} placeholder (grid format)"""
+        db = self.test_db
+        product = self.create_combination_product(db)
+        
+        # Test {size} placeholder (should show grid format)
+        template_content = "Size combinations:\n{size}"
+        rendered = template_renderer.render_template(template_content, product)
+        
+        # Should include grid-style display
+        assert "32: A B C" in rendered
+        assert "34: B C D" in rendered
+        assert "36: A C" in rendered
+    
+    def test_template_rendering_mixed_simple_and_combination(self):
+        """Test rendering product with both simple and combination sizes"""
+        db = self.test_db
+        
+        # Create product
+        product = Product(
+            product_url="https://example.com/mixed-product",
+            name="Mixed Size Product",
+            sku="MIXED-001",
+            price=29.99,
+            currency="USD"
+        )
+        db.add(product)
+        db.commit()
+        
+        # Add both simple and combination sizes
+        simple_size = Size(
+            size_type="simple",
+            size_value="One Size",
+            product_id=product.id
+        )
+        
+        combination_size = Size(
+            size_type="combination", 
+            size1_type="Width",
+            size2_type="Height",
+            combination_data={"10": ["5", "6"], "12": ["6", "7"]},
+            product_id=product.id
+        )
+        
+        db.add_all([simple_size, combination_size])
+        db.commit()
+        db.refresh(product)
+        
+        template_content = "Sizes: {sizes}"
+        rendered = template_renderer.render_template(template_content, product)
+        
+        # Should include both simple sizes and combinations
+        assert "One Size" in rendered
+        assert "10" in rendered  # From combination
+        assert "12" in rendered  # From combination

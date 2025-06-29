@@ -93,7 +93,11 @@ def test_create_product_with_all_fields(db_session):
     assert len(db_product.images) == 2
     assert {image.url for image in db_product.images} == {"http://example.com/image_full1.jpg", "http://example.com/image_full2.jpg"}
     assert len(db_product.sizes) == 2
-    assert {size.name for size in db_product.sizes} == {"L", "XL"}
+    assert {size.size_value for size in db_product.sizes} == {"L", "XL"}
+    # Verify these are simple sizes
+    for size in db_product.sizes:
+        assert size.size_type == "simple"
+        assert size.size_value in ["L", "XL"]
 
 
 def test_create_product_with_no_images_or_sizes(db_session):
@@ -163,7 +167,11 @@ def test_create_product_with_duplicate_sizes(db_session):
     )
     db_product = create_product(db_session, product_in)
     assert len(db_product.sizes) == 2
-    assert [size.name for size in db_product.sizes] == ["M", "M"]
+    assert [size.size_value for size in db_product.sizes] == ["M", "M"]
+    # Verify these are simple sizes
+    for size in db_product.sizes:
+        assert size.size_type == "simple"
+        assert size.size_value == "M"
 
 
 def test_create_product_with_images_and_no_sizes(db_session):
@@ -318,3 +326,59 @@ def test_create_product_with_complex_url(db_session):
     )
     db_product = create_product(db_session, product_in)
     assert db_product.product_url == complex_url
+
+
+def test_create_product_with_size_combinations(db_session):
+    """Test creating product with size combinations (e.g., bra sizes)"""
+    size_combinations_data = {
+        "size1_type": "Band",
+        "size2_type": "Cup", 
+        "combinations": {
+            "32": ["A", "B", "C"],
+            "34": ["B", "C", "D"],
+            "36": ["A", "C"]
+        }
+    }
+    
+    product_in = ProductCreate(
+        product_url="http://example.com/combination_product",
+        name="Combination Size Product",
+        sku="COMBO-SKU-001",
+        size_combinations=size_combinations_data,
+    )
+    
+    db_product = create_product(db_session, product_in)
+    assert db_product.name == "Combination Size Product"
+    assert len(db_product.sizes) == 1  # One combination record
+    
+    size_combo = db_product.sizes[0]
+    assert size_combo.size_type == "combination"
+    assert size_combo.size1_type == "Band"
+    assert size_combo.size2_type == "Cup"
+    assert size_combo.combination_data == {
+        "32": ["A", "B", "C"],
+        "34": ["B", "C", "D"], 
+        "36": ["A", "C"]
+    }
+
+
+def test_create_product_with_mixed_simple_and_combination_sizes(db_session):
+    """Test that a product can't have both simple sizes and combinations in one request"""
+    # This should only process the combination, not the simple sizes
+    size_combinations_data = {
+        "size1_type": "Band",
+        "size2_type": "Cup",
+        "combinations": {"32": ["A", "B"]}
+    }
+    
+    product_in = ProductCreate(
+        product_url="http://example.com/mixed_sizes",
+        name="Mixed Sizes Product",
+        sku="MIXED-SKU-001", 
+        available_sizes=["S", "M"],  # These should be ignored
+        size_combinations=size_combinations_data,
+    )
+    
+    db_product = create_product(db_session, product_in)
+    assert len(db_product.sizes) == 1  # Only combination, simple sizes ignored
+    assert db_product.sizes[0].size_type == "combination"

@@ -199,13 +199,16 @@ class TestTransactionManagement:
         
         # Bulk create sizes
         size_names = ["S", "M", "L"]
-        bulk_create_relationships(db_session, product.id, size_names, Size, 'name')
+        bulk_create_relationships(db_session, product.id, size_names, Size, 'size_value')
         db_session.commit()
         
         # Verify sizes were created
         sizes = db_session.query(Size).filter_by(product_id=product.id).all()
         assert len(sizes) == 3
-        assert {size.name for size in sizes} == set(size_names)
+        assert {size.size_value for size in sizes} == set(size_names)
+        # Verify these are simple sizes
+        for size in sizes:
+            assert size.size_type == "simple"
     
     def test_bulk_create_relationships_empty_list(self, db_session):
         """Test bulk creation with empty list does nothing."""

@@ -86,8 +86,8 @@ class TestSoftDeleteOperations:
         db.add_all([image1, image2])
         
         # Create sizes
-        size1 = Size(name="M", product_id=product.id)
-        size2 = Size(name="L", product_id=product.id)
+        size1 = Size(size_type="simple", size_value="M", product_id=product.id)
+        size2 = Size(size_type="simple", size_value="L", product_id=product.id)
         db.add_all([size1, size2])
         
         db.commit()
