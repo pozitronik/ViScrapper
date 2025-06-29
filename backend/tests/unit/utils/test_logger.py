@@ -141,7 +141,7 @@ class TestLoggingSystem:
             
         # Check format components
         assert "INFO" in content  # Log level
-        assert "test_logging.py" in content  # Filename
+        assert "test_logger.py" in content  # Filename
         assert "Test message for format check" in content  # Message
         # Check for timestamp pattern (YYYY-MM-DD HH:MM:SS)
         import re
