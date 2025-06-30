@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Union
 
 
 class StructuredFormatter(logging.Formatter):
@@ -64,6 +64,9 @@ def setup_logger(name: str = "viparser", log_level: str = "INFO", log_dir: str =
         return logger
     
     # Choose formatter based on environment
+    console_formatter: Union[StructuredFormatter, logging.Formatter]
+    file_formatter: Union[StructuredFormatter, logging.Formatter]
+    
     if environment == "production" or environment == "staging":
         # Use structured JSON logging for production
         structured_formatter = StructuredFormatter()

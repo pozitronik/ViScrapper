@@ -56,8 +56,8 @@ class ValidationException(VIParserException):
         message: str,
         field: Optional[str] = None,
         value: Optional[Any] = None,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         details = kwargs.pop('details', {})
         # Remove conflicting parameters  
         kwargs.pop('error_code', None)
@@ -83,8 +83,8 @@ class DatabaseException(VIParserException):
         message: str,
         operation: Optional[str] = None,
         table: Optional[str] = None,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         details = kwargs.pop('details', {})
         # Remove conflicting parameters
         kwargs.pop('error_code', None)
@@ -111,8 +111,8 @@ class ExternalServiceException(VIParserException):
         service: Optional[str] = None,
         url: Optional[str] = None,
         status_code: Optional[int] = None,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         details = kwargs.pop('details', {})
         # Remove conflicting parameters
         kwargs.pop('error_code', None)
@@ -140,8 +140,8 @@ class ProductException(VIParserException):
         message: str,
         product_url: Optional[str] = None,
         product_id: Optional[int] = None,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         details = kwargs.pop('details', {})
         # Remove conflicting parameters
         kwargs.pop('error_code', None)
@@ -166,8 +166,8 @@ class ImageDownloadException(ExternalServiceException):
         self,
         message: str,
         image_url: Optional[str] = None,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         # Extract details and remove conflicting parameters
         details = kwargs.pop('details', {})
         kwargs.pop('error_code', None)  # Remove to avoid conflict

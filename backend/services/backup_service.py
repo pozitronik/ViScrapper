@@ -6,7 +6,7 @@ import shutil
 import sqlite3
 import asyncio
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from pathlib import Path
 import hashlib
 import gzip
@@ -21,13 +21,13 @@ class BackupConfig:
     
     def __init__(
         self,
-        source_db_path: str = None,
-        backup_dir: str = None,
-        max_backups: int = None,
-        backup_interval_hours: int = None,
-        compression: bool = None,
-        verify_backups: bool = None
-    ):
+        source_db_path: Optional[str] = None,
+        backup_dir: Optional[str] = None,
+        max_backups: Optional[int] = None,
+        backup_interval_hours: Optional[int] = None,
+        compression: Optional[bool] = None,
+        verify_backups: Optional[bool] = None
+    ) -> None:
         # Load from environment variables with fallback to defaults
         self.source_db_path = source_db_path or os.getenv("BACKUP_SOURCE_DB_PATH", "viparser.db")
         self.backup_dir = Path(backup_dir or os.getenv("BACKUP_DIR", "backups"))
@@ -70,7 +70,7 @@ class BackupInfo:
         self.compressed = compressed
         self.verified = verified
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
         return {
             "filename": self.filename,
@@ -85,17 +85,18 @@ class BackupInfo:
     
     def _format_size(self, size_bytes: int) -> str:
         """Format file size in human readable format"""
+        size_float = float(size_bytes)
         for unit in ['B', 'KB', 'MB', 'GB']:
-            if size_bytes < 1024.0:
-                return f"{size_bytes:.1f} {unit}"
-            size_bytes /= 1024.0
-        return f"{size_bytes:.1f} TB"
+            if size_float < 1024.0:
+                return f"{size_float:.1f} {unit}"
+            size_float /= 1024.0
+        return f"{size_float:.1f} TB"
 
 
 class DatabaseBackupService:
     """Service for managing database backups"""
     
-    def __init__(self, config: BackupConfig = None):
+    def __init__(self, config: Optional[BackupConfig] = None) -> None:
         self.config = config or BackupConfig()
         self._backup_task = None
         self._running = False
@@ -401,7 +402,7 @@ class DatabaseBackupService:
         except Exception as e:
             logger.error(f"Error during backup cleanup: {e}")
     
-    async def get_backup_stats(self) -> Dict:
+    async def get_backup_stats(self) -> Dict[str, Any]:
         """Get backup statistics"""
         try:
             backups = await self.list_backups()

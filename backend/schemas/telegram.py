@@ -2,7 +2,7 @@
 Pydantic schemas for Telegram functionality
 """
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -28,7 +28,7 @@ class TelegramChannelBase(BaseModel):
     
     @field_validator('chat_id')
     @classmethod
-    def validate_chat_id(cls, v):
+    def validate_chat_id(cls, v: str) -> str:
         """Validate chat ID format"""
         if not v:
             raise ValueError("Chat ID cannot be empty")
@@ -65,7 +65,7 @@ class TelegramChannelUpdate(BaseModel):
     
     @field_validator('chat_id')
     @classmethod
-    def validate_chat_id(cls, v):
+    def validate_chat_id(cls, v: Optional[str]) -> Optional[str]:
         """Validate chat ID format"""
         if v is None:
             return v
@@ -167,7 +167,7 @@ class TelegramChannelTest(BaseModel):
 class TelegramChannelTestResponse(BaseModel):
     """Schema for telegram channel test response"""
     success: bool
-    chat_info: Optional[dict] = None
+    chat_info: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
 

@@ -3,7 +3,7 @@ Error handlers for FastAPI application.
 """
 
 import traceback
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -27,8 +27,8 @@ def create_error_response(
     status_code: int,
     error_type: str,
     message: str,
-    details: Dict[str, Any] = None,
-    error_code: str = None
+    details: Optional[Dict[str, Any]] = None,
+    error_code: Optional[str] = None
 ) -> JSONResponse:
     """
     Create a standardized error response.

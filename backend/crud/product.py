@@ -65,7 +65,7 @@ def get_product_by_sku(db: Session, sku: str, include_deleted: bool = False):
     return product
 
 
-def find_existing_product(db: Session, url: str, sku: str = None, include_deleted: bool = False):
+def find_existing_product(db: Session, url: str, sku: Optional[str] = None, include_deleted: bool = False):
     """
     Find an existing product by URL or SKU.
     

@@ -1,5 +1,6 @@
 import time
 from contextlib import contextmanager
+from typing import Any, Callable, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, OperationalError
 from utils.logger import get_logger
@@ -48,7 +49,7 @@ def atomic_transaction(db: Session):
         raise
 
 
-def execute_with_retry(func, max_retries: int = 3, *args, **kwargs):
+def execute_with_retry(func: Callable[..., Any], max_retries: int = 3, *args: Any, **kwargs: Any) -> Any:
     """
     Execute a function with retry logic for deadlock handling.
     
@@ -88,7 +89,7 @@ def execute_with_retry(func, max_retries: int = 3, *args, **kwargs):
                 raise
 
 
-def validate_product_constraints(product_data: dict) -> None:
+def validate_product_constraints(product_data: Dict[str, Any]) -> None:
     """
     Validate product data before database insertion.
     
@@ -117,7 +118,7 @@ def validate_product_constraints(product_data: dict) -> None:
     logger.debug(f"Product data validation passed for URL: {product_url}")
 
 
-def bulk_create_relationships(db: Session, parent_id: int, relationships: list, relationship_class, field_name: str, **kwargs):
+def bulk_create_relationships(db: Session, parent_id: int, relationships: list, relationship_class: type, field_name: str, **kwargs: Any) -> None:
     """
     Efficiently create multiple relationship records.
     
