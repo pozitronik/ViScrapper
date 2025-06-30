@@ -3,7 +3,7 @@ API router for Telegram functionality
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from database.session import get_db
 from schemas.telegram import (
@@ -132,11 +132,11 @@ async def update_telegram_channel(
         raise HTTPException(status_code=500, detail="Failed to update channel")
 
 
-@router.delete("/channels/{channel_id}", response_model=APIResponse[dict])
+@router.delete("/channels/{channel_id}", response_model=APIResponse[Dict[str, Any]])
 async def delete_telegram_channel(
     channel_id: int,
     db: Session = Depends(get_db)
-) -> APIResponse[dict]:
+) -> APIResponse[Dict[str, Any]]:
     """Soft delete telegram channel"""
     try:
         success = soft_delete_channel(db=db, channel_id=channel_id)
@@ -311,11 +311,11 @@ async def send_telegram_post(
         raise HTTPException(status_code=500, detail="Failed to send post")
 
 
-@router.post("/posts/retry", response_model=APIResponse[dict])
+@router.post("/posts/retry", response_model=APIResponse[Dict[str, Any]])
 async def retry_failed_posts(
     max_retries: int = Query(3, ge=1, le=10, description="Maximum retry attempts"),
     db: Session = Depends(get_db)
-) -> APIResponse[dict]:
+) -> APIResponse[Dict[str, Any]]:
     """Retry failed telegram posts"""
     try:
         result = await telegram_post_service.retry_failed_posts(db=db, max_retries=max_retries)
@@ -345,8 +345,8 @@ async def get_telegram_statistics(
         raise HTTPException(status_code=500, detail="Failed to retrieve statistics")
 
 
-@router.get("/status", response_model=APIResponse[dict])
-async def get_telegram_service_status() -> APIResponse[dict]:
+@router.get("/status", response_model=APIResponse[Dict[str, Any]])
+async def get_telegram_service_status() -> APIResponse[Dict[str, Any]]:
     """Get telegram service status"""
     try:
         is_enabled = telegram_service.is_enabled()

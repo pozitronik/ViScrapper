@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
+from typing import Dict, Any
 
 from database.session import get_db
 from schemas.template import (
@@ -295,8 +296,8 @@ async def render_template(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/placeholders/available", response_model=SuccessResponse[dict])
-async def get_available_placeholders() -> SuccessResponse[dict]:
+@router.get("/placeholders/available", response_model=SuccessResponse[Dict[str, Any]])
+async def get_available_placeholders() -> SuccessResponse[Dict[str, Any]]:
     """
     Get all available template placeholders with their descriptions.
     """
@@ -313,10 +314,10 @@ async def get_available_placeholders() -> SuccessResponse[dict]:
     )
 
 
-@router.post("/validate", response_model=SuccessResponse[dict])
+@router.post("/validate", response_model=SuccessResponse[Dict[str, Any]])
 async def validate_template(
     template_content: str = Query(..., description="Template content to validate")
-) -> SuccessResponse[dict]:
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Validate template content and check for invalid placeholders.
     """

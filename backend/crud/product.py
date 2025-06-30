@@ -183,7 +183,7 @@ def compare_product_data(existing_product: Product, new_data: ProductCreate) -> 
     }
 
 
-def create_product(db: Session, product: ProductCreate, downloaded_images_metadata: Optional[list] = None) -> Product:
+def create_product(db: Session, product: ProductCreate, downloaded_images_metadata: Optional[List[Dict[str, Any]]] = None) -> Product:
     """
     Create a new product with images and sizes in a single atomic transaction.
     
@@ -337,7 +337,7 @@ def create_product(db: Session, product: ProductCreate, downloaded_images_metada
         )
 
 
-def create_size_combinations_new(db: Session, product_id: int, size_combinations_data: dict) -> None:
+def create_size_combinations_new(db: Session, product_id: int, size_combinations_data: Dict[str, Any]) -> None:
     """
     Create size combinations from browser extension data using new structure.
     
@@ -372,7 +372,7 @@ def create_size_combinations_new(db: Session, product_id: int, size_combinations
     logger.info(f"Created size combination record for product {product_id} with {len(combinations)} size1 options")
 
 
-def create_simple_sizes(db: Session, product_id: int, available_sizes: list) -> None:
+def create_simple_sizes(db: Session, product_id: int, available_sizes: List[str]) -> None:
     """
     Create simple size records from available sizes list.
     
@@ -401,14 +401,14 @@ def create_simple_sizes(db: Session, product_id: int, available_sizes: list) -> 
     logger.info(f"Created {len(available_sizes)} simple size records for product {product_id}")
 
 
-def create_size_combinations(db: Session, product_id: int, size_combinations_data: dict) -> None:
+def create_size_combinations(db: Session, product_id: int, size_combinations_data: Dict[str, Any]) -> None:
     """
     Legacy function - kept for backward compatibility.
     """
     return create_size_combinations_new(db, product_id, size_combinations_data)
 
 
-def filter_duplicate_images_by_hash(new_images_metadata: list, existing_hashes: set) -> list:
+def filter_duplicate_images_by_hash(new_images_metadata: List[Dict[str, Any]], existing_hashes: set[str]) -> List[Dict[str, Any]]:
     """
     Filter out images that already exist based on their hash.
     
@@ -433,7 +433,7 @@ def filter_duplicate_images_by_hash(new_images_metadata: list, existing_hashes: 
     return unique_images
 
 
-async def update_existing_product_with_changes(db: Session, existing_product: Product, new_data: ProductCreate, changes: dict, download_new_images: bool = True, downloaded_images_metadata: Optional[list] = None) -> Product:
+async def update_existing_product_with_changes(db: Session, existing_product: Product, new_data: ProductCreate, changes: Dict[str, Any], download_new_images: bool = True, downloaded_images_metadata: Optional[List[Dict[str, Any]]] = None) -> Product:
     """
     Update an existing product with new data based on detected changes.
     

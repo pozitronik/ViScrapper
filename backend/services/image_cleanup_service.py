@@ -5,7 +5,7 @@ Image cleanup service for removing orphaned images.
 import os
 import asyncio
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Dict, Union
 from sqlalchemy.orm import Session
 from models.product import Image
 from database.session import get_db
@@ -95,7 +95,7 @@ class ImageCleanupService:
         logger.info(f"Found {len(orphaned_files)} orphaned image files")
         return list(orphaned_files)
     
-    def delete_orphaned_images(self, orphaned_files: List[str], dry_run: bool = True) -> dict:
+    def delete_orphaned_images(self, orphaned_files: List[str], dry_run: bool = True) -> Dict[str, Union[int, List[str]]]:
         """
         Delete orphaned image files from filesystem.
         
@@ -156,7 +156,7 @@ class ImageCleanupService:
         
         return results
     
-    def cleanup_orphaned_images(self, dry_run: bool = True) -> dict:
+    def cleanup_orphaned_images(self, dry_run: bool = True) -> Dict[str, Union[int, List[str]]]:
         """
         Complete orphaned image cleanup process.
         
@@ -228,7 +228,7 @@ async def scheduled_image_cleanup(interval_hours: int = 24, dry_run: bool = Fals
         await asyncio.sleep(interval_hours * 3600)  # Convert hours to seconds
 
 
-def cleanup_images_sync(dry_run: bool = True) -> dict:
+def cleanup_images_sync(dry_run: bool = True) -> Dict[str, Union[int, List[str]]]:
     """
     Synchronous wrapper for image cleanup.
     

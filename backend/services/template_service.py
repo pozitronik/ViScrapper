@@ -4,7 +4,7 @@ Supports dynamic placeholder replacement using product data.
 """
 
 import re
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -94,7 +94,7 @@ class TemplateRenderer:
         
         return invalid_placeholders
     
-    def _format_sizes_for_display(self, product: Product) -> tuple[str, list]:
+    def _format_sizes_for_display(self, product: Product) -> Tuple[str, List[str]]:
         """
         Format sizes for display, handling both simple sizes and combinations.
         

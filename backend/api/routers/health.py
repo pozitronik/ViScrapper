@@ -4,7 +4,7 @@ from sqlalchemy import text
 import time
 import os
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Any
 
 from database.session import get_db
 from api.models.responses import SuccessResponse, HealthStatus
@@ -67,8 +67,8 @@ async def health_check(db: Session = Depends(get_db)) -> SuccessResponse[HealthS
     )
 
 
-@router.get("/status", response_model=SuccessResponse[dict])
-async def system_status(db: Session = Depends(get_db)) -> SuccessResponse[dict]:
+@router.get("/status", response_model=SuccessResponse[Dict[str, Any]])
+async def system_status(db: Session = Depends(get_db)) -> SuccessResponse[Dict[str, Any]]:
     """
     Detailed system status endpoint with additional metrics.
     """

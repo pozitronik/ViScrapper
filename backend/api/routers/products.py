@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, desc, asc
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from datetime import datetime, timedelta, timezone
 
 from database.session import get_db
@@ -283,11 +283,11 @@ async def get_recent_products(
     )
 
 
-@router.post("/cleanup-old-deleted", response_model=SuccessResponse[dict])
+@router.post("/cleanup-old-deleted", response_model=SuccessResponse[Dict[str, Any]])
 async def cleanup_old_deleted_products(
     days_old: int = Query(30, ge=0, le=365, description="Days old threshold for permanent deletion"),
     db: Session = Depends(get_db)
-) -> SuccessResponse[dict]:
+) -> SuccessResponse[Dict[str, Any]]:
     """Permanently delete products that have been soft-deleted for more than specified days."""
     logger.info(f"Cleaning up products soft-deleted more than {days_old} days ago")
     

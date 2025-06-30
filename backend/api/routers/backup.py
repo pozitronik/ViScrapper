@@ -2,7 +2,7 @@
 API endpoints for database backup management
 """
 from fastapi import APIRouter, HTTPException, Body
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from services.backup_service import backup_service
 from api.models.responses import SuccessResponse, FileDeleteResponse
@@ -22,10 +22,10 @@ def check_backup_service_enabled() -> None:
         )
 
 
-@router.post("/create", response_model=SuccessResponse[dict])
+@router.post("/create", response_model=SuccessResponse[Dict[str, Any]])
 async def create_backup(
     name: Optional[str] = Body(None, description="Optional backup name"),
-) -> SuccessResponse[dict]:
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Create a new database backup manually.
     
@@ -50,8 +50,8 @@ async def create_backup(
         raise HTTPException(status_code=500, detail=f"Failed to create backup: {str(e)}")
 
 
-@router.get("/list", response_model=SuccessResponse[List[dict]])
-async def list_backups() -> SuccessResponse[List[dict]]:
+@router.get("/list", response_model=SuccessResponse[List[Dict[str, Any]]])
+async def list_backups() -> SuccessResponse[List[Dict[str, Any]]]:
     """
     List all available database backups.
     
@@ -79,8 +79,8 @@ async def list_backups() -> SuccessResponse[List[dict]]:
         raise HTTPException(status_code=500, detail=f"Failed to list backups: {str(e)}")
 
 
-@router.get("/stats", response_model=SuccessResponse[dict])
-async def get_backup_stats() -> SuccessResponse[dict]:
+@router.get("/stats", response_model=SuccessResponse[Dict[str, Any]])
+async def get_backup_stats() -> SuccessResponse[Dict[str, Any]]:
     """
     Get backup statistics and information.
     
@@ -106,11 +106,11 @@ async def get_backup_stats() -> SuccessResponse[dict]:
         raise HTTPException(status_code=500, detail=f"Failed to get backup stats: {str(e)}")
 
 
-@router.post("/restore/{backup_filename}", response_model=SuccessResponse[dict])
+@router.post("/restore/{backup_filename}", response_model=SuccessResponse[Dict[str, Any]])
 async def restore_backup(
     backup_filename: str,
     target_path: Optional[str] = Body(None, description="Optional target path for restore")
-) -> SuccessResponse[dict]:
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Restore a database from a backup file.
     
@@ -178,8 +178,8 @@ async def delete_backup(backup_filename: str) -> FileDeleteResponse:
         raise HTTPException(status_code=500, detail=f"Failed to delete backup: {str(e)}")
 
 
-@router.post("/start-scheduled", response_model=SuccessResponse[dict])
-async def start_scheduled_backups() -> SuccessResponse[dict]:
+@router.post("/start-scheduled", response_model=SuccessResponse[Dict[str, Any]])
+async def start_scheduled_backups() -> SuccessResponse[Dict[str, Any]]:
     """
     Start automatic scheduled backups.
     
@@ -202,8 +202,8 @@ async def start_scheduled_backups() -> SuccessResponse[dict]:
         raise HTTPException(status_code=500, detail=f"Failed to start scheduled backups: {str(e)}")
 
 
-@router.post("/stop-scheduled", response_model=SuccessResponse[dict])
-async def stop_scheduled_backups() -> SuccessResponse[dict]:
+@router.post("/stop-scheduled", response_model=SuccessResponse[Dict[str, Any]])
+async def stop_scheduled_backups() -> SuccessResponse[Dict[str, Any]]:
     """
     Stop automatic scheduled backups.
     
@@ -226,8 +226,8 @@ async def stop_scheduled_backups() -> SuccessResponse[dict]:
         raise HTTPException(status_code=500, detail=f"Failed to stop scheduled backups: {str(e)}")
 
 
-@router.post("/verify/{backup_filename}", response_model=SuccessResponse[dict])
-async def verify_backup(backup_filename: str) -> SuccessResponse[dict]:
+@router.post("/verify/{backup_filename}", response_model=SuccessResponse[Dict[str, Any]])
+async def verify_backup(backup_filename: str) -> SuccessResponse[Dict[str, Any]]:
     """
     Verify the integrity of a specific backup file.
     
