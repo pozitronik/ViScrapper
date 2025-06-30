@@ -44,7 +44,7 @@ async def list_templates(
     active_only: bool = Query(False, description="Return only active templates"),
     include_deleted: bool = Query(False, description="Include soft-deleted templates"),
     db: Session = Depends(get_db)
-):
+) -> PaginatedResponse[MessageTemplate]:
     """
     Get a paginated list of message templates.
     
@@ -83,7 +83,7 @@ async def list_templates(
 async def get_template(
     template_id: int = Path(..., ge=1, description="Template ID"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[MessageTemplate]:
     """Get a specific template by ID."""
     logger.info(f"Fetching template with ID: {template_id}")
     
@@ -104,7 +104,7 @@ async def get_template(
 async def create_new_template(
     template: MessageTemplateCreate,
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[MessageTemplate]:
     """
     Create a new message template.
     
@@ -141,7 +141,7 @@ async def update_existing_template(
     template_update: MessageTemplateUpdate,
     template_id: int = Path(..., ge=1, description="Template ID"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[MessageTemplate]:
     """Update an existing template."""
     logger.info(f"Updating template with ID: {template_id}")
     
@@ -180,7 +180,7 @@ async def update_existing_template(
 async def delete_template(
     template_id: int = Path(..., ge=1, description="Template ID"),
     db: Session = Depends(get_db)
-):
+) -> DeleteResponse:
     """Soft delete a template."""
     logger.info(f"Deleting template with ID: {template_id}")
     
@@ -208,7 +208,7 @@ async def delete_template(
 async def restore_deleted_template(
     template_id: int = Path(..., ge=1, description="Template ID"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[MessageTemplate]:
     """Restore a soft-deleted template."""
     logger.info(f"Restoring soft-deleted template with ID: {template_id}")
     
@@ -243,7 +243,7 @@ async def restore_deleted_template(
 async def preview_template(
     preview_request: TemplatePreviewRequest,
     db: Session = Depends(get_db)
-):
+) -> TemplatePreviewResponse:
     """
     Preview a template with a specific product to see how placeholders will be replaced.
     """
@@ -270,7 +270,7 @@ async def preview_template(
 async def render_template(
     render_request: TemplateRenderRequest,
     db: Session = Depends(get_db)
-):
+) -> TemplateRenderResponse:
     """
     Render a template with a specific product.
     """
@@ -296,7 +296,7 @@ async def render_template(
 
 
 @router.get("/placeholders/available", response_model=SuccessResponse[dict])
-async def get_available_placeholders():
+async def get_available_placeholders() -> SuccessResponse[dict]:
     """
     Get all available template placeholders with their descriptions.
     """
@@ -316,7 +316,7 @@ async def get_available_placeholders():
 @router.post("/validate", response_model=SuccessResponse[dict])
 async def validate_template(
     template_content: str = Query(..., description="Template content to validate")
-):
+) -> SuccessResponse[dict]:
     """
     Validate template content and check for invalid placeholders.
     """

@@ -257,7 +257,7 @@ class TelegramPostService:
         product: Product,
         send_photos_override: Optional[bool] = None,
         disable_notification_override: Optional[bool] = None
-    ):
+    ) -> None:
         """
         Send a single post to telegram
         

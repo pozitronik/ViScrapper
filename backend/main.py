@@ -1,6 +1,7 @@
 # Load environment variables from .env file FIRST
 import os
 from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
@@ -50,7 +51,7 @@ if not migration_success:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan with proper startup and shutdown"""
     # Startup
     logger.info("Starting VIParser application...")
@@ -108,7 +109,7 @@ app.include_router(maintenance_router)
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time updates"""
     await websocket_manager.connect(websocket)
     try:
@@ -127,7 +128,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 @app.post("/api/v1/scrape", response_model=Product)
-async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
+async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) -> Product:
     """
     Scrape and store product information with images.
     Now handles existing products by checking for differences and updating when needed.
@@ -249,13 +250,13 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 
 @app.get("/")
-async def serve_frontend():
+async def serve_frontend() -> FileResponse:
     """Serve the main frontend HTML page"""
     return FileResponse("frontend/index.html")
 
 
 @app.get("/product/{product_id}")
-async def serve_product_page(product_id: int):
+async def serve_product_page(product_id: int) -> FileResponse:
     """Serve the product detail HTML page"""
     return FileResponse("frontend/product.html")
 

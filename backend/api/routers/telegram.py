@@ -36,7 +36,7 @@ async def get_channels_list(
     active_only: bool = Query(False, description="Return only active channels"),
     include_deleted: bool = Query(False, description="Include soft-deleted channels"),
     db: Session = Depends(get_db)
-):
+) -> PaginatedResponse[TelegramChannel]:
     """Get list of telegram channels with pagination"""
     try:
         channels = get_channels(
@@ -68,7 +68,7 @@ async def get_channel(
     channel_id: int,
     include_deleted: bool = Query(False, description="Include soft-deleted channel"),
     db: Session = Depends(get_db)
-):
+) -> APIResponse[TelegramChannel]:
     """Get telegram channel by ID"""
     try:
         channel = get_channel_by_id(db=db, channel_id=channel_id, include_deleted=include_deleted)
@@ -87,7 +87,7 @@ async def get_channel(
 async def create_telegram_channel(
     channel: TelegramChannelCreate,
     db: Session = Depends(get_db)
-):
+) -> APIResponse[TelegramChannel]:
     """Create a new telegram channel"""
     try:
         created_channel = create_channel(db=db, channel=channel)
@@ -112,7 +112,7 @@ async def update_telegram_channel(
     channel_id: int,
     channel_update: TelegramChannelUpdate,
     db: Session = Depends(get_db)
-):
+) -> APIResponse[TelegramChannel]:
     """Update telegram channel"""
     try:
         updated_channel = update_channel(db=db, channel_id=channel_id, channel_update=channel_update)
@@ -136,7 +136,7 @@ async def update_telegram_channel(
 async def delete_telegram_channel(
     channel_id: int,
     db: Session = Depends(get_db)
-):
+) -> APIResponse[dict]:
     """Soft delete telegram channel"""
     try:
         success = soft_delete_channel(db=db, channel_id=channel_id)
@@ -162,7 +162,7 @@ async def delete_telegram_channel(
 @router.post("/channels/test", response_model=TelegramChannelTestResponse)
 async def test_telegram_channel(
     test_request: TelegramChannelTest
-):
+) -> TelegramChannelTestResponse:
     """Test telegram channel connection"""
     try:
         if not telegram_service.is_enabled():
@@ -201,7 +201,7 @@ async def get_posts_list(
     channel_id: Optional[int] = Query(None, ge=1, description="Filter by channel ID"),
     product_id: Optional[int] = Query(None, ge=1, description="Filter by product ID"),
     db: Session = Depends(get_db)
-):
+) -> PaginatedResponse[TelegramPost]:
     """Get list of telegram posts with filtering"""
     try:
         posts = get_posts(
@@ -245,7 +245,7 @@ async def get_posts_list(
 async def get_post(
     post_id: int,
     db: Session = Depends(get_db)
-):
+) -> APIResponse[TelegramPost]:
     """Get telegram post by ID"""
     try:
         post = get_post_by_id(db=db, post_id=post_id)
@@ -264,7 +264,7 @@ async def get_post(
 async def preview_telegram_post(
     preview_request: TelegramPostPreview,
     db: Session = Depends(get_db)
-):
+) -> TelegramPostPreviewResponse:
     """Preview how a telegram post will look"""
     try:
         preview_data = await telegram_post_service.preview_post(
@@ -288,7 +288,7 @@ async def preview_telegram_post(
 async def send_telegram_post(
     send_request: SendPostRequest,
     db: Session = Depends(get_db)
-):
+) -> SendPostResponse:
     """Send a product post to telegram channels"""
     try:
         result = await telegram_post_service.send_post(
@@ -315,7 +315,7 @@ async def send_telegram_post(
 async def retry_failed_posts(
     max_retries: int = Query(3, ge=1, le=10, description="Maximum retry attempts"),
     db: Session = Depends(get_db)
-):
+) -> APIResponse[dict]:
     """Retry failed telegram posts"""
     try:
         result = await telegram_post_service.retry_failed_posts(db=db, max_retries=max_retries)
@@ -335,7 +335,7 @@ async def retry_failed_posts(
 @router.get("/stats", response_model=TelegramStatsResponse)
 async def get_telegram_statistics(
     db: Session = Depends(get_db)
-):
+) -> TelegramStatsResponse:
     """Get telegram usage statistics"""
     try:
         stats = get_telegram_stats(db=db)
@@ -346,7 +346,7 @@ async def get_telegram_statistics(
 
 
 @router.get("/status", response_model=APIResponse[dict])
-async def get_telegram_service_status():
+async def get_telegram_service_status() -> APIResponse[dict]:
     """Get telegram service status"""
     try:
         is_enabled = telegram_service.is_enabled()
