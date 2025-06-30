@@ -79,7 +79,6 @@ class Product(ProductBase):
     sizes: List[Size] = []
 
     @computed_field
-    @property
     def sell_price(self) -> Optional[float]:
         """Calculate sell price using PRICE_MULTIPLIER environment variable"""
         if self.price is None:

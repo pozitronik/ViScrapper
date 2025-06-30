@@ -329,7 +329,7 @@ def permanently_delete_old_soft_deleted(db: Session, days_old: int = 30) -> int:
         deleted_count = 0
         for product in products_to_delete:
             try:
-                hard_delete_product(db, product.id)
+                hard_delete_product(db, int(product.id))
                 deleted_count += 1
             except Exception as e:
                 logger.error(f"Failed to permanently delete product {product.id}: {e}")

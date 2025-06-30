@@ -242,20 +242,20 @@ def create_product(db: Session, product: ProductCreate, downloaded_images_metada
                 
                 if downloaded_images_metadata:
                     # Pass the full metadata objects directly instead of just image IDs
-                    bulk_create_relationships(db, db_product.id, downloaded_images_metadata, Image, 'url')
+                    bulk_create_relationships(db, int(db_product.id), downloaded_images_metadata, Image, 'url')
                 else:
                     # Fallback for existing behavior
-                    bulk_create_relationships(db, db_product.id, product.all_image_urls, Image, 'url')
+                    bulk_create_relationships(db, int(db_product.id), product.all_image_urls, Image, 'url')
 
             # Add sizes using improved size handling
             if product.size_combinations:
                 # Handle dual size selectors with combinations
                 logger.info(f"Adding size combinations to product ID: {db_product.id}")
-                create_size_combinations_new(db, db_product.id, product.size_combinations)
+                create_size_combinations_new(db, int(db_product.id), product.size_combinations)
             elif product.available_sizes:
                 # Handle simple sizes
                 logger.info(f"Adding {len(product.available_sizes)} simple sizes to product ID: {db_product.id}")
-                create_simple_sizes(db, db_product.id, product.available_sizes)
+                create_simple_sizes(db, int(db_product.id), product.available_sizes)
 
             # Transaction will be committed by the context manager
             logger.debug("All product data prepared for atomic commit")

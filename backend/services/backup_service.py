@@ -29,12 +29,12 @@ class BackupConfig:
         verify_backups: Optional[bool] = None
     ) -> None:
         # Load from environment variables with fallback to defaults
-        self.source_db_path = source_db_path or os.getenv("BACKUP_SOURCE_DB_PATH", "viparser.db")
-        self.backup_dir = Path(backup_dir or os.getenv("BACKUP_DIR", "backups"))
-        self.max_backups = max_backups if max_backups is not None else int(os.getenv("BACKUP_MAX_BACKUPS", "10"))
-        self.backup_interval_hours = backup_interval_hours if backup_interval_hours is not None else int(os.getenv("BACKUP_INTERVAL_HOURS", "24"))
-        self.compression = compression if compression is not None else os.getenv("BACKUP_COMPRESSION", "true").lower() == "true"
-        self.verify_backups = verify_backups if verify_backups is not None else os.getenv("BACKUP_VERIFY", "true").lower() == "true"
+        self.source_db_path: str = source_db_path or os.getenv("BACKUP_SOURCE_DB_PATH") or "viparser.db"
+        self.backup_dir: Path = Path(backup_dir or os.getenv("BACKUP_DIR") or "backups")
+        self.max_backups: int = max_backups if max_backups is not None else int(os.getenv("BACKUP_MAX_BACKUPS", "10"))
+        self.backup_interval_hours: int = backup_interval_hours if backup_interval_hours is not None else int(os.getenv("BACKUP_INTERVAL_HOURS", "24"))
+        self.compression: bool = compression if compression is not None else os.getenv("BACKUP_COMPRESSION", "true").lower() == "true"
+        self.verify_backups: bool = verify_backups if verify_backups is not None else os.getenv("BACKUP_VERIFY", "true").lower() == "true"
         
         # Ensure backup directory exists
         self.backup_dir.mkdir(exist_ok=True)
