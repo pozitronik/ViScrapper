@@ -5,6 +5,8 @@ python-dotenv
 sqlalchemy
 alembic
 pytest
+pytest-cov
+coverage[toml]
 httpx
 pytest-httpx
 pytest-asyncio
