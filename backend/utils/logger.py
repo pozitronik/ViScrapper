@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Any
 
 
 class StructuredFormatter(logging.Formatter):
@@ -110,7 +111,7 @@ def setup_logger(name: str = "viparser", log_level: str = "INFO", log_dir: str =
     # Add application context to all log records
     old_factory = logging.getLogRecordFactory()
     
-    def record_factory(*args, **kwargs):
+    def record_factory(*args: Any, **kwargs: Any) -> logging.LogRecord:
         record = old_factory(*args, **kwargs)
         record.app_name = "viparser"
         record.environment = environment

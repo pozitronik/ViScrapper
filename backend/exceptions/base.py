@@ -25,7 +25,7 @@ class VIParserException(Exception):
         
         super().__init__(self.message)
     
-    def _log_exception(self):
+    def _log_exception(self) -> None:
         """Log the exception with appropriate level and context."""
         log_context = {
             "error_code": self.error_code,
