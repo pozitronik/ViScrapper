@@ -188,7 +188,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
             await websocket_manager.broadcast_product_updated(product_dict)
             
             logger.info(f"Successfully updated existing product {existing_product.id} with summary: {update_summary}")
-            return updated_product
+            return Product.model_validate(updated_product)
         else:
             logger.info(f"No changes detected for existing product {existing_product.id}")
             # Still broadcast to frontend with info that no changes were needed
@@ -200,7 +200,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
                 'message': 'Product already exists with identical data'
             }
             await websocket_manager.broadcast_product_updated(product_dict)
-            return existing_product
+            return Product.model_validate(existing_product)
 
     # No existing product found - create new one
     logger.info(f"No existing product found, creating new product for: {product.product_url}")
@@ -228,7 +228,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
 
     # Auto-post to telegram channels if configured
     try:
-        auto_post_result = await telegram_post_service.auto_post_product(db=db, product_id=created_product.id)
+        auto_post_result = await telegram_post_service.auto_post_product(db=db, product_id=int(created_product.id))
         if auto_post_result["success_count"] > 0:
             logger.info(f"Auto-posted product {created_product.id} to {auto_post_result['success_count']} telegram channels")
         elif auto_post_result["failed_count"] > 0:
@@ -238,7 +238,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
         # Don't fail the main product creation if telegram auto-post fails
 
     logger.info(f"Successfully created product with ID: {created_product.id} for URL: {product.product_url}")
-    return created_product
+    return Product.model_validate(created_product)
 
 
 # Frontend serving routes
