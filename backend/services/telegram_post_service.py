@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 class TelegramPostService:
     """Service for posting products to Telegram channels"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the telegram post service"""
         self.telegram_service = telegram_service
         self.template_renderer = template_renderer

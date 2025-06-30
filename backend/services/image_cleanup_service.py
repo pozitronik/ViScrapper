@@ -202,7 +202,7 @@ class ImageCleanupService:
 image_cleanup_service = ImageCleanupService()
 
 
-async def scheduled_image_cleanup(interval_hours: int = 24, dry_run: bool = False):
+async def scheduled_image_cleanup(interval_hours: int = 24, dry_run: bool = False) -> None:
     """
     Run scheduled image cleanup at specified intervals.
     

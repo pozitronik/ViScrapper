@@ -35,7 +35,7 @@ def serialize_for_json(data: Dict[str, Any]) -> Dict[str, Any]:
     return serialized
 
 
-def serialize_value(value):
+def serialize_value(value: Any) -> Any:
     """Serialize individual values"""
     if isinstance(value, HttpUrl):
         return str(value)

@@ -1,6 +1,6 @@
 import time
 from contextlib import contextmanager
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, OperationalError
 from utils.logger import get_logger
@@ -118,7 +118,7 @@ def validate_product_constraints(product_data: Dict[str, Any]) -> None:
     logger.debug(f"Product data validation passed for URL: {product_url}")
 
 
-def bulk_create_relationships(db: Session, parent_id: int, relationships: list, relationship_class: type, field_name: str, **kwargs: Any) -> None:
+def bulk_create_relationships(db: Session, parent_id: int, relationships: List[Any], relationship_class: type, field_name: str, **kwargs: Any) -> None:
     """
     Efficiently create multiple relationship records.
     

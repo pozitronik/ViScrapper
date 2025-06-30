@@ -184,7 +184,7 @@ async def list_products(
 
 
 @router.get("/stats", response_model=SuccessResponse[ProductStats])
-async def get_product_statistics(db: Session = Depends(get_db)):
+async def get_product_statistics(db: Session = Depends(get_db)) -> SuccessResponse[ProductStats]:
     """Get comprehensive product statistics."""
     logger.info("Fetching product statistics")
     
@@ -235,7 +235,7 @@ async def list_deleted_products(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db)
-):
+) -> PaginatedResponse[Product]:
     """Get a paginated list of soft-deleted products."""
     logger.info(f"Fetching deleted products list - page: {page}, per_page: {per_page}")
     
@@ -264,7 +264,7 @@ async def list_deleted_products(
 async def get_recent_products(
     limit: int = Query(10, ge=1, le=50, description="Number of recent products"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[List[Product]]:
     """Get recently added products."""
     logger.info(f"Fetching {limit} recent products")
     
@@ -287,7 +287,7 @@ async def get_recent_products(
 async def cleanup_old_deleted_products(
     days_old: int = Query(30, ge=0, le=365, description="Days old threshold for permanent deletion"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[dict]:
     """Permanently delete products that have been soft-deleted for more than specified days."""
     logger.info(f"Cleaning up products soft-deleted more than {days_old} days ago")
     
@@ -308,7 +308,7 @@ async def search_products(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db)
-):
+) -> PaginatedResponse[Product]:
     """Search products by name, SKU, URL, or comment."""
     logger.info(f"Searching products with query: '{q}'")
     
@@ -345,7 +345,7 @@ async def search_products(
 async def get_product(
     product_id: int = Path(..., ge=1, description="Product ID"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[Product]:
     """Get a specific product by ID."""
     logger.info(f"Fetching product with ID: {product_id}")
     
@@ -367,7 +367,7 @@ async def create_new_product(
     product: ProductCreate,
     download_images_flag: bool = Query(True, description="Whether to download images"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[Product]:
     """
     Create a new product with optional image downloading.
     
@@ -413,7 +413,7 @@ async def update_existing_product(
     product_update: ProductUpdate,
     product_id: int = Path(..., ge=1, description="Product ID"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[Product]:
     """Update an existing product."""
     logger.info(f"Updating product with ID: {product_id}")
     
@@ -444,7 +444,7 @@ async def delete_existing_product(
     product_id: int = Path(..., ge=1, description="Product ID"),
     delete_mode: DeleteMode = Query(DeleteMode.SOFT, description="Delete mode: soft (default) or hard"),
     db: Session = Depends(get_db)
-):
+) -> DeleteResponse:
     """Delete a product and all its associated data with configurable delete mode."""
     logger.info(f"Deleting product with ID: {product_id} using {delete_mode} delete")
     
@@ -477,7 +477,7 @@ async def delete_existing_product(
 async def restore_deleted_product(
     product_id: int = Path(..., ge=1, description="Product ID"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[Product]:
     """Restore a soft-deleted product."""
     logger.info(f"Restoring soft-deleted product with ID: {product_id}")
     

@@ -66,7 +66,7 @@ class TemplateRenderer:
         '{current_datetime}': 'Current date and time',
     }
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.placeholder_pattern = re.compile(r'\{([^}]+)\}')
     
     def get_available_placeholders(self) -> List[str]:

@@ -4,7 +4,7 @@ Error handlers for FastAPI application.
 
 import traceback
 from typing import Dict, Any, Optional
-from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -186,7 +186,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
     )
 
 
-def setup_error_handlers(app):
+def setup_error_handlers(app: FastAPI) -> None:
     """
     Set up all error handlers for the FastAPI application.
     

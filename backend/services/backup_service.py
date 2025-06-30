@@ -7,6 +7,7 @@ import sqlite3
 import asyncio
 from datetime import datetime
 from typing import List, Dict, Optional, Any
+from asyncio import Task
 from pathlib import Path
 import hashlib
 import gzip
@@ -98,7 +99,7 @@ class DatabaseBackupService:
     
     def __init__(self, config: Optional[BackupConfig] = None) -> None:
         self.config = config or BackupConfig()
-        self._backup_task = None
+        self._backup_task: Optional[Task[None]] = None
         self._running = False
         
         logger.info(f"Backup service initialized - backup dir: {self.config.backup_dir}")
@@ -192,7 +193,7 @@ class DatabaseBackupService:
     
     async def _create_sqlite_backup(self, backup_path: Path) -> BackupInfo:
         """Create backup using SQLite's backup API"""
-        def _backup_db() -> BackupInfo:
+        def _backup_db() -> None:
             # Connect to source database
             source_conn = sqlite3.connect(self.config.source_db_path)
             
@@ -306,7 +307,7 @@ class DatabaseBackupService:
     
     async def list_backups(self) -> List[BackupInfo]:
         """List all available backups"""
-        backups = []
+        backups: List[BackupInfo] = []
         
         if not self.config.backup_dir.exists():
             return backups
