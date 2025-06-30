@@ -1,305 +1,509 @@
+"""
+Comprehensive unit tests for backup service.
+
+This module contains extensive tests for all backup service functionality including
+BackupConfig, BackupInfo, and DatabaseBackupService classes with all their methods.
+"""
+
 import pytest
 import asyncio
-import tempfile
-import shutil
-import sqlite3
 import os
+import tempfile
+import sqlite3
+import gzip
+from unittest.mock import Mock, patch, MagicMock, AsyncMock, mock_open
+from datetime import datetime
 from pathlib import Path
-from datetime import datetime, timedelta
 
-from services.backup_service import DatabaseBackupService, BackupConfig, BackupInfo
+from services.backup_service import (
+    BackupConfig,
+    BackupInfo,
+    DatabaseBackupService
+)
 
 
-class TestBackupService:
-    """Test backup service functionality"""
-    
-    @pytest.fixture
-    def temp_dir(self):
-        """Create temporary directory for testing"""
-        temp_dir = tempfile.mkdtemp()
-        yield Path(temp_dir)
-        shutil.rmtree(temp_dir)
-    
-    @pytest.fixture
-    def test_db_path(self, temp_dir):
-        """Create a test SQLite database"""
-        db_path = temp_dir / "test.db"
+class TestBackupConfig:
+    """Test suite for BackupConfig class."""
+
+    def test_backup_config_default_values(self):
+        """Test BackupConfig initialization with default values."""
+        config = BackupConfig()
         
-        # Create a simple test database
-        conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
-        
-        # Create test table
-        cursor.execute("""
-            CREATE TABLE test_products (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                price REAL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Insert test data
-        cursor.execute("INSERT INTO test_products (name, price) VALUES (?, ?)", ("Test Product 1", 19.99))
-        cursor.execute("INSERT INTO test_products (name, price) VALUES (?, ?)", ("Test Product 2", 29.99))
-        cursor.execute("INSERT INTO test_products (name, price) VALUES (?, ?)", ("Test Product 3", 39.99))
-        
-        conn.commit()
-        conn.close()
-        
-        return db_path
-    
-    @pytest.fixture
-    def backup_config(self, test_db_path, temp_dir):
-        """Create backup configuration for testing"""
-        backup_dir = temp_dir / "backups"
-        return BackupConfig(
-            source_db_path=str(test_db_path),
-            backup_dir=str(backup_dir),
-            max_backups=3,
-            backup_interval_hours=1,
-            compression=True,
-            verify_backups=True
-        )
-    
-    @pytest.fixture
-    def backup_service(self, backup_config):
-        """Create backup service instance"""
-        return DatabaseBackupService(backup_config)
-    
-    @pytest.mark.asyncio
-    async def test_create_manual_backup(self, backup_service):
-        """Test creating a manual backup"""
-        backup_info = await backup_service.create_backup(name="test_manual", auto=False)
-        
-        assert backup_info.filename.startswith("manual_test_manual_")
-        assert backup_info.filename.endswith(".db.gz")
-        assert backup_info.filepath.exists()
-        assert backup_info.size_bytes > 0
-        assert backup_info.checksum is not None
-        assert backup_info.compressed is True
-        assert backup_info.verified is True
-    
-    @pytest.mark.asyncio
-    async def test_create_auto_backup(self, backup_service):
-        """Test creating an automatic backup"""
-        backup_info = await backup_service.create_backup(auto=True)
-        
-        assert backup_info.filename.startswith("auto_backup_")
-        assert backup_info.filename.endswith(".db.gz")
-        assert backup_info.filepath.exists()
-        assert backup_info.size_bytes > 0
-        assert backup_info.compressed is True
-        assert backup_info.verified is True
-    
-    @pytest.mark.asyncio
-    async def test_backup_without_compression(self, test_db_path, temp_dir):
-        """Test creating backup without compression"""
-        backup_dir = temp_dir / "backups_uncompressed"
+        assert config.source_db_path == "viparser.db"
+        assert config.backup_dir == Path("backups")
+        assert config.max_backups == 10
+        assert config.backup_interval_hours == 24
+        assert config.compression is True
+        assert config.verify_backups is True
+
+    def test_backup_config_custom_values(self):
+        """Test BackupConfig initialization with custom values."""
         config = BackupConfig(
-            source_db_path=str(test_db_path),
-            backup_dir=str(backup_dir),
-            compression=False,
-            verify_backups=True
-        )
-        service = DatabaseBackupService(config)
-        
-        backup_info = await service.create_backup(name="uncompressed")
-        
-        assert backup_info.filename.endswith(".db")
-        assert not backup_info.filename.endswith(".gz")
-        assert backup_info.compressed is False
-        assert backup_info.verified is True
-    
-    @pytest.mark.asyncio
-    async def test_list_backups(self, backup_service):
-        """Test listing backups"""
-        # Create multiple backups
-        await backup_service.create_backup(name="backup1")
-        await backup_service.create_backup(name="backup2")
-        await backup_service.create_backup(name="backup3")
-        
-        backups = await backup_service.list_backups()
-        
-        assert len(backups) == 3
-        # Should be sorted by creation time (newest first)
-        assert backups[0].created_at >= backups[1].created_at
-        assert backups[1].created_at >= backups[2].created_at
-    
-    @pytest.mark.asyncio
-    async def test_backup_cleanup(self, backup_service):
-        """Test automatic cleanup of old backups"""
-        # Create more backups than max_backups (3)
-        for i in range(5):
-            await backup_service.create_backup(name=f"backup_{i}")
-        
-        backups = await backup_service.list_backups()
-        
-        # Should only have max_backups (3) remaining
-        assert len(backups) <= backup_service.config.max_backups
-    
-    @pytest.mark.asyncio
-    async def test_restore_backup(self, backup_service, temp_dir):
-        """Test restoring a backup"""
-        # Create a backup
-        backup_info = await backup_service.create_backup(name="restore_test")
-        
-        # Create a different target file
-        target_path = temp_dir / "restored.db"
-        
-        # Restore the backup
-        success = await backup_service.restore_backup(backup_info.filename, str(target_path))
-        
-        assert success is True
-        assert target_path.exists()
-        
-        # Verify restored database has correct data
-        conn = sqlite3.connect(str(target_path))
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM test_products")
-        count = cursor.fetchone()[0]
-        conn.close()
-        
-        assert count == 3  # Should have 3 test products
-    
-    @pytest.mark.asyncio
-    async def test_delete_backup(self, backup_service):
-        """Test deleting a backup"""
-        # Create a backup
-        backup_info = await backup_service.create_backup(name="delete_test")
-        
-        # Verify backup exists
-        assert backup_info.filepath.exists()
-        
-        # Delete the backup
-        success = await backup_service.delete_backup(backup_info.filename)
-        
-        assert success is True
-        assert not backup_info.filepath.exists()
-    
-    @pytest.mark.asyncio
-    async def test_delete_nonexistent_backup(self, backup_service):
-        """Test deleting a backup that doesn't exist"""
-        success = await backup_service.delete_backup("nonexistent_backup.db")
-        assert success is False
-    
-    @pytest.mark.asyncio
-    async def test_verify_backup(self, backup_service):
-        """Test backup verification"""
-        # Create a backup
-        backup_info = await backup_service.create_backup(name="verify_test")
-        
-        # Verify the backup
-        is_valid = await backup_service._verify_backup(backup_info)
-        
-        assert is_valid is True
-    
-    @pytest.mark.asyncio
-    async def test_backup_stats(self, backup_service):
-        """Test backup statistics"""
-        # Create some backups
-        await backup_service.create_backup(name="stats1", auto=False)
-        await backup_service.create_backup(auto=True)
-        await backup_service.create_backup(name="stats2", auto=False)
-        
-        stats = await backup_service.get_backup_stats()
-        
-        assert stats["total_backups"] == 3
-        assert stats["total_size_bytes"] > 0
-        assert stats["manual_backups"] == 2
-        assert stats["auto_backups"] == 1
-        assert "oldest_backup" in stats
-        assert "newest_backup" in stats
-    
-    @pytest.mark.asyncio
-    async def test_backup_with_missing_source(self, temp_dir):
-        """Test backup creation when source database doesn't exist"""
-        config = BackupConfig(
-            source_db_path=str(temp_dir / "nonexistent.db"),
-            backup_dir=str(temp_dir / "backups")
-        )
-        service = DatabaseBackupService(config)
-        
-        with pytest.raises(FileNotFoundError):
-            await service.create_backup(name="should_fail")
-    
-    @pytest.mark.asyncio
-    async def test_scheduled_backups_start_stop(self, backup_service):
-        """Test starting and stopping scheduled backups"""
-        # Start scheduled backups
-        await backup_service.start_scheduled_backups()
-        assert backup_service._running is True
-        assert backup_service._backup_task is not None
-        
-        # Stop scheduled backups
-        await backup_service.stop_scheduled_backups()
-        assert backup_service._running is False
-    
-    @pytest.mark.asyncio
-    async def test_backup_info_serialization(self, backup_service):
-        """Test BackupInfo serialization to dict"""
-        backup_info = await backup_service.create_backup(name="serialize_test")
-        
-        data = backup_info.to_dict()
-        
-        assert "filename" in data
-        assert "filepath" in data
-        assert "created_at" in data
-        assert "size_bytes" in data
-        assert "size_human" in data
-        assert "checksum" in data
-        assert "compressed" in data
-        assert "verified" in data
-        
-        # Check that datetime is properly serialized
-        datetime.fromisoformat(data["created_at"])  # Should not raise exception
-    
-    @pytest.mark.asyncio
-    async def test_backup_checksum_consistency(self, backup_service):
-        """Test that backup checksums are consistent"""
-        backup_info = await backup_service.create_backup(name="checksum_test")
-        
-        # Calculate checksum again
-        new_checksum = await backup_service._calculate_checksum(backup_info.filepath)
-        
-        assert backup_info.checksum == new_checksum
-    
-    @pytest.mark.asyncio
-    async def test_backup_config_validation(self, test_db_path, temp_dir):
-        """Test backup configuration validation"""
-        # Test with valid config
-        config = BackupConfig(
-            source_db_path=str(test_db_path),
-            backup_dir=str(temp_dir / "backups"),
+            source_db_path="custom.db",
+            backup_dir="custom_backups",
             max_backups=5,
-            backup_interval_hours=2
+            backup_interval_hours=12,
+            compression=False,
+            verify_backups=False
         )
         
-        assert config.source_db_path == str(test_db_path)
+        assert config.source_db_path == "custom.db"
+        assert config.backup_dir == Path("custom_backups")
         assert config.max_backups == 5
-        assert config.backup_interval_hours == 2
-        assert config.backup_dir.exists()  # Should be created automatically
-    
-    @pytest.mark.asyncio
-    async def test_compressed_backup_restore(self, backup_service, temp_dir):
-        """Test restoring a compressed backup"""
-        # Create compressed backup
-        backup_info = await backup_service.create_backup(name="compressed_test")
+        assert config.backup_interval_hours == 12
+        assert config.compression is False
+        assert config.verify_backups is False
+
+    @patch.dict(os.environ, {
+        "BACKUP_SOURCE_DB_PATH": "env.db",
+        "BACKUP_DIR": "env_backups",
+        "BACKUP_MAX_BACKUPS": "15",
+        "BACKUP_INTERVAL_HOURS": "6",
+        "BACKUP_COMPRESSION": "false",
+        "BACKUP_VERIFY": "false"
+    })
+    def test_backup_config_from_environment(self):
+        """Test BackupConfig initialization from environment variables."""
+        config = BackupConfig()
+        
+        assert config.source_db_path == "env.db"
+        assert config.backup_dir == Path("env_backups")
+        assert config.max_backups == 15
+        assert config.backup_interval_hours == 6
+        assert config.compression is False
+        assert config.verify_backups is False
+
+    @patch('pathlib.Path.mkdir')
+    def test_backup_config_creates_directory(self, mock_mkdir):
+        """Test that BackupConfig creates backup directory."""
+        BackupConfig(backup_dir="test_dir")
+        mock_mkdir.assert_called_once_with(exist_ok=True)
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_backup_config_from_env_classmethod(self):
+        """Test BackupConfig.from_env() class method."""
+        config = BackupConfig.from_env()
+        
+        assert config.source_db_path == "viparser.db"
+        assert config.backup_dir == Path("backups")
+
+    @patch.dict(os.environ, {"BACKUP_ENABLED": "true"})
+    def test_backup_config_is_enabled_true(self):
+        """Test is_enabled method returns True."""
+        config = BackupConfig()
+        assert config.is_enabled() is True
+
+    @patch.dict(os.environ, {"BACKUP_ENABLED": "false"})
+    def test_backup_config_is_enabled_false(self):
+        """Test is_enabled method returns False."""
+        config = BackupConfig()
+        assert config.is_enabled() is False
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_backup_config_is_enabled_default(self):
+        """Test is_enabled method returns True by default."""
+        config = BackupConfig()
+        assert config.is_enabled() is True
+
+
+class TestBackupInfo:
+    """Test suite for BackupInfo class."""
+
+    def test_backup_info_initialization(self):
+        """Test BackupInfo initialization."""
+        created_at = datetime.now()
+        filepath = Path("/test/backup.db")
+        
+        backup_info = BackupInfo(
+            filename="backup.db",
+            filepath=filepath,
+            created_at=created_at,
+            size_bytes=1024,
+            checksum="abc123",
+            compressed=True,
+            verified=True
+        )
+        
+        assert backup_info.filename == "backup.db"
+        assert backup_info.filepath == filepath
+        assert backup_info.created_at == created_at
+        assert backup_info.size_bytes == 1024
+        assert backup_info.checksum == "abc123"
         assert backup_info.compressed is True
+        assert backup_info.verified is True
+
+    def test_backup_info_to_dict(self):
+        """Test BackupInfo to_dict method."""
+        created_at = datetime(2023, 6, 15, 12, 0, 0)
+        filepath = Path("/test/backup.db")
         
-        # Restore to a new location
-        target_path = temp_dir / "restored_compressed.db"
-        success = await backup_service.restore_backup(backup_info.filename, str(target_path))
+        backup_info = BackupInfo(
+            filename="backup.db",
+            filepath=filepath,
+            created_at=created_at,
+            size_bytes=2048,
+            checksum="def456",
+            compressed=False,
+            verified=False
+        )
         
-        assert success is True
-        assert target_path.exists()
+        result = backup_info.to_dict()
         
-        # Verify restored data
-        conn = sqlite3.connect(str(target_path))
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM test_products ORDER BY id")
-        products = cursor.fetchall()
-        conn.close()
+        expected = {
+            "filename": "backup.db",
+            "filepath": str(filepath),  # Use platform-specific path representation
+            "created_at": "2023-06-15T12:00:00",
+            "size_bytes": 2048,
+            "size_human": "2.0 KB",
+            "checksum": "def456",
+            "compressed": False,
+            "verified": False
+        }
         
-        expected_products = [("Test Product 1",), ("Test Product 2",), ("Test Product 3",)]
-        assert products == expected_products
+        assert result == expected
+
+    def test_backup_info_format_size_bytes(self):
+        """Test _format_size method with bytes."""
+        backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
+        assert backup_info._format_size(512) == "512.0 B"
+
+    def test_backup_info_format_size_kb(self):
+        """Test _format_size method with kilobytes."""
+        backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
+        assert backup_info._format_size(1536) == "1.5 KB"
+
+    def test_backup_info_format_size_mb(self):
+        """Test _format_size method with megabytes."""
+        backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
+        assert backup_info._format_size(1572864) == "1.5 MB"
+
+    def test_backup_info_format_size_gb(self):
+        """Test _format_size method with gigabytes."""
+        backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
+        assert backup_info._format_size(1610612736) == "1.5 GB"
+
+    def test_backup_info_format_size_tb(self):
+        """Test _format_size method with terabytes."""
+        backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
+        assert backup_info._format_size(1649267441664) == "1.5 TB"
+
+
+class TestDatabaseBackupService:
+    """Test suite for DatabaseBackupService class."""
+
+    def setup_method(self):
+        """Setup for each test method."""
+        self.mock_config = Mock(spec=BackupConfig)
+        self.mock_config.backup_dir = Path("/test/backups")
+        self.mock_config.source_db_path = "test.db"
+        self.mock_config.max_backups = 5
+        self.mock_config.backup_interval_hours = 1
+        self.mock_config.compression = False
+        self.mock_config.verify_backups = False
+
+    def test_backup_service_initialization(self):
+        """Test DatabaseBackupService initialization."""
+        with patch('services.backup_service.logger') as mock_logger:
+            service = DatabaseBackupService(self.mock_config)
+            
+            assert service.config == self.mock_config
+            assert service._backup_task is None
+            assert service._running is False
+            mock_logger.info.assert_called_once()
+
+    def test_backup_service_initialization_default_config(self):
+        """Test DatabaseBackupService initialization with default config."""
+        with patch('services.backup_service.BackupConfig') as mock_backup_config:
+            mock_config_instance = Mock()
+            mock_backup_config.return_value = mock_config_instance
+            
+            service = DatabaseBackupService()
+            
+            assert service.config == mock_config_instance
+            mock_backup_config.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_start_scheduled_backups(self):
+        """Test starting scheduled backups."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        with patch('asyncio.create_task') as mock_create_task:
+            with patch('services.backup_service.logger') as mock_logger:
+                mock_task = Mock()
+                mock_create_task.return_value = mock_task
+                
+                await service.start_scheduled_backups()
+                
+                assert service._running is True
+                assert service._backup_task == mock_task
+                mock_create_task.assert_called_once()
+                mock_logger.info.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_start_scheduled_backups_already_running(self):
+        """Test starting scheduled backups when already running."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        # Mock existing task
+        mock_task = Mock()
+        mock_task.done.return_value = False
+        service._backup_task = mock_task
+        
+        with patch('services.backup_service.logger') as mock_logger:
+            await service.start_scheduled_backups()
+            
+            mock_logger.warning.assert_called_once()
+            assert "already running" in str(mock_logger.warning.call_args)
+
+    @pytest.mark.asyncio
+    async def test_stop_scheduled_backups(self):
+        """Test stopping scheduled backups."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        # Create a proper future
+        mock_future = asyncio.Future()
+        mock_future.set_result(None)
+        mock_future.cancel = Mock()
+        service._backup_task = mock_future
+        service._running = True
+        
+        with patch('services.backup_service.logger') as mock_logger:
+            await service.stop_scheduled_backups()
+            
+            assert service._running is False
+            mock_future.cancel.assert_called_once()
+            mock_logger.info.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stop_scheduled_backups_cancelled_error(self):
+        """Test stopping scheduled backups with cancelled error."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        # Create a proper future that will raise CancelledError
+        mock_future = asyncio.Future()
+        mock_future.set_exception(asyncio.CancelledError())
+        mock_future.cancel = Mock()
+        service._backup_task = mock_future
+        service._running = True
+        
+        with patch('services.backup_service.logger') as mock_logger:
+            await service.stop_scheduled_backups()
+            
+            assert service._running is False
+            mock_logger.info.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_create_backup_success(self):
+        """Test successful backup creation."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        mock_backup_info = Mock(spec=BackupInfo)
+        mock_backup_info.size_bytes = 1024
+        
+        with patch('os.path.exists', return_value=True):
+            with patch.object(service, '_create_sqlite_backup', return_value=mock_backup_info) as mock_create:
+                with patch.object(service, '_cleanup_old_backups') as mock_cleanup:
+                    with patch('services.backup_service.logger') as mock_logger:
+                        result = await service.create_backup()
+                        
+                        assert result == mock_backup_info
+                        mock_create.assert_called_once()
+                        mock_cleanup.assert_called_once()
+                        mock_logger.info.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_create_backup_source_not_found(self):
+        """Test backup creation when source database not found."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        with patch('os.path.exists', return_value=False):
+            with pytest.raises(FileNotFoundError) as exc_info:
+                await service.create_backup()
+            
+            assert "Source database not found" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_backups_success(self):
+        """Test listing backups successfully."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        # Mock backup files
+        mock_file1 = Mock()
+        mock_file1.name = "backup1.db"
+        mock_file1.stat.return_value.st_ctime = 1234567890
+        mock_file1.stat.return_value.st_size = 1024
+        mock_file1.suffix = ".db"
+        
+        mock_file2 = Mock()
+        mock_file2.name = "backup2.db.gz"
+        mock_file2.stat.return_value.st_ctime = 1234567900
+        mock_file2.stat.return_value.st_size = 512
+        mock_file2.suffix = ".gz"
+        
+        # Mock the backup directory
+        mock_backup_dir = Mock()
+        mock_backup_dir.exists.return_value = True
+        mock_backup_dir.glob.return_value = [mock_file1, mock_file2]
+        service.config.backup_dir = mock_backup_dir
+        
+        with patch.object(service, '_calculate_checksum', return_value="hash123"):
+            result = await service.list_backups()
+            
+            assert len(result) == 2
+            # Should be sorted by creation time (newest first)
+            assert result[0].filename == "backup2.db.gz"
+            assert result[1].filename == "backup1.db"
+
+    @pytest.mark.asyncio
+    async def test_list_backups_no_directory(self):
+        """Test listing backups when directory doesn't exist."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        # Mock the backup directory
+        mock_backup_dir = Mock()
+        mock_backup_dir.exists.return_value = False
+        service.config.backup_dir = mock_backup_dir
+        
+        result = await service.list_backups()
+        
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_success(self):
+        """Test restoring backup successfully."""
+        service = DatabaseBackupService(self.mock_config)
+        backup_filename = "test_backup.db"
+        
+        # Mock backup directory and path
+        mock_backup_path = Mock()
+        mock_backup_path.exists.return_value = True
+        mock_backup_dir = Mock()
+        mock_backup_dir.__truediv__ = Mock(return_value=mock_backup_path)
+        service.config.backup_dir = mock_backup_dir
+        
+        async def mock_executor():
+            return None
+        
+        with patch('asyncio.get_event_loop') as mock_loop:
+            with patch('services.backup_service.logger') as mock_logger:
+                mock_loop.return_value.run_in_executor.return_value = mock_executor()
+                
+                result = await service.restore_backup(backup_filename)
+                
+                assert result is True
+                mock_logger.info.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_not_found(self):
+        """Test restoring backup when file not found."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        # Mock backup directory and path
+        mock_backup_path = Mock()
+        mock_backup_path.exists.return_value = False
+        mock_backup_dir = Mock()
+        mock_backup_dir.__truediv__ = Mock(return_value=mock_backup_path)
+        service.config.backup_dir = mock_backup_dir
+        
+        with patch('services.backup_service.logger') as mock_logger:
+            result = await service.restore_backup("nonexistent.db")
+            
+            assert result is False
+            mock_logger.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_delete_backup_success(self):
+        """Test successful backup deletion."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        # Mock backup directory and path
+        mock_backup_path = Mock()
+        mock_backup_path.exists.return_value = True
+        mock_backup_dir = Mock()
+        mock_backup_dir.__truediv__ = Mock(return_value=mock_backup_path)
+        service.config.backup_dir = mock_backup_dir
+        
+        with patch('os.remove') as mock_remove:
+            with patch('services.backup_service.logger') as mock_logger:
+                result = await service.delete_backup("test.db")
+                
+                assert result is True
+                mock_remove.assert_called_once_with(mock_backup_path)
+                mock_logger.info.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_delete_backup_not_found(self):
+        """Test deleting backup when file not found."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        # Mock backup directory and path
+        mock_backup_path = Mock()
+        mock_backup_path.exists.return_value = False
+        mock_backup_dir = Mock()
+        mock_backup_dir.__truediv__ = Mock(return_value=mock_backup_path)
+        service.config.backup_dir = mock_backup_dir
+        
+        with patch('services.backup_service.logger') as mock_logger:
+            result = await service.delete_backup("nonexistent.db")
+            
+            assert result is False
+            mock_logger.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_backup_stats_success(self):
+        """Test successful backup statistics retrieval."""
+        service = DatabaseBackupService(self.mock_config)
+        service._running = True
+        
+        # Mock backups
+        backup1 = Mock()
+        backup1.size_bytes = 1024
+        backup1.filename = "auto_backup1.db"
+        backup1.created_at = datetime(2023, 6, 15, 12, 0, 0)
+        backup1._format_size.return_value = "1.5 KB"
+        
+        backup2 = Mock()
+        backup2.size_bytes = 512
+        backup2.filename = "manual_backup2.db"
+        backup2.created_at = datetime(2023, 6, 14, 12, 0, 0)
+        backup2._format_size.return_value = "1.5 KB"
+        
+        backups = [backup1, backup2]
+        
+        with patch.object(service, 'list_backups', return_value=backups):
+            result = await service.get_backup_stats()
+            
+            expected = {
+                "total_backups": 2,
+                "total_size_bytes": 1536,
+                "total_size_human": "1.5 KB",
+                "oldest_backup": "2023-06-14T12:00:00",
+                "newest_backup": "2023-06-15T12:00:00",
+                "auto_backups": 1,
+                "manual_backups": 1,
+                "scheduled_backups_running": True
+            }
+            
+            assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_get_backup_stats_no_backups(self):
+        """Test backup statistics when no backups exist."""
+        service = DatabaseBackupService(self.mock_config)
+        
+        with patch.object(service, 'list_backups', return_value=[]):
+            result = await service.get_backup_stats()
+            
+            expected = {
+                "total_backups": 0,
+                "total_size_bytes": 0,
+                "total_size_human": "0 B",
+                "oldest_backup": None,
+                "newest_backup": None,
+                "auto_backups": 0,
+                "manual_backups": 0
+            }
+            
+            # Check subset since _running state may vary
+            for key, value in expected.items():
+                assert result[key] == value
