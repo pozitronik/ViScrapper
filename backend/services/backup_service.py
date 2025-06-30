@@ -40,7 +40,7 @@ class BackupConfig:
         self.backup_dir.mkdir(exist_ok=True)
     
     @classmethod
-    def from_env(cls):
+    def from_env(cls) -> "BackupConfig":
         """Create configuration from environment variables only"""
         return cls()
     
@@ -103,7 +103,7 @@ class DatabaseBackupService:
         
         logger.info(f"Backup service initialized - backup dir: {self.config.backup_dir}")
     
-    async def start_scheduled_backups(self):
+    async def start_scheduled_backups(self) -> None:
         """Start the scheduled backup task"""
         if self._backup_task and not self._backup_task.done():
             logger.warning("Scheduled backups already running")
@@ -113,7 +113,7 @@ class DatabaseBackupService:
         self._backup_task = asyncio.create_task(self._backup_scheduler())
         logger.info(f"Started scheduled backups every {self.config.backup_interval_hours} hours")
     
-    async def stop_scheduled_backups(self):
+    async def stop_scheduled_backups(self) -> None:
         """Stop the scheduled backup task"""
         self._running = False
         if self._backup_task:
@@ -124,7 +124,7 @@ class DatabaseBackupService:
                 pass
         logger.info("Stopped scheduled backups")
     
-    async def _backup_scheduler(self):
+    async def _backup_scheduler(self) -> None:
         """Background task for scheduled backups"""
         while self._running:
             try:
@@ -192,7 +192,7 @@ class DatabaseBackupService:
     
     async def _create_sqlite_backup(self, backup_path: Path) -> BackupInfo:
         """Create backup using SQLite's backup API"""
-        def _backup_db():
+        def _backup_db() -> BackupInfo:
             # Connect to source database
             source_conn = sqlite3.connect(self.config.source_db_path)
             
@@ -253,7 +253,7 @@ class DatabaseBackupService:
     async def _verify_backup(self, backup_info: BackupInfo) -> bool:
         """Verify backup integrity"""
         try:
-            def _verify():
+            def _verify() -> bool:
                 if backup_info.compressed:
                     # Verify compressed backup by attempting to decompress and check
                     with gzip.open(backup_info.filepath, 'rb') as f:
@@ -295,7 +295,7 @@ class DatabaseBackupService:
     
     async def _calculate_checksum(self, filepath: Path) -> str:
         """Calculate SHA256 checksum of a file"""
-        def _calc():
+        def _calc() -> str:
             hash_sha256 = hashlib.sha256()
             with open(filepath, "rb") as f:
                 for chunk in iter(lambda: f.read(4096), b""):
@@ -346,7 +346,7 @@ class DatabaseBackupService:
             
             logger.info(f"Restoring backup {backup_filename} to {target}")
             
-            def _restore():
+            def _restore() -> None:
                 if backup_filename.endswith('.gz'):
                     # Decompress and restore
                     with gzip.open(backup_path, 'rb') as f_in:
@@ -381,7 +381,7 @@ class DatabaseBackupService:
             logger.error(f"Failed to delete backup {backup_filename}: {e}")
             return False
     
-    async def _cleanup_old_backups(self):
+    async def _cleanup_old_backups(self) -> None:
         """Remove old backups according to retention policy"""
         try:
             backups = await self.list_backups()

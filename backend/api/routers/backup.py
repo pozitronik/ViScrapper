@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/backup", tags=["Backup"])
 
 
-def check_backup_service_enabled():
+def check_backup_service_enabled() -> None:
     """Check if backup service is enabled and available"""
     if backup_service is None:
         raise HTTPException(
@@ -25,7 +25,7 @@ def check_backup_service_enabled():
 @router.post("/create", response_model=SuccessResponse[dict])
 async def create_backup(
     name: Optional[str] = Body(None, description="Optional backup name"),
-):
+) -> SuccessResponse[dict]:
     """
     Create a new database backup manually.
     
@@ -51,7 +51,7 @@ async def create_backup(
 
 
 @router.get("/list", response_model=SuccessResponse[List[dict]])
-async def list_backups():
+async def list_backups() -> SuccessResponse[List[dict]]:
     """
     List all available database backups.
     
@@ -80,7 +80,7 @@ async def list_backups():
 
 
 @router.get("/stats", response_model=SuccessResponse[dict])
-async def get_backup_stats():
+async def get_backup_stats() -> SuccessResponse[dict]:
     """
     Get backup statistics and information.
     
@@ -110,7 +110,7 @@ async def get_backup_stats():
 async def restore_backup(
     backup_filename: str,
     target_path: Optional[str] = Body(None, description="Optional target path for restore")
-):
+) -> SuccessResponse[dict]:
     """
     Restore a database from a backup file.
     
@@ -145,7 +145,7 @@ async def restore_backup(
 
 
 @router.delete("/{backup_filename}", response_model=FileDeleteResponse)
-async def delete_backup(backup_filename: str):
+async def delete_backup(backup_filename: str) -> FileDeleteResponse:
     """
     Delete a specific backup file.
     
@@ -179,7 +179,7 @@ async def delete_backup(backup_filename: str):
 
 
 @router.post("/start-scheduled", response_model=SuccessResponse[dict])
-async def start_scheduled_backups():
+async def start_scheduled_backups() -> SuccessResponse[dict]:
     """
     Start automatic scheduled backups.
     
@@ -203,7 +203,7 @@ async def start_scheduled_backups():
 
 
 @router.post("/stop-scheduled", response_model=SuccessResponse[dict])
-async def stop_scheduled_backups():
+async def stop_scheduled_backups() -> SuccessResponse[dict]:
     """
     Stop automatic scheduled backups.
     
@@ -227,7 +227,7 @@ async def stop_scheduled_backups():
 
 
 @router.post("/verify/{backup_filename}", response_model=SuccessResponse[dict])
-async def verify_backup(backup_filename: str):
+async def verify_backup(backup_filename: str) -> SuccessResponse[dict]:
     """
     Verify the integrity of a specific backup file.
     

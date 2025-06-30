@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError, OperationalError
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from models.product import Product, Image, Size
 from schemas.product import ProductCreate, ProductUpdate
 from utils.logger import get_logger
@@ -10,7 +10,7 @@ from exceptions.base import DatabaseException, ValidationException, ProductExcep
 logger = get_logger(__name__)
 
 
-def get_product_by_url(db: Session, url: str, include_deleted: bool = False):
+def get_product_by_url(db: Session, url: str, include_deleted: bool = False) -> Optional[Product]:
     """
     Get a product by its URL.
     
@@ -36,7 +36,7 @@ def get_product_by_url(db: Session, url: str, include_deleted: bool = False):
     return product
 
 
-def get_product_by_sku(db: Session, sku: str, include_deleted: bool = False):
+def get_product_by_sku(db: Session, sku: str, include_deleted: bool = False) -> Optional[Product]:
     """
     Get a product by its SKU.
     
@@ -65,7 +65,7 @@ def get_product_by_sku(db: Session, sku: str, include_deleted: bool = False):
     return product
 
 
-def find_existing_product(db: Session, url: str, sku: Optional[str] = None, include_deleted: bool = False):
+def find_existing_product(db: Session, url: str, sku: Optional[str] = None, include_deleted: bool = False) -> Dict[str, Any]:
     """
     Find an existing product by URL or SKU.
     
@@ -94,7 +94,7 @@ def find_existing_product(db: Session, url: str, sku: Optional[str] = None, incl
     return {'product': None, 'match_type': None}
 
 
-def compare_product_data(existing_product: Product, new_data: ProductCreate):
+def compare_product_data(existing_product: Product, new_data: ProductCreate) -> Dict[str, Any]:
     """
     Compare existing product with new data to determine what has changed.
     
@@ -183,7 +183,7 @@ def compare_product_data(existing_product: Product, new_data: ProductCreate):
     }
 
 
-def create_product(db: Session, product: ProductCreate, downloaded_images_metadata: list = None):
+def create_product(db: Session, product: ProductCreate, downloaded_images_metadata: Optional[list] = None) -> Product:
     """
     Create a new product with images and sizes in a single atomic transaction.
     
@@ -337,7 +337,7 @@ def create_product(db: Session, product: ProductCreate, downloaded_images_metada
         )
 
 
-def create_size_combinations_new(db: Session, product_id: int, size_combinations_data: dict):
+def create_size_combinations_new(db: Session, product_id: int, size_combinations_data: dict) -> None:
     """
     Create size combinations from browser extension data using new structure.
     
@@ -372,7 +372,7 @@ def create_size_combinations_new(db: Session, product_id: int, size_combinations
     logger.info(f"Created size combination record for product {product_id} with {len(combinations)} size1 options")
 
 
-def create_simple_sizes(db: Session, product_id: int, available_sizes: list):
+def create_simple_sizes(db: Session, product_id: int, available_sizes: list) -> None:
     """
     Create simple size records from available sizes list.
     
@@ -401,7 +401,7 @@ def create_simple_sizes(db: Session, product_id: int, available_sizes: list):
     logger.info(f"Created {len(available_sizes)} simple size records for product {product_id}")
 
 
-def create_size_combinations(db: Session, product_id: int, size_combinations_data: dict):
+def create_size_combinations(db: Session, product_id: int, size_combinations_data: dict) -> None:
     """
     Legacy function - kept for backward compatibility.
     """
@@ -433,7 +433,7 @@ def filter_duplicate_images_by_hash(new_images_metadata: list, existing_hashes: 
     return unique_images
 
 
-async def update_existing_product_with_changes(db: Session, existing_product: Product, new_data: ProductCreate, changes: dict, download_new_images: bool = True, downloaded_images_metadata: list = None):
+async def update_existing_product_with_changes(db: Session, existing_product: Product, new_data: ProductCreate, changes: dict, download_new_images: bool = True, downloaded_images_metadata: Optional[list] = None) -> Product:
     """
     Update an existing product with new data based on detected changes.
     

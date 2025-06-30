@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 
 @contextmanager
-def atomic_transaction(db: Session):
+def atomic_transaction(db: Session) -> Any:
     """
     Simple context manager for atomic database transactions.
     

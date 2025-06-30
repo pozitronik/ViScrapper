@@ -1,8 +1,9 @@
 # Load environment variables from .env file FIRST
 import os
 
+from typing import Any
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -13,7 +14,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./viparser.db")
 # Database engine configuration with connection pooling
 
 
-def create_database_engine(database_url: str = DATABASE_URL):
+def create_database_engine(database_url: str = DATABASE_URL) -> Engine:
     """Create database engine with appropriate configuration for the database type."""
     
     if database_url.startswith("sqlite"):
@@ -48,7 +49,7 @@ engine = create_database_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def get_db():
+def get_db() -> Any:
     db = SessionLocal()
     try:
         yield db

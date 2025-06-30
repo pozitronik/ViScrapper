@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/v1/maintenance", tags=["Maintenance"])
 async def cleanup_orphaned_images(
     dry_run: bool = Query(True, description="Simulate cleanup without actually deleting files"),
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Clean up orphaned image files that exist in filesystem but are not referenced in database.
     
@@ -48,7 +48,7 @@ async def cleanup_orphaned_images(
 
 
 @router.get("/image-statistics", response_model=SuccessResponse[Dict[str, Any]])
-async def get_image_statistics(db: Session = Depends(get_db)):
+async def get_image_statistics(db: Session = Depends(get_db)) -> SuccessResponse[Dict[str, Any]]:
     """
     Get statistics about image files and storage usage.
     """

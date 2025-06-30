@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, desc, asc
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime, timedelta, timezone
 
 from database.session import get_db
@@ -43,7 +43,7 @@ def calculate_pagination(page: int, per_page: int, total: int) -> PaginationInfo
     )
 
 
-def apply_filters(query, filters: SearchFilters, include_deleted: bool = False):
+def apply_filters(query: Any, filters: SearchFilters, include_deleted: bool = False) -> Any:
     """Apply search filters to the query."""
     # Always exclude soft-deleted records unless explicitly requested
     if not include_deleted:
@@ -102,7 +102,7 @@ def apply_filters(query, filters: SearchFilters, include_deleted: bool = False):
     return query
 
 
-def apply_sorting(query, sort_by: str, sort_order: str):
+def apply_sorting(query: Any, sort_by: str, sort_order: str) -> Any:
     """Apply sorting to the query."""
     if not hasattr(ProductModel, sort_by):
         sort_by = "created_at"  # Default fallback
@@ -132,7 +132,7 @@ async def list_products(
     sort_by: str = Query("created_at", description="Field to sort by"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort order"),
     db: Session = Depends(get_db)
-):
+) -> PaginatedResponse[Product]:
     """
     Get a paginated list of products with optional filtering and sorting.
     

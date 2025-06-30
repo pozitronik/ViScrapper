@@ -4,6 +4,7 @@ from sqlalchemy import text
 import time
 import os
 from datetime import datetime, timezone
+from typing import Dict
 
 from database.session import get_db
 from api.models.responses import SuccessResponse, HealthStatus
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/api/v1", tags=["Health"])
 _start_time = None
 
 
-def get_start_time():
+def get_start_time() -> float:
     """Get the application start time, initializing it if needed."""
     global _start_time
     if _start_time is None:
@@ -26,7 +27,7 @@ def get_start_time():
 
 
 @router.get("/health", response_model=SuccessResponse[HealthStatus])
-async def health_check(db: Session = Depends(get_db)):
+async def health_check(db: Session = Depends(get_db)) -> SuccessResponse[HealthStatus]:
     """
     Comprehensive health check endpoint.
     
@@ -67,7 +68,7 @@ async def health_check(db: Session = Depends(get_db)):
 
 
 @router.get("/status", response_model=SuccessResponse[dict])
-async def system_status(db: Session = Depends(get_db)):
+async def system_status(db: Session = Depends(get_db)) -> SuccessResponse[dict]:
     """
     Detailed system status endpoint with additional metrics.
     """
@@ -149,6 +150,6 @@ def format_uptime(uptime_seconds: float) -> str:
 
 
 @router.get("/ping")
-async def ping():
+async def ping() -> Dict[str, str]:
     """Simple ping endpoint for basic connectivity testing."""
     return {"message": "pong", "timestamp": datetime.now(timezone.utc).isoformat()}
