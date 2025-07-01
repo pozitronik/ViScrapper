@@ -87,6 +87,12 @@ def execute_with_retry(func: Callable[..., Any], max_retries: int = 3, *args: An
             else:
                 # Other operational errors - don't retry
                 raise
+        
+        except Exception as e:
+            # All other exceptions - don't retry, just raise
+            logger.error(f"Function failed with non-operational error: {e}")
+            raise
+    return None
 
 
 def validate_product_constraints(product_data: Dict[str, Any]) -> None:
