@@ -21,10 +21,10 @@ def serialize_for_json(data: Dict[str, Any]) -> Dict[str, Any]:
         elif isinstance(value, (datetime, date)):
             serialized[key] = value.isoformat()
         elif isinstance(value, BaseModel):
-            serialized[key] = serialize_for_json(value.dict())
+            serialized[key] = serialize_for_json(value.model_dump())
         elif isinstance(value, list):
             serialized[key] = [
-                serialize_for_json(item.dict()) if isinstance(item, BaseModel) 
+                serialize_for_json(item.model_dump()) if isinstance(item, BaseModel) 
                 else serialize_value(item)
                 for item in value
             ]
@@ -42,7 +42,7 @@ def serialize_value(value: Any) -> Any:
     elif isinstance(value, (datetime, date)):
         return value.isoformat()
     elif isinstance(value, BaseModel):
-        return serialize_for_json(value.dict())
+        return serialize_for_json(value.model_dump())
     elif isinstance(value, dict):
         return serialize_for_json(value)
     elif isinstance(value, list):
