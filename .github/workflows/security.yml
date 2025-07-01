@@ -1,0 +1,274 @@
+name: Security Monitoring
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  dependency-security-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install security scanning tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety bandit pip-audit
+          
+      - name: Run safety check for known vulnerabilities
+        run: |
+          safety check --json --output safety-report.json
+          safety check --short-report
+          
+      - name: Run bandit security analysis
+        run: |
+          bandit -r . -f json -o bandit-report.json
+          bandit -r . -ll  # Only high and medium severity
+          
+      - name: Run pip-audit for dependency vulnerabilities
+        run: |
+          pip-audit --desc --format=json --output=pip-audit-report.json
+          pip-audit --desc
+          
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports-${{ github.run_number }}
+          path: |
+            backend/safety-report.json
+            backend/bandit-report.json
+            backend/pip-audit-report.json
+            
+      - name: Create security issue if vulnerabilities found
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const title = `🔒 Security vulnerabilities detected - ${new Date().toISOString().split('T')[0]}`;
+            const body = `
+            ## Security Scan Results
+            
+            Security vulnerabilities have been detected in the VIParser backend dependencies.
+            
+            ### Action Required
+            - Review the security reports in the workflow artifacts
+            - Update vulnerable dependencies
+            - Run tests to ensure compatibility
+            - Deploy fixes as soon as possible
+            
+            ### Reports Generated
+            - Safety check (known vulnerabilities)
+            - Bandit analysis (code security issues)
+            - Pip-audit (dependency vulnerabilities)
+            
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            `;
+            
+            // Check if an issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security,automated'
+            });
+            
+            const existingIssue = issues.data.find(issue => 
+              issue.title.includes('Security vulnerabilities detected')
+            );
+            
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['security', 'automated', 'high-priority']
+              });
+            }
+            
+  license-compliance:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install license checking tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-licenses
+          
+      - name: Install project dependencies
+        run: |
+          pip install -r requirements.txt
+          
+      - name: Generate license report
+        run: |
+          pip-licenses --format=json --output-file=licenses.json
+          pip-licenses --format=markdown --output-file=LICENSES.md
+          
+      - name: Check for problematic licenses
+        run: |
+          # Define problematic licenses that should trigger warnings
+          PROBLEMATIC_LICENSES="GPL-3.0,AGPL-3.0,SSPL-1.0,Commons-Clause"
+          
+          # Check if any dependencies use problematic licenses
+          if pip-licenses --format=plain | grep -E "$PROBLEMATIC_LICENSES"; then
+            echo "⚠️ Found dependencies with potentially problematic licenses"
+            echo "Please review the license compatibility"
+            exit 1
+          else
+            echo "✅ No problematic licenses detected"
+          fi
+          
+      - name: Upload license reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-reports
+          path: |
+            backend/licenses.json
+            backend/LICENSES.md
+            
+  code-quality-monitoring:
+    name: Code Quality Monitoring
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+        
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for trend analysis
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install analysis tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install radon xenon vulture
+          
+      - name: Analyze code complexity
+        run: |
+          # Cyclomatic complexity
+          radon cc . --json > complexity-report.json
+          radon cc . --show-complexity --min=C
+          
+          # Maintainability index
+          radon mi . --json > maintainability-report.json
+          radon mi . --show --min=B
+          
+      - name: Check for dead code
+        run: |
+          vulture . --min-confidence 80 > dead-code-report.txt || true
+          
+      - name: Monitor code metrics trends
+        run: |
+          echo "📊 Code Quality Metrics:"
+          echo "- Complexity analysis completed"
+          echo "- Maintainability index calculated"
+          echo "- Dead code detection finished"
+          
+          # Here you could integrate with external services like:
+          # - SonarCloud
+          # - Code Climate
+          # - Codacy
+          
+      - name: Upload quality reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-quality-reports
+          path: |
+            backend/complexity-report.json
+            backend/maintainability-report.json
+            backend/dead-code-report.txt
+            
+  container-security-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Docker image for scanning
+        run: |
+          docker build -t viparser-security-scan:latest backend/
+          
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'viparser-security-scan:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'backend/'
+          format: 'json'
+          output: 'trivy-fs-results.json'
+          
+      - name: Upload container security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: container-security-reports
+          path: |
+            trivy-results.sarif
+            trivy-fs-results.json
+            
+  summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-security-scan, license-compliance, code-quality-monitoring, container-security-scan]
+    if: always()
+    
+    steps:
+      - name: Generate security summary
+        run: |
+          echo "## 🔒 Security Monitoring Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Security | ${{ needs.dependency-security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| License Compliance | ${{ needs.license-compliance.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality | ${{ needs.code-quality-monitoring.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Security | ${{ needs.container-security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Date:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY

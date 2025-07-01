@@ -1,0 +1,389 @@
+name: Performance Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run performance tests weekly
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Test duration in seconds'
+        required: false
+        default: '300'
+      users:
+        description: 'Number of concurrent users'
+        required: false
+        default: '50'
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  load-testing:
+    name: Load Testing with Locust
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: viparser_perf_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install locust
+          
+      - name: Create Locustfile
+        working-directory: backend
+        run: |
+          cat > locustfile.py << 'EOF'
+          from locust import HttpUser, task, between
+          import json
+          import random
+          
+          class VIParserUser(HttpUser):
+              wait_time = between(1, 3)
+              
+              def on_start(self):
+                  """Setup for each user"""
+                  pass
+                  
+              @task(3)
+              def health_check(self):
+                  """Test health endpoint"""
+                  self.client.get("/api/v1/health")
+                  
+              @task(2)
+              def get_products(self):
+                  """Test products listing"""
+                  params = {
+                      "skip": random.randint(0, 100),
+                      "limit": random.randint(10, 50)
+                  }
+                  self.client.get("/api/v1/products", params=params)
+                  
+              @task(1)
+              def get_product_detail(self):
+                  """Test product detail endpoint"""
+                  # Use a range of product IDs that likely exist
+                  product_id = random.randint(1, 100)
+                  self.client.get(f"/api/v1/products/{product_id}")
+                  
+              @task(1)
+              def scrape_product(self):
+                  """Test product scraping endpoint"""
+                  test_product = {
+                      "product_url": f"https://example.com/product/{random.randint(1000, 9999)}",
+                      "name": f"Test Product {random.randint(1, 1000)}",
+                      "price": round(random.uniform(10.0, 100.0), 2),
+                      "currency": "USD",
+                      "availability": random.choice(["in_stock", "out_of_stock"]),
+                      "all_image_urls": []
+                  }
+                  
+                  self.client.post(
+                      "/api/v1/scrape",
+                      json=test_product,
+                      headers={"Content-Type": "application/json"}
+                  )
+                  
+              @task(1)
+              def backup_stats(self):
+                  """Test backup statistics"""
+                  self.client.get("/api/v1/backup/stats")
+                  
+              @task(1)
+              def template_list(self):
+                  """Test template listing"""
+                  self.client.get("/api/v1/templates")
+          EOF
+          
+      - name: Start application
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/viparser_perf_test
+          ENVIRONMENT: test
+          LOG_LEVEL: ERROR
+          BACKUP_ENABLED: false
+        run: |
+          python main.py &
+          sleep 15  # Wait for application to start
+          
+      - name: Verify application is running
+        run: |
+          curl -f http://localhost:8000/api/v1/health || exit 1
+          
+      - name: Run load test
+        working-directory: backend
+        run: |
+          DURATION=${{ github.event.inputs.duration || '300' }}
+          USERS=${{ github.event.inputs.users || '50' }}
+          
+          locust \
+            --headless \
+            --users $USERS \
+            --spawn-rate 5 \
+            --run-time ${DURATION}s \
+            --host http://localhost:8000 \
+            --html locust-report.html \
+            --csv locust-results
+            
+      - name: Generate performance summary
+        working-directory: backend
+        run: |
+          echo "# 🚀 Performance Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "locust-results_stats.csv" ]; then
+            echo "## Request Statistics" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -10 locust-results_stats.csv >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -f "locust-results_failures.csv" ]; then
+            FAILURE_COUNT=$(wc -l < locust-results_failures.csv)
+            if [ $FAILURE_COUNT -gt 1 ]; then
+              echo "## ⚠️ Failures Detected" >> $GITHUB_STEP_SUMMARY
+              echo "Found $((FAILURE_COUNT - 1)) failed requests" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              head -10 locust-results_failures.csv >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            else
+              echo "## ✅ No Failures" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+      - name: Upload performance reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-reports
+          path: |
+            backend/locust-report.html
+            backend/locust-results_*.csv
+            
+  benchmark-testing:
+    name: Micro-benchmarks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-benchmark memory-profiler
+          
+      - name: Create benchmark tests
+        run: |
+          mkdir -p tests/benchmarks
+          cat > tests/benchmarks/test_performance.py << 'EOF'
+          import pytest
+          from datetime import datetime
+          from crud.product import get_products, get_product_by_id
+          from schemas.product import ProductCreate
+          from utils.database import validate_product_constraints
+          from services.template_service import template_renderer
+          from models.product import Product
+          from unittest.mock import Mock
+          
+          @pytest.fixture
+          def mock_db():
+              return Mock()
+              
+          @pytest.fixture
+          def sample_product():
+              return ProductCreate(
+                  product_url="https://example.com/test",
+                  name="Test Product",
+                  price=99.99,
+                  currency="USD"
+              )
+              
+          @pytest.fixture
+          def mock_product():
+              product = Mock(spec=Product)
+              product.id = 1
+              product.name = "Test Product"
+              product.price = 99.99
+              product.currency = "USD"
+              product.product_url = "https://example.com/test"
+              product.sku = "TEST-001"
+              product.availability = "in_stock"
+              product.color = "Blue"
+              product.composition = "Cotton"
+              product.item = "Shirt"
+              product.comment = "Test comment"
+              product.created_at = datetime.now()
+              product.images = []
+              product.sizes = []
+              return product
+              
+          class TestDatabaseOperations:
+              def test_validate_product_constraints_performance(self, benchmark, sample_product):
+                  """Benchmark product validation"""
+                  product_dict = sample_product.model_dump()
+                  result = benchmark(validate_product_constraints, product_dict)
+                  
+              def test_template_rendering_performance(self, benchmark, mock_product):
+                  """Benchmark template rendering"""
+                  template_content = "Product: {name}, Price: {price} {currency}, URL: {product_url}"
+                  result = benchmark(template_renderer.render_template, template_content, mock_product)
+                  assert "Test Product" in result
+                  
+              def test_placeholder_extraction_performance(self, benchmark):
+                  """Benchmark placeholder extraction"""
+                  template_content = "Product: {name}, Price: {price} {currency}, Available: {availability}, SKU: {sku}"
+                  result = benchmark(template_renderer.extract_placeholders, template_content)
+                  assert len(result) == 4
+                  
+              def test_placeholder_validation_performance(self, benchmark):
+                  """Benchmark placeholder validation"""
+                  template_content = "Product: {name}, Price: {price} {currency}, Invalid: {invalid_placeholder}"
+                  result = benchmark(template_renderer.validate_placeholders, template_content)
+                  assert len(result) == 1  # One invalid placeholder
+          EOF
+          
+      - name: Run benchmark tests
+        run: |
+          pytest tests/benchmarks/ \
+            --benchmark-json=benchmark-results.json \
+            --benchmark-histogram \
+            --benchmark-save=performance-$(date +%Y%m%d-%H%M%S)
+            
+      - name: Compare with baseline (if exists)
+        run: |
+          if [ -f ".benchmarks/baseline.json" ]; then
+            pytest-benchmark compare \
+              --histogram \
+              .benchmarks/baseline.json \
+              benchmark-results.json
+          else
+            echo "No baseline found, creating one..."
+            mkdir -p .benchmarks
+            cp benchmark-results.json .benchmarks/baseline.json
+          fi
+          
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: |
+            backend/benchmark-results.json
+            backend/.benchmarks/
+            
+  memory-profiling:
+    name: Memory Profiling
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install memory-profiler psutil
+          
+      - name: Create memory profiling script
+        run: |
+          cat > memory_profile.py << 'EOF'
+          import psutil
+          import time
+          from memory_profiler import profile
+          from crud.product import create_product
+          from schemas.product import ProductCreate
+          from utils.database import validate_product_constraints
+          from services.template_service import template_renderer
+          from models.product import Product
+          from unittest.mock import Mock
+          
+          @profile
+          def test_memory_usage():
+              # Simulate product creation
+              for i in range(100):
+                  product_data = {
+                      "product_url": f"https://example.com/product-{i}",
+                      "name": f"Test Product {i}",
+                      "price": 99.99 + i,
+                      "currency": "USD"
+                  }
+                  validate_product_constraints(product_data)
+              
+              # Simulate template rendering
+              template_content = "Product: {name}, Price: {price} {currency}"
+              mock_product = Mock(spec=Product)
+              mock_product.id = 1
+              mock_product.name = "Test Product"
+              mock_product.price = 99.99
+              mock_product.currency = "USD"
+              mock_product.images = []
+              mock_product.sizes = []
+              
+              for i in range(100):
+                  template_renderer.render_template(template_content, mock_product)
+                  
+          if __name__ == "__main__":
+              process = psutil.Process()
+              print(f"Initial memory usage: {process.memory_info().rss / 1024 / 1024:.2f} MB")
+              test_memory_usage()
+              print(f"Final memory usage: {process.memory_info().rss / 1024 / 1024:.2f} MB")
+          EOF
+          
+      - name: Run memory profiling
+        run: |
+          python memory_profile.py > memory-profile.txt 2>&1
+          
+      - name: Generate memory report
+        run: |
+          echo "## 🧠 Memory Profiling Results" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          head -20 memory-profile.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+      - name: Upload memory profiling results
+        uses: actions/upload-artifact@v3
+        with:
+          name: memory-profile
+          path: backend/memory-profile.txt
