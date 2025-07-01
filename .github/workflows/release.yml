@@ -121,7 +121,7 @@ jobs:
           echo "- Security scans completed ✅" >> CHANGELOG.md
           
       - name: Update release with changelog
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
