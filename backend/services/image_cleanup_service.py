@@ -5,7 +5,7 @@ Image cleanup service for removing orphaned images.
 import os
 import asyncio
 from pathlib import Path
-from typing import List, Set, Dict, Union, TypedDict
+from typing import List, Set, TypedDict
 from sqlalchemy.orm import Session
 from models.product import Image
 from database.session import get_db

@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON
-from sqlalchemy.orm import relationship, declarative_base, Mapped, mapped_column
-from typing import TYPE_CHECKING, Optional
-from datetime import datetime
+from sqlalchemy.orm import relationship, declarative_base
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import DeclarativeBase as Base
