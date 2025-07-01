@@ -433,7 +433,7 @@ def filter_duplicate_images_by_hash(new_images_metadata: List[Dict[str, Any]], e
     return unique_images
 
 
-async def update_existing_product_with_changes(db: Session, existing_product: Product, new_data: ProductCreate, changes: Dict[str, Any], download_new_images: bool = True, downloaded_images_metadata: Optional[List[Dict[str, Any]]] = None) -> Product:
+async def update_existing_product_with_changes(db: Session, existing_product: Product, new_data: ProductCreate, changes: Dict[str, Any], download_new_images: bool = True, downloaded_images_metadata: Optional[List[Dict[str, Any]]] = None) -> tuple[Product, Dict[str, Any]]:
     """
     Update an existing product with new data based on detected changes.
     
