@@ -354,7 +354,7 @@ def render_template_with_product(
         )
     
     # Render template
-    rendered_content = template_renderer.render_template(template.template_content, product)
+    rendered_content = template_renderer.render_template(str(template.template_content), product)
     
     return {
         "template_id": template.id,

@@ -253,8 +253,11 @@ async def list_deleted_products(
     
     logger.info(f"Retrieved {len(products)} deleted products (page {page}/{pagination.pages})")
     
+    # Convert SQLAlchemy models to Pydantic schemas
+    product_schemas = [Product.model_validate(product) for product in products]
+    
     return PaginatedResponse(
-        data=products,
+        data=product_schemas,
         pagination=pagination,
         message=f"Retrieved {len(products)} deleted products"
     )
@@ -277,8 +280,11 @@ async def get_recent_products(
     
     logger.info(f"Retrieved {len(products)} recent products")
     
+    # Convert SQLAlchemy models to Pydantic schemas
+    product_schemas = [Product.model_validate(product) for product in products]
+    
     return SuccessResponse(
-        data=products,
+        data=product_schemas,
         message=f"Retrieved {len(products)} recent products"
     )
 
@@ -334,8 +340,11 @@ async def search_products(
     
     logger.info(f"Search found {total} products, returning {len(products)} for page {page}")
     
+    # Convert SQLAlchemy models to Pydantic schemas
+    product_schemas = [Product.model_validate(product) for product in products]
+    
     return PaginatedResponse(
-        data=products,
+        data=product_schemas,
         pagination=pagination,
         message=f"Found {total} products matching search query"
     )
@@ -357,7 +366,7 @@ async def get_product(
     logger.info(f"Retrieved product: {product.name}")
     
     return SuccessResponse(
-        data=product,
+        data=Product.model_validate(product),
         message="Product retrieved successfully"
     )
 
@@ -389,8 +398,8 @@ async def create_new_product(
     # Download images if requested and URLs provided
     if download_images_flag and product.all_image_urls:
         logger.info(f"Downloading {len(product.all_image_urls)} images")
-        image_ids = await download_images(product.all_image_urls)
-        product.all_image_urls = image_ids
+        image_metadata = await download_images(product.all_image_urls)
+        product.all_image_urls = [img['image_id'] if isinstance(img, dict) else img for img in image_metadata]
     
     # Create product
     created_product = create_product(db=db, product=product)
@@ -403,7 +412,7 @@ async def create_new_product(
     logger.info(f"Successfully created product with ID: {created_product.id}")
     
     return SuccessResponse(
-        data=created_product,
+        data=Product.model_validate(created_product),
         message="Product created successfully"
     )
 
@@ -434,7 +443,7 @@ async def update_existing_product(
     logger.info(f"Successfully updated product with ID: {product_id}")
     
     return SuccessResponse(
-        data=updated_product,
+        data=Product.model_validate(updated_product),
         message="Product updated successfully"
     )
 
@@ -499,6 +508,9 @@ async def restore_deleted_product(
     
     # Get restored product
     restored_product = get_product_by_id(db, product_id=product_id)
+    if not restored_product:
+        logger.error(f"Product not found after restore with ID: {product_id}")
+        raise HTTPException(status_code=404, detail="Product not found after restore")
     
     # Broadcast the product restoration to all connected WebSocket clients
     from schemas.product import Product as ProductSchema
@@ -508,6 +520,6 @@ async def restore_deleted_product(
     logger.info(f"Successfully restored product with ID: {product_id}")
     
     return SuccessResponse(
-        data=restored_product,
+        data=Product.model_validate(restored_product),
         message="Product restored successfully"
     )

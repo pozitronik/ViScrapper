@@ -476,7 +476,7 @@ async def update_existing_product_with_changes(db: Session, existing_product: Pr
                     
                     if unique_images_metadata:
                         # Pass the metadata objects directly
-                        bulk_create_relationships(db, existing_product.id, unique_images_metadata, Image, 'url')
+                        bulk_create_relationships(db, int(existing_product.id), unique_images_metadata, Image, 'url')
                         images_added = [img['image_id'] for img in unique_images_metadata]
                         logger.info(f"Added {len(images_added)} unique new images to product {existing_product.id}")
                     else:
@@ -493,7 +493,7 @@ async def update_existing_product_with_changes(db: Session, existing_product: Pr
                         
                         if unique_images_metadata:
                             # Pass the metadata objects directly
-                            bulk_create_relationships(db, existing_product.id, unique_images_metadata, Image, 'url')
+                            bulk_create_relationships(db, int(existing_product.id), unique_images_metadata, Image, 'url')
                             images_added = [img['image_id'] for img in unique_images_metadata]
                             logger.info(f"Added {len(images_added)} unique new images to product {existing_product.id}")
                         else:
@@ -503,7 +503,7 @@ async def update_existing_product_with_changes(db: Session, existing_product: Pr
             sizes_added = []
             if changes['size_changes']['to_add']:
                 new_sizes = list(changes['size_changes']['to_add'])
-                bulk_create_relationships(db, existing_product.id, new_sizes, Size, 'name')
+                bulk_create_relationships(db, int(existing_product.id), new_sizes, Size, 'name')
                 sizes_added = new_sizes
                 logger.info(f"Added {len(sizes_added)} new sizes to product {existing_product.id}")
             
@@ -528,6 +528,14 @@ async def update_existing_product_with_changes(db: Session, existing_product: Pr
             joinedload(Product.images),
             joinedload(Product.sizes)
         ).filter(Product.id == existing_product.id).first()
+        
+        if not updated_product:
+            raise DatabaseException(
+                message="Product not found after update",
+                operation="get_updated_product",
+                table="products",
+                details={"product_id": existing_product.id}
+            )
         
         # Create summary of changes made
         update_summary = {
@@ -736,6 +744,12 @@ def update_product(db: Session, product_id: int, product_update: ProductUpdate) 
             joinedload(Product.images),
             joinedload(Product.sizes)
         ).filter(Product.id == product_id).first()
+        
+        if not updated_product:
+            raise ProductException(
+                message="Updated product not found",
+                details={"product_id": product_id}
+            )
         
         logger.info(f"Successfully updated product ID: {product_id}")
         return updated_product
