@@ -273,66 +273,66 @@ class TelegramService:
 
         logger.info(f"Sending media group to chat {chat_id}: {len(media_paths)} photos")
 
-        try:
-            # Prepare media array
-            media = []
-            for i, path in enumerate(media_paths):
-                media_item = {
-                    "type": "photo",
-                    "media": f"attach://photo{i}"
-                }
-
-                # Add caption to first photo only
-                if i == 0 and caption:
-                    media_item["caption"] = caption
-                    if parse_mode:
-                        media_item["parse_mode"] = parse_mode
-
-                media.append(media_item)
-
-            data = {
-                "chat_id": chat_id,
-                "media": str(media).replace("'", '"'),  # Convert to JSON string
-                "disable_notification": disable_notification
+        # Prepare media array
+        media = []
+        for i, path in enumerate(media_paths):
+            media_item = {
+                "type": "photo",
+                "media": f"attach://photo{i}"
             }
 
-            # Prepare files
-            files = {}
+            # Add caption to first photo only
+            if i == 0 and caption:
+                media_item["caption"] = caption
+                if parse_mode:
+                    media_item["parse_mode"] = parse_mode
+
+            media.append(media_item)
+
+        data = {
+            "chat_id": chat_id,
+            "media": str(media).replace("'", '"'),  # Convert to JSON string
+            "disable_notification": disable_notification
+        }
+
+        # Prepare files inside try block to ensure cleanup
+        files = {}
+        try:
+            # Open files
             for i, path in enumerate(media_paths):
                 files[f"photo{i}"] = open(path, "rb")
 
-            try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(
-                        f"{self.base_url}/sendMediaGroup",
-                        data=data,
-                        files=files
-                    )
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{self.base_url}/sendMediaGroup",
+                    data=data,
+                    files=files
+                )
 
-                    if response.status_code == 200:
-                        result = response.json()
-                        if isinstance(result, dict) and result.get("ok"):
-                            logger.info(f"Media group sent successfully to {chat_id}")
-                            return result
-                        else:
-                            logger.error(f"Telegram API error: {result}")
-                            raise ExternalServiceException(
-                                service="telegram",
-                                message=f"Telegram API error: {result.get('description', 'Unknown error')}",
-                                details={"telegram_response": result, "chat_id": chat_id, "operation": "send_media_group"}
-                            )
+                if response.status_code == 200:
+                    result = response.json()
+                    if isinstance(result, dict) and result.get("ok"):
+                        logger.info(f"Media group sent successfully to {chat_id}")
+                        return result
                     else:
-                        logger.error(f"HTTP error {response.status_code}: {response.text}")
+                        logger.error(f"Telegram API error: {result}")
                         raise ExternalServiceException(
                             service="telegram",
-                            message=f"HTTP error {response.status_code}",
-                            details={"status_code": response.status_code, "response": response.text, "operation": "send_media_group"}
+                            message=f"Telegram API error: {result.get('description', 'Unknown error')}",
+                            details={"telegram_response": result, "chat_id": chat_id, "operation": "send_media_group"}
                         )
-            finally:
-                # Close all opened files
-                for file_obj in files.values():
-                    file_obj.close()
-
+                else:
+                    logger.error(f"HTTP error {response.status_code}: {response.text}")
+                    raise ExternalServiceException(
+                        service="telegram",
+                        message=f"HTTP error {response.status_code}",
+                        details={"status_code": response.status_code, "response": response.text, "operation": "send_media_group"}
+                    )
+        except FileNotFoundError as e:
+            raise ValidationException(
+                message="Photo file not found during media group upload",
+                details={"missing_file": str(e)}
+            )
         except httpx.RequestError as e:
             logger.error(f"Request error sending media group to Telegram: {e}")
             raise ExternalServiceException(
@@ -341,6 +341,10 @@ class TelegramService:
                 original_exception=e,
                 details={"chat_id": chat_id, "media_count": len(media_paths), "operation": "send_media_group"}
             )
+        finally:
+            # Close all opened files (only those that were successfully opened)
+            for file_obj in files.values():
+                file_obj.close()
 
     async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
         """
