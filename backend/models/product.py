@@ -1,7 +1,12 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship, declarative_base, Mapped, mapped_column
+from typing import TYPE_CHECKING, Optional
+from datetime import datetime
 
-Base = declarative_base()
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeBase as Base
+else:
+    Base = declarative_base()
 
 
 class Product(Base):
@@ -21,7 +26,7 @@ class Product(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     telegram_posted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
-
+    
     images = relationship("Image", back_populates="product")
     sizes = relationship("Size", back_populates="product")
 

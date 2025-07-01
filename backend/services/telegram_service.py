@@ -100,7 +100,7 @@ class TelegramService:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    if result.get("ok"):
+                    if isinstance(result, dict) and result.get("ok"):
                         logger.info(f"Message sent successfully to {chat_id}")
                         return result
                     else:
@@ -195,7 +195,7 @@ class TelegramService:
                     
                     if response.status_code == 200:
                         result = response.json()
-                        if result.get("ok"):
+                        if isinstance(result, dict) and result.get("ok"):
                             logger.info(f"Photo sent successfully to {chat_id}")
                             return result
                         else:
@@ -311,7 +311,7 @@ class TelegramService:
                     
                     if response.status_code == 200:
                         result = response.json()
-                        if result.get("ok"):
+                        if isinstance(result, dict) and result.get("ok"):
                             logger.info(f"Media group sent successfully to {chat_id}")
                             return result
                         else:
@@ -373,7 +373,7 @@ class TelegramService:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    if result.get("ok"):
+                    if isinstance(result, dict) and result.get("ok"):
                         logger.info(f"Chat info retrieved for {chat_id}")
                         return result
                     else:

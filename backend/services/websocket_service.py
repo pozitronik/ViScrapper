@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def serialize_for_json(data: Dict[str, Any]) -> Dict[str, Any]:
     """Convert Pydantic types to JSON-serializable types"""
-    serialized = {}
+    serialized: Dict[str, Any] = {}
     for key, value in data.items():
         if isinstance(value, HttpUrl):
             serialized[key] = str(value)

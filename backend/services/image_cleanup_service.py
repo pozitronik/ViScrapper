@@ -5,7 +5,7 @@ Image cleanup service for removing orphaned images.
 import os
 import asyncio
 from pathlib import Path
-from typing import List, Set, Dict, Union
+from typing import List, Set, Dict, Union, TypedDict
 from sqlalchemy.orm import Session
 from models.product import Image
 from database.session import get_db
@@ -13,6 +13,26 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 IMAGE_DIR = os.getenv("IMAGE_DIR", "./images")
+
+
+class DeletionResult(TypedDict):
+    """Type definition for deletion operation results."""
+    deleted_count: int
+    failed_count: int
+    total_size_freed: int
+    deleted_files: List[str]
+    failed_files: List[str]
+
+
+class CleanupResult(TypedDict):
+    """Type definition for cleanup results."""
+    deleted_count: int
+    failed_count: int
+    total_size_freed: int
+    deleted_files: List[str]
+    failed_files: List[str]
+    success: bool
+    message: str
 
 
 class ImageCleanupService:
@@ -33,14 +53,15 @@ class ImageCleanupService:
         """
         try:
             # Get all image URLs from database (both active and soft-deleted)
-            images = db.query(Image).all()
+            # Query only the URL column to get proper types
+            url_results = db.query(Image.url).filter(Image.url.isnot(None)).all()
             
             # Extract just the filename from URLs that look like local file IDs
-            db_filenames = set()
-            for image in images:
-                if image.url and not image.url.startswith(('http://', 'https://')):
+            db_filenames: Set[str] = set()
+            for (url,) in url_results:
+                if url and not url.startswith(('http://', 'https://')):
                     # This is a local file ID, add it to the set
-                    db_filenames.add(image.url)
+                    db_filenames.add(url)
             
             logger.info(f"Found {len(db_filenames)} image files referenced in database")
             return db_filenames
@@ -95,7 +116,7 @@ class ImageCleanupService:
         logger.info(f"Found {len(orphaned_files)} orphaned image files")
         return list(orphaned_files)
     
-    def delete_orphaned_images(self, orphaned_files: List[str], dry_run: bool = True) -> Dict[str, Union[int, List[str]]]:
+    def delete_orphaned_images(self, orphaned_files: List[str], dry_run: bool = True) -> DeletionResult:
         """
         Delete orphaned image files from filesystem.
         
@@ -106,7 +127,7 @@ class ImageCleanupService:
         Returns:
             Dictionary with deletion results
         """
-        results = {
+        results: DeletionResult = {
             'deleted_count': 0,
             'failed_count': 0,
             'total_size_freed': 0,
@@ -156,7 +177,7 @@ class ImageCleanupService:
         
         return results
     
-    def cleanup_orphaned_images(self, dry_run: bool = True) -> Dict[str, Union[int, List[str]]]:
+    def cleanup_orphaned_images(self, dry_run: bool = True) -> CleanupResult:
         """
         Complete orphaned image cleanup process.
         
@@ -177,12 +198,20 @@ class ImageCleanupService:
                 orphaned_files = self.find_orphaned_images(db)
                 
                 # Delete orphaned images
-                results = self.delete_orphaned_images(orphaned_files, dry_run=dry_run)
+                deletion_results = self.delete_orphaned_images(orphaned_files, dry_run=dry_run)
                 
-                results['success'] = True
-                results['message'] = "Cleanup completed successfully"
+                # Create cleanup result with all required fields
+                cleanup_result: CleanupResult = {
+                    'deleted_count': deletion_results['deleted_count'],
+                    'failed_count': deletion_results['failed_count'],
+                    'total_size_freed': deletion_results['total_size_freed'],
+                    'deleted_files': deletion_results['deleted_files'],
+                    'failed_files': deletion_results['failed_files'],
+                    'success': True,
+                    'message': "Cleanup completed successfully"
+                }
                 
-                return results
+                return cleanup_result
                 
             finally:
                 db.close()
@@ -194,7 +223,9 @@ class ImageCleanupService:
                 'message': f"Cleanup failed: {str(e)}",
                 'deleted_count': 0,
                 'failed_count': 0,
-                'total_size_freed': 0
+                'total_size_freed': 0,
+                'deleted_files': [],
+                'failed_files': []
             }
 
 
@@ -228,7 +259,7 @@ async def scheduled_image_cleanup(interval_hours: int = 24, dry_run: bool = Fals
         await asyncio.sleep(interval_hours * 3600)  # Convert hours to seconds
 
 
-def cleanup_images_sync(dry_run: bool = True) -> Dict[str, Union[int, List[str]]]:
+def cleanup_images_sync(dry_run: bool = True) -> CleanupResult:
     """
     Synchronous wrapper for image cleanup.
     

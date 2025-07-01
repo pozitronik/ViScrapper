@@ -5,6 +5,7 @@ Handles running Alembic migrations on application startup.
 
 import os
 from pathlib import Path
+from typing import Optional
 from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
@@ -43,7 +44,12 @@ def get_database_url() -> str:
     
     # Fallback to alembic.ini configuration
     alembic_cfg = get_alembic_config()
-    return alembic_cfg.get_main_option("sqlalchemy.url")
+    config_url = alembic_cfg.get_main_option("sqlalchemy.url")
+    if config_url:
+        return config_url
+
+    # Final fallback to default SQLite database
+    return "sqlite:///./viparser.db"
 
 
 def check_database_exists() -> bool:
@@ -64,7 +70,7 @@ def check_database_exists() -> bool:
         return False
 
 
-def get_current_revision() -> str:
+def get_current_revision() -> Optional[str]:
     """Get current database revision."""
     try:
         db_url = get_database_url()
@@ -82,7 +88,7 @@ def get_current_revision() -> str:
         return None
 
 
-def get_head_revision() -> str:
+def get_head_revision() -> Optional[str]:
     """Get the latest migration revision."""
     try:
         alembic_cfg = get_alembic_config()
