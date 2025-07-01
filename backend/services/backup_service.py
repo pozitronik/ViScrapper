@@ -78,13 +78,13 @@ class BackupInfo:
             "filepath": str(self.filepath),
             "created_at": self.created_at.isoformat(),
             "size_bytes": self.size_bytes,
-            "size_human": self._format_size(self.size_bytes),
+            "size_human": self.format_size(self.size_bytes),
             "checksum": self.checksum,
             "compressed": self.compressed,
             "verified": self.verified
         }
 
-    def _format_size(self, size_bytes: int) -> str:
+    def format_size(self, size_bytes: int) -> str:
         """Format file size in human readable format"""
         size_float = float(size_bytes)
         for unit in ['B', 'KB', 'MB', 'GB']:
@@ -173,7 +173,7 @@ class DatabaseBackupService:
 
             # Verify backup if enabled
             if self.config.verify_backups:
-                is_valid = await self._verify_backup(backup_info)
+                is_valid = await self.verify_backup(backup_info)
                 backup_info.verified = is_valid
                 if not is_valid:
                     logger.error(f"Backup verification failed: {backup_path}")
@@ -252,7 +252,7 @@ class DatabaseBackupService:
             verified=False
         )
 
-    async def _verify_backup(self, backup_info: BackupInfo) -> bool:
+    async def verify_backup(self, backup_info: BackupInfo) -> bool:
         """Verify backup integrity"""
         try:
             def _verify() -> bool:
@@ -428,7 +428,7 @@ class DatabaseBackupService:
             return {
                 "total_backups": len(backups),
                 "total_size_bytes": total_size,
-                "total_size_human": backups[0]._format_size(total_size),
+                "total_size_human": backups[0].format_size(total_size),
                 "oldest_backup": backups[-1].created_at.isoformat() if backups else None,
                 "newest_backup": backups[0].created_at.isoformat() if backups else None,
                 "auto_backups": auto_count,

@@ -295,7 +295,7 @@ async def verify_backup(backup_filename: str) -> SuccessResponse[Dict[str, Any]]
             raise HTTPException(status_code=404, detail=f"Backup not found: {backup_filename}")
 
         # Verify the backup
-        is_valid = await backup_service._verify_backup(backup_info)
+        is_valid = await backup_service.verify_backup(backup_info)
 
         result = {
             "backup_filename": backup_filename,
