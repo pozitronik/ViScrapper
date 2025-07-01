@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from database.session import get_db
-from services.image_cleanup_service import image_cleanup_service
+from services.image_cleanup_service import image_cleanup_service, CleanupResult
 from api.models.responses import SuccessResponse
 from utils.logger import get_logger
 
@@ -16,11 +16,11 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/maintenance", tags=["Maintenance"])
 
 
-@router.post("/cleanup-orphaned-images", response_model=SuccessResponse[Dict[str, Any]])
+@router.post("/cleanup-orphaned-images", response_model=SuccessResponse[CleanupResult])
 async def cleanup_orphaned_images(
     dry_run: bool = Query(True, description="Simulate cleanup without actually deleting files"),
     db: Session = Depends(get_db)
-) -> SuccessResponse[Dict[str, Any]]:
+) -> SuccessResponse[CleanupResult]:
     """
     Clean up orphaned image files that exist in filesystem but are not referenced in database.
     
@@ -41,19 +41,8 @@ async def cleanup_orphaned_images(
     
     logger.info(f"Orphaned image cleanup completed: {message}")
     
-    # Convert TypedDict to regular dict for response compatibility
-    results_dict: Dict[str, Any] = {
-        "deleted_count": results["deleted_count"],
-        "failed_count": results["failed_count"], 
-        "total_size_freed": results["total_size_freed"],
-        "deleted_files": results["deleted_files"],
-        "failed_files": results["failed_files"],
-        "success": results["success"],
-        "message": results["message"]
-    }
-    
     return SuccessResponse(
-        data=results_dict,
+        data=results,
         message=message
     )
 
