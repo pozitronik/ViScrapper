@@ -73,8 +73,11 @@ async def list_templates(
     
     logger.info(f"Retrieved {len(templates)} templates (page {page}/{pagination.pages})")
     
+    # Convert SQLAlchemy models to Pydantic schemas
+    template_schemas = [MessageTemplate.model_validate(template) for template in templates]
+    
     return PaginatedResponse(
-        data=templates,
+        data=template_schemas,
         pagination=pagination,
         message=f"Retrieved {len(templates)} templates"
     )
@@ -96,7 +99,7 @@ async def get_template(
     logger.info(f"Retrieved template: {template.name}")
     
     return SuccessResponse(
-        data=template,
+        data=MessageTemplate.model_validate(template),
         message="Template retrieved successfully"
     )
 
@@ -128,7 +131,7 @@ async def create_new_template(
         logger.info(f"Successfully created template with ID: {created_template.id}")
         
         return SuccessResponse(
-            data=created_template,
+            data=MessageTemplate.model_validate(created_template),
             message="Template created successfully"
         )
         
@@ -168,7 +171,7 @@ async def update_existing_template(
         logger.info(f"Successfully updated template with ID: {template_id}")
         
         return SuccessResponse(
-            data=updated_template,
+            data=MessageTemplate.model_validate(updated_template),
             message="Template updated successfully"
         )
         
@@ -231,11 +234,14 @@ async def restore_deleted_template(
     
     # Get restored template
     restored_template = get_template_by_id(db, template_id=template_id)
+    if not restored_template:
+        logger.error(f"Template not found after restore with ID: {template_id}")
+        raise HTTPException(status_code=404, detail="Template not found after restore")
     
     logger.info(f"Successfully restored template with ID: {template_id}")
     
     return SuccessResponse(
-        data=restored_template,
+        data=MessageTemplate.model_validate(restored_template),
         message="Template restored successfully"
     )
 

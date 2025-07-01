@@ -12,7 +12,7 @@ from schemas.telegram import (
     SendPostRequest, SendPostResponse, TelegramChannelTest, TelegramChannelTestResponse,
     TelegramStatsResponse, PostStatus
 )
-from schemas.base import PaginatedResponse, APIResponse
+from schemas.base import PaginatedResponse, APIResponse, PaginationInfo
 from crud.telegram import (
     get_channels, get_channel_by_id, create_channel, update_channel, soft_delete_channel,
     get_channel_count, get_posts, get_post_by_id, get_telegram_stats
@@ -48,15 +48,18 @@ async def get_channels_list(
         )
         total = get_channel_count(db=db, active_only=active_only, include_deleted=include_deleted)
         
+        # Convert SQLAlchemy models to Pydantic schemas
+        channel_schemas = [TelegramChannel.model_validate(channel) for channel in channels]
+        
         return PaginatedResponse(
             success=True,
-            data=channels,
-            pagination={
-                "total": total,
-                "skip": skip,
-                "limit": limit,
-                "has_more": (skip + limit) < total
-            }
+            data=channel_schemas,
+            pagination=PaginationInfo(
+                total=total,
+                skip=skip,
+                limit=limit,
+                has_more=(skip + limit) < total
+            )
         )
     except Exception as e:
         logger.error(f"Error getting channels list: {e}")
@@ -75,7 +78,7 @@ async def get_channel(
         if not channel:
             raise HTTPException(status_code=404, detail="Channel not found")
         
-        return APIResponse(success=True, data=channel)
+        return APIResponse(success=True, data=TelegramChannel.model_validate(channel))
     except HTTPException:
         raise
     except Exception as e:
@@ -96,7 +99,7 @@ async def create_telegram_channel(
         return APIResponse(
             success=True,
             message="Telegram channel created successfully",
-            data=created_channel
+            data=TelegramChannel.model_validate(created_channel)
         )
     except ValidationException as e:
         logger.warning(f"Validation error creating channel: {e}")
@@ -121,7 +124,7 @@ async def update_telegram_channel(
         return APIResponse(
             success=True,
             message="Telegram channel updated successfully",
-            data=updated_channel
+            data=TelegramChannel.model_validate(updated_channel)
         )
     except ValidationException as e:
         logger.warning(f"Validation error updating channel {channel_id}: {e}")
@@ -226,15 +229,18 @@ async def get_posts_list(
         
         total = query.count()
         
+        # Convert SQLAlchemy models to Pydantic schemas
+        post_schemas = [TelegramPost.model_validate(post) for post in posts]
+        
         return PaginatedResponse(
             success=True,
-            data=posts,
-            pagination={
-                "total": total,
-                "skip": skip,
-                "limit": limit,
-                "has_more": (skip + limit) < total
-            }
+            data=post_schemas,
+            pagination=PaginationInfo(
+                total=total,
+                skip=skip,
+                limit=limit,
+                has_more=(skip + limit) < total
+            )
         )
     except Exception as e:
         logger.error(f"Error getting posts list: {e}")
@@ -252,7 +258,7 @@ async def get_post(
         if not post:
             raise HTTPException(status_code=404, detail="Post not found")
         
-        return APIResponse(success=True, data=post)
+        return APIResponse(success=True, data=TelegramPost.model_validate(post))
     except HTTPException:
         raise
     except Exception as e:
@@ -359,7 +365,7 @@ async def get_telegram_service_status() -> APIResponse[Dict[str, Any]]:
         if is_enabled:
             try:
                 # Test basic API connectivity
-                await telegram_service.telegram_service.get_me() if hasattr(telegram_service.telegram_service, 'get_me') else None
+                await telegram_service.get_me() if hasattr(telegram_service, 'get_me') else None
                 status_info["api_accessible"] = True
             except Exception:
                 status_info["api_accessible"] = False

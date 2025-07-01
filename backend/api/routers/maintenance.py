@@ -41,8 +41,19 @@ async def cleanup_orphaned_images(
     
     logger.info(f"Orphaned image cleanup completed: {message}")
     
+    # Convert TypedDict to regular dict for response compatibility
+    results_dict: Dict[str, Any] = {
+        "deleted_count": results["deleted_count"],
+        "failed_count": results["failed_count"], 
+        "total_size_freed": results["total_size_freed"],
+        "deleted_files": results["deleted_files"],
+        "failed_files": results["failed_files"],
+        "success": results["success"],
+        "message": results["message"]
+    }
+    
     return SuccessResponse(
-        data=results,
+        data=results_dict,
         message=message
     )
 
