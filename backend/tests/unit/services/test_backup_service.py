@@ -460,13 +460,13 @@ class TestDatabaseBackupService:
         backup1.size_bytes = 1024
         backup1.filename = "auto_backup1.db"
         backup1.created_at = datetime(2023, 6, 15, 12, 0, 0)
-        backup1._format_size.return_value = "1.5 KB"
+        backup1.format_size.return_value = "1.5 KB"
         
         backup2 = Mock()
         backup2.size_bytes = 512
         backup2.filename = "manual_backup2.db"
         backup2.created_at = datetime(2023, 6, 14, 12, 0, 0)
-        backup2._format_size.return_value = "1.5 KB"
+        backup2.format_size.return_value = "1.5 KB"
         
         backups = [backup1, backup2]
         
