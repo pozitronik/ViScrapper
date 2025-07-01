@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import time
 import os
+import sys
 from datetime import datetime, timezone
 from typing import Dict, Any
 
@@ -78,17 +79,17 @@ async def system_status(db: Session = Depends(get_db)) -> SuccessResponse[Dict[s
     uptime = time.time() - get_start_time()
 
     # Check database connectivity with more details
-    database_info = {"status": "connected", "details": {}}
+    database_info: Dict[str, Any] = {"status": "connected", "details": {}}
     try:
         # Test database with a simple query
         result = db.execute(text("SELECT 1 as test")).first()
-        database_info["details"]["test_query"] = "passed" if result and result.test == 1 else "failed"
+        database_info["details"]["test_query"] = "passed" if result and result[0] == 1 else "failed"
 
         # Get SQLite version if using SQLite
         try:
             version_result = db.execute(text("SELECT sqlite_version() as version")).first()
             if version_result:
-                database_info["details"]["sqlite_version"] = version_result.version
+                database_info["details"]["sqlite_version"] = version_result[0]
         except:
             pass  # Not SQLite or version query failed
 
@@ -99,7 +100,7 @@ async def system_status(db: Session = Depends(get_db)) -> SuccessResponse[Dict[s
 
     # System information
     system_info = {
-        "python_version": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "platform": os.name,
         "pid": os.getpid(),
         "working_directory": os.getcwd()
