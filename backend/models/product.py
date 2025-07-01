@@ -25,7 +25,7 @@ class Product(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     telegram_posted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
-    
+
     images = relationship("Image", back_populates="product")
     sizes = relationship("Size", back_populates="product")
 

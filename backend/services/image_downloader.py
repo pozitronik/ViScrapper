@@ -24,11 +24,11 @@ RETRY_DELAY = float(os.getenv("RETRY_DELAY", "1.0"))
 
 
 async def download_single_image(
-    client: httpx.AsyncClient,
-    url: str,
-    semaphore: asyncio.Semaphore,
-    index: int = 0,
-    total: int = 0
+        client: httpx.AsyncClient,
+        url: str,
+        semaphore: asyncio.Semaphore,
+        index: int = 0,
+        total: int = 0
 ) -> Dict[str, Any]:
     """
     Download a single image with retry logic and proper error handling.
@@ -49,11 +49,11 @@ async def download_single_image(
                 if attempt > 0:
                     logger.debug(f"Retry attempt {attempt} for image {index}/{total}: {url}")
                     await asyncio.sleep(RETRY_DELAY * attempt)  # Exponential backoff
-                
+
                 logger.debug(f"Downloading image {index}/{total}: {url}")
                 response = await client.get(str(url))
                 response.raise_for_status()
-                
+
                 # Validate content type
                 content_type = response.headers.get('content-type', '')
                 if not content_type.startswith('image/'):
@@ -63,7 +63,7 @@ async def download_single_image(
                         "error": "Invalid content type",
                         "content_type": content_type
                     }
-                
+
                 # Validate content size
                 content_length = len(response.content)
                 if content_length > MAX_IMAGE_SIZE:
@@ -73,18 +73,18 @@ async def download_single_image(
                         "error": "Image too large",
                         "size_bytes": content_length
                     }
-                
+
                 # Calculate SHA256 hash of image content
                 image_hash = hashlib.sha256(response.content).hexdigest()
-                
+
                 # Generate unique filename
                 image_id = f"{uuid.uuid4()}.jpg"
                 file_path = os.path.join(get_image_dir(), image_id)
-                
+
                 # Save file
                 with open(file_path, "wb") as f:
                     f.write(response.content)
-                
+
                 logger.info(f"Successfully downloaded image {index}/{total}: {url} -> {image_id} (hash: {image_hash[:16]}...)")
                 return {
                     "success": True,
@@ -94,7 +94,7 @@ async def download_single_image(
                     "content_type": content_type,
                     "file_hash": image_hash
                 }
-                
+
             except httpx.HTTPStatusError as e:
                 error_details = {
                     "success": False,
@@ -103,12 +103,12 @@ async def download_single_image(
                     "status_code": e.response.status_code,
                     "details": str(e)
                 }
-                
+
                 # Don't retry on client errors (4xx), but retry on server errors (5xx)
                 if e.response.status_code < 500 or attempt == RETRY_ATTEMPTS:
                     logger.error(f"HTTP {e.response.status_code} error downloading image from {url}")
                     return error_details
-                    
+
             except httpx.RequestError as e:
                 error_details = {
                     "success": False,
@@ -116,12 +116,12 @@ async def download_single_image(
                     "error": "Request error",
                     "details": str(e)
                 }
-                
+
                 # Retry on network errors
                 if attempt == RETRY_ATTEMPTS:
                     logger.error(f"Request error downloading image from {url}: {e}")
                     return error_details
-                    
+
             except OSError as e:
                 logger.error(f"File system error saving image from {url}: {e}")
                 return {
@@ -130,7 +130,7 @@ async def download_single_image(
                     "error": "File system error",
                     "details": str(e)
                 }
-                
+
             except Exception as e:
                 logger.error(f"Unexpected error downloading image from {url}: {e}")
                 return {
@@ -139,7 +139,7 @@ async def download_single_image(
                     "error": "Unexpected error",
                     "details": str(e)
                 }
-        
+
         # Should never reach here, but just in case
         return {
             "success": False,
@@ -166,7 +166,7 @@ async def download_images(image_urls: List[str]) -> List[Dict[str, Any]]:
     if not image_urls:
         logger.info("No images to download")
         return []
-    
+
     # Ensure image directory exists
     try:
         image_dir = get_image_dir()
@@ -183,10 +183,10 @@ async def download_images(image_urls: List[str]) -> List[Dict[str, Any]]:
 
     total_count = len(image_urls)
     logger.info(f"Starting parallel download of {total_count} images (max {MAX_CONCURRENT_DOWNLOADS} concurrent)")
-    
+
     # Create semaphore to control concurrency
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)
-    
+
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(REQUEST_TIMEOUT)) as client:
             # Create download tasks for all images
@@ -194,11 +194,11 @@ async def download_images(image_urls: List[str]) -> List[Dict[str, Any]]:
                 download_single_image(client, url, semaphore, i + 1, total_count)
                 for i, url in enumerate(image_urls)
             ]
-            
+
             # Execute all downloads in parallel
             logger.debug(f"Executing {len(download_tasks)} download tasks in parallel")
             results = await asyncio.gather(*download_tasks, return_exceptions=True)
-            
+
     except Exception as e:
         # Critical error with the HTTP client setup
         raise ExternalServiceException(
@@ -207,11 +207,11 @@ async def download_images(image_urls: List[str]) -> List[Dict[str, Any]]:
             details={"error": str(e)},
             original_exception=e
         )
-    
+
     # Process results
     saved_images_metadata = []
     failed_downloads = []
-    
+
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             # Handle exceptions that were caught by gather
@@ -238,16 +238,16 @@ async def download_images(image_urls: List[str]) -> List[Dict[str, Any]]:
                 "error": "Unexpected result format",
                 "details": str(result)
             })
-    
+
     success_count = len(saved_images_metadata)
     failure_count = len(failed_downloads)
-    
+
     logger.info(f"Parallel image download completed: {success_count}/{total_count} successful, {failure_count} failed")
-    
+
     # Log failed downloads for debugging
     if failed_downloads:
         logger.warning(f"Failed to download {failure_count} images: {failed_downloads}")
-    
+
     # If no images were downloaded successfully and we tried multiple images, this might indicate a serious issue
     # For single image downloads, return empty list instead of raising exception
     if success_count == 0 and total_count > 1:
@@ -258,5 +258,5 @@ async def download_images(image_urls: List[str]) -> List[Dict[str, Any]]:
                 "failed_downloads": failed_downloads
             }
         )
-    
+
     return saved_images_metadata

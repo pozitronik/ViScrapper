@@ -83,7 +83,7 @@ class Product(ProductBase):
         """Calculate sell price using PRICE_MULTIPLIER environment variable"""
         if self.price is None:
             return None
-        
+
         try:
             multiplier = float(os.getenv('PRICE_MULTIPLIER', '1.0'))
             return round(self.price * multiplier, 2)

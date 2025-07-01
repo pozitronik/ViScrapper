@@ -154,13 +154,13 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
 
     if existing_product:
         logger.info(f"Found existing product (match: {match_type}) with ID: {existing_product.id}")
-        
+
         # Compare the existing product with new data
         changes = compare_product_data(existing_product, product)
-        
+
         if changes['has_changes']:
             logger.info(f"Differences detected for product {existing_product.id}, updating...")
-            
+
             # Download new images first if there are any
             downloaded_images_metadata = []
             if product.all_image_urls:
@@ -168,14 +168,14 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
                 downloaded_images_metadata = await download_images(product.all_image_urls)
                 # Replace image URLs with local IDs for storage
                 product.all_image_urls = [img['image_id'] if isinstance(img, dict) else img for img in downloaded_images_metadata]
-            
+
             # Update the existing product with changes
             updated_product, update_summary = await update_existing_product_with_changes(
-                db, existing_product, product, changes, 
+                db, existing_product, product, changes,
                 download_new_images=bool(downloaded_images_metadata),
                 downloaded_images_metadata=downloaded_images_metadata
             )
-            
+
             # Broadcast the updated product to all connected WebSocket clients
             from schemas.product import Product as ProductSchema
             product_dict = ProductSchema.model_validate(updated_product).model_dump()
@@ -186,7 +186,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
                 'update_summary': update_summary
             }
             await websocket_manager.broadcast_product_updated(product_dict)
-            
+
             logger.info(f"Successfully updated existing product {existing_product.id} with summary: {update_summary}")
             return Product.model_validate(updated_product)
         else:
@@ -204,7 +204,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
 
     # No existing product found - create new one
     logger.info(f"No existing product found, creating new product for: {product.product_url}")
-    
+
     # Download images and get their local IDs
     downloaded_images_metadata = []
     if product.all_image_urls:

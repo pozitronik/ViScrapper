@@ -25,23 +25,23 @@ def atomic_transaction(db: Session) -> Any:
     try:
         # Yield the session for the transaction
         yield db
-        
+
         # If we get here without exception, commit the transaction
         db.commit()
         logger.debug("Transaction committed successfully")
-        
+
     except IntegrityError as e:
         # Integrity constraint violations
         logger.error(f"Database integrity error: {e}")
         db.rollback()
         raise
-        
+
     except OperationalError as e:
         # Database operational errors
         logger.error(f"Database operational error: {e}")
         db.rollback()
         raise
-        
+
     except Exception as e:
         # Any other exception - rollback and re-raise
         logger.error(f"Unexpected database error: {e}")
@@ -66,16 +66,16 @@ def execute_with_retry(func: Callable[..., Any], max_retries: int = 3, *args: An
         Exception: If function fails after all retries
     """
     retry_count = 0
-    
+
     while retry_count <= max_retries:
         try:
             return func(*args, **kwargs)
-            
+
         except OperationalError as e:
             # Handle deadlocks and lock timeout errors
             if "deadlock" in str(e).lower() or "lock wait timeout" in str(e).lower():
                 retry_count += 1
-                
+
                 if retry_count <= max_retries:
                     wait_time = 0.1 * (2 ** retry_count)  # Exponential backoff
                     logger.warning(f"Database deadlock detected, retry {retry_count}/{max_retries} after {wait_time}s: {e}")
@@ -104,17 +104,17 @@ def validate_product_constraints(product_data: Dict[str, Any]) -> None:
     for field in required_fields:
         if not product_data.get(field):
             raise ValueError(f"Required field '{field}' is missing or empty")
-    
+
     # Validate URL format (basic check)
     product_url = str(product_data['product_url'])
     if not product_url.startswith(('http://', 'https://')):
         raise ValueError(f"Invalid product URL format: {product_url}")
-    
+
     # Validate price if provided
     price = product_data.get('price')
     if price is not None and price < 0:
         raise ValueError(f"Price cannot be negative: {price}")
-    
+
     logger.debug(f"Product data validation passed for URL: {product_url}")
 
 
@@ -132,13 +132,13 @@ def bulk_create_relationships(db: Session, parent_id: int, relationships: List[A
     """
     if not relationships:
         return
-    
+
     logger.debug(f"Bulk creating {len(relationships)} {relationship_class.__name__} records")
-    
+
     # Create all relationship objects
     relationship_objects = []
     image_metadata = kwargs.get('image_metadata', {})
-    
+
     for item in relationships:
         if relationship_class.__name__ == 'Image':
             # For images, item could be just URL string or dict with metadata
@@ -153,9 +153,9 @@ def bulk_create_relationships(db: Session, parent_id: int, relationships: List[A
                 metadata = image_metadata.get(url, {})
                 file_hash = metadata.get('file_hash')
                 file_size = metadata.get('size_bytes')
-            
+
             obj = relationship_class(
-                url=url, 
+                url=url,
                 product_id=parent_id,
                 file_hash=file_hash,
                 file_size=file_size
@@ -164,9 +164,9 @@ def bulk_create_relationships(db: Session, parent_id: int, relationships: List[A
             obj = relationship_class(size_type="simple", size_value=str(item), product_id=parent_id)
         else:
             raise ValueError(f"Unsupported relationship class: {relationship_class.__name__}")
-        
+
         relationship_objects.append(obj)
-    
+
     # Add all objects to session at once
     db.add_all(relationship_objects)
     logger.debug(f"Added {len(relationship_objects)} {relationship_class.__name__} objects to session")
