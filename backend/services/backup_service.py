@@ -6,7 +6,7 @@ import shutil
 import sqlite3
 import asyncio
 from datetime import datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, TypeGuard
 from asyncio import Task
 from pathlib import Path
 import hashlib
@@ -441,4 +441,11 @@ class DatabaseBackupService:
 
 # Global backup service instance with environment configuration
 _backup_config = BackupConfig.from_env()
-backup_service = DatabaseBackupService(_backup_config) if _backup_config.is_enabled() else None
+backup_service: Optional['DatabaseBackupService'] = (
+    DatabaseBackupService(_backup_config) if _backup_config.is_enabled() else None
+)
+
+
+def is_backup_service_enabled(service: Optional['DatabaseBackupService']) -> TypeGuard['DatabaseBackupService']:
+    """Type guard to ensure backup service is available"""
+    return service is not None

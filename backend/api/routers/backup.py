@@ -4,7 +4,7 @@ API endpoints for database backup management
 from fastapi import APIRouter, HTTPException, Body
 from typing import List, Optional, Dict, Any
 
-from services.backup_service import backup_service
+from services.backup_service import backup_service, is_backup_service_enabled
 from api.models.responses import SuccessResponse, FileDeleteResponse
 from utils.logger import get_logger
 
@@ -33,6 +33,12 @@ async def create_backup(
     The backup will be stored with a timestamp and optional custom name.
     """
     check_backup_service_enabled()
+    
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        # This should never happen after check_backup_service_enabled()
+        raise RuntimeError("Backup service unexpectedly None")
+    
     try:
         logger.info(f"Creating manual backup with name: {name}")
         
@@ -61,6 +67,11 @@ async def list_backups() -> SuccessResponse[List[Dict[str, Any]]]:
     - Compression and verification status
     """
     check_backup_service_enabled()
+    
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+    
     try:
         logger.info("Listing all backups")
         
@@ -91,6 +102,11 @@ async def get_backup_stats() -> SuccessResponse[Dict[str, Any]]:
     - Scheduled backup status
     """
     check_backup_service_enabled()
+    
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+    
     try:
         logger.info("Getting backup statistics")
         
@@ -122,6 +138,11 @@ async def restore_backup(
         target_path: Optional target path (defaults to main database)
     """
     check_backup_service_enabled()
+    
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+    
     try:
         logger.warning(f"Restoring backup: {backup_filename} to {target_path or 'main database'}")
         
@@ -156,6 +177,11 @@ async def delete_backup(backup_filename: str) -> FileDeleteResponse:
         backup_filename: Name of the backup file to delete
     """
     check_backup_service_enabled()
+    
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+    
     try:
         logger.info(f"Deleting backup: {backup_filename}")
         
@@ -187,6 +213,11 @@ async def start_scheduled_backups() -> SuccessResponse[Dict[str, Any]]:
     at regular intervals according to the configured schedule.
     """
     check_backup_service_enabled()
+    
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+    
     try:
         logger.info("Starting scheduled backups")
         
@@ -211,6 +242,11 @@ async def stop_scheduled_backups() -> SuccessResponse[Dict[str, Any]]:
     Manual backups can still be created.
     """
     check_backup_service_enabled()
+    
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+    
     try:
         logger.info("Stopping scheduled backups")
         
@@ -238,6 +274,11 @@ async def verify_backup(backup_filename: str) -> SuccessResponse[Dict[str, Any]]
         backup_filename: Name of the backup file to verify
     """
     check_backup_service_enabled()
+    
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+    
     try:
         logger.info(f"Verifying backup: {backup_filename}")
         
