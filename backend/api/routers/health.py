@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import time
 import os
+import sys
 from datetime import datetime, timezone
+from typing import Dict, Any
 
 from database.session import get_db
 from api.models.responses import SuccessResponse, HealthStatus
@@ -17,7 +19,7 @@ router = APIRouter(prefix="/api/v1", tags=["Health"])
 _start_time = None
 
 
-def get_start_time():
+def get_start_time() -> float:
     """Get the application start time, initializing it if needed."""
     global _start_time
     if _start_time is None:
@@ -26,7 +28,7 @@ def get_start_time():
 
 
 @router.get("/health", response_model=SuccessResponse[HealthStatus])
-async def health_check(db: Session = Depends(get_db)):
+async def health_check(db: Session = Depends(get_db)) -> SuccessResponse[HealthStatus]:
     """
     Comprehensive health check endpoint.
     
@@ -66,8 +68,8 @@ async def health_check(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/status", response_model=SuccessResponse[dict])
-async def system_status(db: Session = Depends(get_db)):
+@router.get("/status", response_model=SuccessResponse[Dict[str, Any]])
+async def system_status(db: Session = Depends(get_db)) -> SuccessResponse[Dict[str, Any]]:
     """
     Detailed system status endpoint with additional metrics.
     """
@@ -77,17 +79,17 @@ async def system_status(db: Session = Depends(get_db)):
     uptime = time.time() - get_start_time()
 
     # Check database connectivity with more details
-    database_info = {"status": "connected", "details": {}}
+    database_info: Dict[str, Any] = {"status": "connected", "details": {}}
     try:
         # Test database with a simple query
         result = db.execute(text("SELECT 1 as test")).first()
-        database_info["details"]["test_query"] = "passed" if result and result.test == 1 else "failed"
+        database_info["details"]["test_query"] = "passed" if result and result[0] == 1 else "failed"
 
         # Get SQLite version if using SQLite
         try:
             version_result = db.execute(text("SELECT sqlite_version() as version")).first()
             if version_result:
-                database_info["details"]["sqlite_version"] = version_result.version
+                database_info["details"]["sqlite_version"] = version_result[0]
         except:
             pass  # Not SQLite or version query failed
 
@@ -98,7 +100,7 @@ async def system_status(db: Session = Depends(get_db)):
 
     # System information
     system_info = {
-        "python_version": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "platform": os.name,
         "pid": os.getpid(),
         "working_directory": os.getcwd()
@@ -149,6 +151,6 @@ def format_uptime(uptime_seconds: float) -> str:
 
 
 @router.get("/ping")
-async def ping():
+async def ping() -> Dict[str, str]:
     """Simple ping endpoint for basic connectivity testing."""
     return {"message": "pong", "timestamp": datetime.now(timezone.utc).isoformat()}

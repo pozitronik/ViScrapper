@@ -52,7 +52,9 @@ class TestMaintenanceRouter:
             'failed_count': 0,
             'total_size_freed': 1024000,
             'deleted_files': ['image1.jpg', 'image2.png'],
-            'failed_files': []
+            'failed_files': [],
+            'success': True,
+            'message': 'Cleanup completed'
         }
         mock_cleanup_service.cleanup_orphaned_images.return_value = mock_cleanup_results
         
@@ -74,7 +76,9 @@ class TestMaintenanceRouter:
             'failed_count': 1,
             'total_size_freed': 512000,
             'deleted_files': ['image1.jpg', 'image2.png', 'image3.gif'],
-            'failed_files': ['locked_image.jpg']
+            'failed_files': ['locked_image.jpg'],
+            'success': True,
+            'message': 'Cleanup completed'
         }
         mock_cleanup_service.cleanup_orphaned_images.return_value = mock_cleanup_results
         
@@ -97,7 +101,9 @@ class TestMaintenanceRouter:
             'failed_count': 0,
             'total_size_freed': 0,
             'deleted_files': [],
-            'failed_files': []
+            'failed_files': [],
+            'success': True,
+            'message': 'Cleanup completed'
         }
         mock_cleanup_service.cleanup_orphaned_images.return_value = mock_cleanup_results
         

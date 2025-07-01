@@ -33,7 +33,7 @@ def soft_delete_product(db: Session, product_id: int) -> bool:
         DatabaseException: If database operation fails
     """
     logger.info(f"Soft deleting product with ID: {product_id}")
-    
+
     try:
         with atomic_transaction(db):
             # Get existing product (including already soft-deleted ones)
@@ -43,34 +43,34 @@ def soft_delete_product(db: Session, product_id: int) -> bool:
                     message="Product not found for soft deletion",
                     details={"product_id": product_id}
                 )
-            
+
             # Check if already soft deleted
             if product.deleted_at is not None:
                 logger.warning(f"Product {product_id} is already soft deleted at {product.deleted_at}")
                 return True
-            
+
             delete_timestamp = datetime.now(timezone.utc)
-            
+
             # Soft delete associated images
             images_updated = db.query(Image).filter(
                 Image.product_id == product_id,
                 Image.deleted_at.is_(None)
             ).update({Image.deleted_at: delete_timestamp})
-            
+
             # Soft delete associated sizes
             sizes_updated = db.query(Size).filter(
                 Size.product_id == product_id,
                 Size.deleted_at.is_(None)
             ).update({Size.deleted_at: delete_timestamp})
-            
+
             # Soft delete the product itself
             product.deleted_at = delete_timestamp
             db.flush()
-            
+
             logger.info(f"Successfully soft deleted product ID: {product_id} with {images_updated} images and {sizes_updated} sizes")
-            
+
         return True
-        
+
     except ProductException:
         raise  # Re-raise product exceptions
     except Exception as e:
@@ -100,7 +100,7 @@ def hard_delete_product(db: Session, product_id: int) -> bool:
         DatabaseException: If database operation fails
     """
     logger.info(f"Hard deleting product with ID: {product_id}")
-    
+
     try:
         with atomic_transaction(db):
             # Get existing product (including soft-deleted ones)
@@ -110,11 +110,11 @@ def hard_delete_product(db: Session, product_id: int) -> bool:
                     message="Product not found for hard deletion",
                     details={"product_id": product_id}
                 )
-            
+
             # Get all associated images (including soft-deleted ones) for file cleanup
             images = db.query(Image).filter(Image.product_id == product_id).all()
             image_files_to_delete = []
-            
+
             for image in images:
                 # Collect image file paths for deletion
                 logger.debug(f"Checking image URL: {image.url}")
@@ -129,19 +129,19 @@ def hard_delete_product(db: Session, product_id: int) -> bool:
                         logger.debug(f"Image file not found: {image_path}")
                 else:
                     logger.debug(f"Skipping external image URL: {image.url}")
-            
+
             # Delete associated images from database
             images_deleted = db.query(Image).filter(Image.product_id == product_id).delete()
             logger.debug(f"Hard deleted {images_deleted} image records for product {product_id}")
-            
+
             # Delete associated sizes from database
             sizes_deleted = db.query(Size).filter(Size.product_id == product_id).delete()
             logger.debug(f"Hard deleted {sizes_deleted} size records for product {product_id}")
-            
+
             # Delete the product itself from database
             db.delete(product)
             db.flush()
-            
+
             # After successful database deletion, clean up image files
             files_deleted = 0
             for image_path in image_files_to_delete:
@@ -151,11 +151,11 @@ def hard_delete_product(db: Session, product_id: int) -> bool:
                     logger.debug(f"Deleted image file: {image_path}")
                 except OSError as e:
                     logger.warning(f"Failed to delete image file {image_path}: {e}")
-            
+
             logger.info(f"Successfully hard deleted product ID: {product_id} with {images_deleted} images, {sizes_deleted} sizes, and {files_deleted} image files")
-            
+
         return True
-        
+
     except ProductException:
         raise  # Re-raise product exceptions
     except Exception as e:
@@ -186,7 +186,7 @@ def delete_product_with_mode(db: Session, product_id: int, delete_mode: DeleteMo
         DatabaseException: If database operation fails
     """
     logger.info(f"Deleting product {product_id} with mode: {delete_mode}")
-    
+
     if delete_mode == DeleteMode.SOFT:
         return soft_delete_product(db, product_id)
     elif delete_mode == DeleteMode.HARD:
@@ -211,7 +211,7 @@ def restore_product(db: Session, product_id: int) -> bool:
         DatabaseException: If database operation fails
     """
     logger.info(f"Restoring soft-deleted product with ID: {product_id}")
-    
+
     try:
         with atomic_transaction(db):
             # Get soft-deleted product
@@ -219,7 +219,7 @@ def restore_product(db: Session, product_id: int) -> bool:
                 Product.id == product_id,
                 Product.deleted_at.isnot(None)
             ).first()
-            
+
             if not product:
                 # Check if product exists but is not soft deleted
                 existing_product = db.query(Product).filter(Product.id == product_id).first()
@@ -233,27 +233,27 @@ def restore_product(db: Session, product_id: int) -> bool:
                         message="Product not found for restoration",
                         details={"product_id": product_id}
                     )
-            
+
             # Restore associated images
             images_restored = db.query(Image).filter(
                 Image.product_id == product_id,
                 Image.deleted_at.isnot(None)
             ).update({Image.deleted_at: None})
-            
+
             # Restore associated sizes
             sizes_restored = db.query(Size).filter(
                 Size.product_id == product_id,
                 Size.deleted_at.isnot(None)
             ).update({Size.deleted_at: None})
-            
+
             # Restore the product itself
             product.deleted_at = None
             db.flush()
-            
+
             logger.info(f"Successfully restored product ID: {product_id} with {images_restored} images and {sizes_restored} sizes")
-            
+
         return True
-        
+
     except ProductException:
         raise  # Re-raise product exceptions
     except Exception as e:
@@ -280,15 +280,15 @@ def get_deleted_products(db: Session, skip: int = 0, limit: int = 100) -> List[P
         List of soft-deleted products
     """
     logger.debug(f"Fetching deleted products with skip={skip}, limit={limit}")
-    
+
     try:
         products = db.query(Product).filter(
             Product.deleted_at.isnot(None)
         ).offset(skip).limit(limit).all()
-        
+
         logger.debug(f"Retrieved {len(products)} deleted products")
         return products
-        
+
     except Exception as e:
         logger.error(f"Error retrieving deleted products: {e}")
         raise DatabaseException(
@@ -315,29 +315,29 @@ def permanently_delete_old_soft_deleted(db: Session, days_old: int = 30) -> int:
         DatabaseException: If database operation fails
     """
     logger.info(f"Permanently deleting products soft-deleted more than {days_old} days ago")
-    
+
     try:
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
-        
+
         # Get products to be permanently deleted
         # Use <= for cutoff to include products deleted exactly at the cutoff time
         products_to_delete = db.query(Product).filter(
             Product.deleted_at.isnot(None),
             Product.deleted_at <= cutoff_date
         ).all()
-        
+
         deleted_count = 0
         for product in products_to_delete:
             try:
-                hard_delete_product(db, product.id)
+                hard_delete_product(db, int(product.id))
                 deleted_count += 1
             except Exception as e:
                 logger.error(f"Failed to permanently delete product {product.id}: {e}")
                 # Continue with other products
-        
+
         logger.info(f"Permanently deleted {deleted_count} old soft-deleted products")
         return deleted_count
-        
+
     except Exception as e:
         logger.error(f"Error permanently deleting old soft-deleted products: {e}")
         raise DatabaseException(

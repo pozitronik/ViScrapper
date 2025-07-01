@@ -1,7 +1,11 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON
 from sqlalchemy.orm import relationship, declarative_base
+from typing import TYPE_CHECKING
 
-Base = declarative_base()
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeBase as Base
+else:
+    Base = declarative_base()
 
 
 class Product(Base):
@@ -66,7 +70,7 @@ class MessageTemplate(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<MessageTemplate(id={self.id}, name='{self.name}', active={self.is_active})>"
 
 
@@ -89,7 +93,7 @@ class TelegramChannel(Base):
 
     template = relationship("MessageTemplate")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<TelegramChannel(id={self.id}, name='{self.name}', chat_id='{self.chat_id}', active={self.is_active})>"
 
 
@@ -113,5 +117,5 @@ class TelegramPost(Base):
     channel = relationship("TelegramChannel")
     template = relationship("MessageTemplate")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<TelegramPost(id={self.id}, product_id={self.product_id}, channel_id={self.channel_id}, status='{self.status}')>"

@@ -1,6 +1,7 @@
 # Load environment variables from .env file FIRST
 import os
 from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
@@ -50,7 +51,7 @@ if not migration_success:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan with proper startup and shutdown"""
     # Startup
     logger.info("Starting VIParser application...")
@@ -108,7 +109,7 @@ app.include_router(maintenance_router)
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time updates"""
     await websocket_manager.connect(websocket)
     try:
@@ -127,7 +128,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 @app.post("/api/v1/scrape", response_model=Product)
-async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
+async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) -> Product:
     """
     Scrape and store product information with images.
     Now handles existing products by checking for differences and updating when needed.
@@ -153,13 +154,13 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
 
     if existing_product:
         logger.info(f"Found existing product (match: {match_type}) with ID: {existing_product.id}")
-        
+
         # Compare the existing product with new data
         changes = compare_product_data(existing_product, product)
-        
+
         if changes['has_changes']:
             logger.info(f"Differences detected for product {existing_product.id}, updating...")
-            
+
             # Download new images first if there are any
             downloaded_images_metadata = []
             if product.all_image_urls:
@@ -167,14 +168,14 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
                 downloaded_images_metadata = await download_images(product.all_image_urls)
                 # Replace image URLs with local IDs for storage
                 product.all_image_urls = [img['image_id'] if isinstance(img, dict) else img for img in downloaded_images_metadata]
-            
+
             # Update the existing product with changes
             updated_product, update_summary = await update_existing_product_with_changes(
-                db, existing_product, product, changes, 
+                db, existing_product, product, changes,
                 download_new_images=bool(downloaded_images_metadata),
                 downloaded_images_metadata=downloaded_images_metadata
             )
-            
+
             # Broadcast the updated product to all connected WebSocket clients
             from schemas.product import Product as ProductSchema
             product_dict = ProductSchema.model_validate(updated_product).model_dump()
@@ -185,9 +186,9 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
                 'update_summary': update_summary
             }
             await websocket_manager.broadcast_product_updated(product_dict)
-            
+
             logger.info(f"Successfully updated existing product {existing_product.id} with summary: {update_summary}")
-            return updated_product
+            return Product.model_validate(updated_product)
         else:
             logger.info(f"No changes detected for existing product {existing_product.id}")
             # Still broadcast to frontend with info that no changes were needed
@@ -199,11 +200,11 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
                 'message': 'Product already exists with identical data'
             }
             await websocket_manager.broadcast_product_updated(product_dict)
-            return existing_product
+            return Product.model_validate(existing_product)
 
     # No existing product found - create new one
     logger.info(f"No existing product found, creating new product for: {product.product_url}")
-    
+
     # Download images and get their local IDs
     downloaded_images_metadata = []
     if product.all_image_urls:
@@ -227,7 +228,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
 
     # Auto-post to telegram channels if configured
     try:
-        auto_post_result = await telegram_post_service.auto_post_product(db=db, product_id=created_product.id)
+        auto_post_result = await telegram_post_service.auto_post_product(db=db, product_id=int(created_product.id))
         if auto_post_result["success_count"] > 0:
             logger.info(f"Auto-posted product {created_product.id} to {auto_post_result['success_count']} telegram channels")
         elif auto_post_result["failed_count"] > 0:
@@ -237,7 +238,7 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)):
         # Don't fail the main product creation if telegram auto-post fails
 
     logger.info(f"Successfully created product with ID: {created_product.id} for URL: {product.product_url}")
-    return created_product
+    return Product.model_validate(created_product)
 
 
 # Frontend serving routes
@@ -249,13 +250,13 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 
 @app.get("/")
-async def serve_frontend():
+async def serve_frontend() -> FileResponse:
     """Serve the main frontend HTML page"""
     return FileResponse("frontend/index.html")
 
 
 @app.get("/product/{product_id}")
-async def serve_product_page(product_id: int):
+async def serve_product_page(product_id: int) -> FileResponse:
     """Serve the product detail HTML page"""
     return FileResponse("frontend/product.html")
 

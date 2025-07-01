@@ -3,8 +3,8 @@ Error handlers for FastAPI application.
 """
 
 import traceback
-from typing import Dict, Any
-from fastapi import Request, HTTPException
+from typing import Dict, Any, Optional
+from fastapi import Request, HTTPException, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -24,11 +24,11 @@ logger = get_logger(__name__)
 
 
 def create_error_response(
-    status_code: int,
-    error_type: str,
-    message: str,
-    details: Dict[str, Any] = None,
-    error_code: str = None
+        status_code: int,
+        error_type: str,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        error_code: Optional[str] = None
 ) -> JSONResponse:
     """
     Create a standardized error response.
@@ -51,7 +51,7 @@ def create_error_response(
             "details": details or {}
         }
     }
-    
+
     return JSONResponse(
         status_code=status_code,
         content=content
@@ -61,7 +61,7 @@ def create_error_response(
 async def viparser_exception_handler(request: Request, exc: VIParserException) -> JSONResponse:
     """Handle custom VIParser exceptions."""
     logger.error(f"VIParser exception on {request.url}: {exc.message}")
-    
+
     # Map exception types to HTTP status codes
     status_code_map = {
         ValidationException: 400,
@@ -70,9 +70,9 @@ async def viparser_exception_handler(request: Request, exc: VIParserException) -
         ExternalServiceException: 502,  # Bad Gateway for external service issues
         ImageDownloadException: 502,
     }
-    
+
     status_code = status_code_map.get(type(exc), 500)
-    
+
     return create_error_response(
         status_code=status_code,
         error_type=exc.__class__.__name__,
@@ -85,7 +85,7 @@ async def viparser_exception_handler(request: Request, exc: VIParserException) -
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Handle FastAPI HTTP exceptions."""
     logger.warning(f"HTTP exception on {request.url}: {exc.status_code} - {exc.detail}")
-    
+
     return create_error_response(
         status_code=exc.status_code,
         error_type="HTTPException",
@@ -97,12 +97,12 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 async def request_validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle FastAPI request validation errors."""
     logger.warning(f"Request validation error on {request.url}: {exc}")
-    
+
     # Extract validation error details
     details = {
         'validation_errors': exc.errors()
     }
-    
+
     return create_error_response(
         status_code=422,
         error_type="ValidationError",
@@ -115,12 +115,12 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
 async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
     """Handle Pydantic validation errors."""
     logger.warning(f"Validation error on {request.url}: {exc}")
-    
+
     # Extract validation error details
     details = {}
     if hasattr(exc, 'errors'):
         details['validation_errors'] = exc.errors()
-    
+
     return create_error_response(
         status_code=422,
         error_type="ValidationError",
@@ -133,10 +133,10 @@ async def validation_exception_handler(request: Request, exc: ValidationError) -
 async def database_exception_handler(request: Request, exc: IntegrityError) -> JSONResponse:
     """Handle SQLAlchemy integrity errors."""
     logger.error(f"Database integrity error on {request.url}: {exc}")
-    
+
     # Extract constraint information
     error_msg = str(exc.orig) if hasattr(exc, 'orig') else str(exc)
-    
+
     # Determine specific constraint violation
     if "UNIQUE constraint failed" in error_msg:
         message = "Duplicate data detected"
@@ -150,7 +150,7 @@ async def database_exception_handler(request: Request, exc: IntegrityError) -> J
     else:
         message = "Database constraint violation"
         error_code = "CONSTRAINT_VIOLATION"
-    
+
     return create_error_response(
         status_code=409,  # Conflict
         error_type="DatabaseIntegrityError",
@@ -163,7 +163,7 @@ async def database_exception_handler(request: Request, exc: IntegrityError) -> J
 async def operational_exception_handler(request: Request, exc: OperationalError) -> JSONResponse:
     """Handle SQLAlchemy operational errors."""
     logger.error(f"Database operational error on {request.url}: {exc}")
-    
+
     return create_error_response(
         status_code=503,  # Service Unavailable
         error_type="DatabaseOperationalError",
@@ -177,7 +177,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
     """Handle all other unhandled exceptions."""
     # Log the full traceback for debugging
     logger.error(f"Unhandled exception on {request.url}: {exc}\n{traceback.format_exc()}")
-    
+
     return create_error_response(
         status_code=500,
         error_type="InternalServerError",
@@ -186,7 +186,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
     )
 
 
-def setup_error_handlers(app):
+def setup_error_handlers(app: FastAPI) -> None:
     """
     Set up all error handlers for the FastAPI application.
     
@@ -201,5 +201,5 @@ def setup_error_handlers(app):
     app.add_exception_handler(IntegrityError, database_exception_handler)
     app.add_exception_handler(OperationalError, operational_exception_handler)
     app.add_exception_handler(Exception, general_exception_handler)
-    
+
     logger.info("Error handlers configured successfully")

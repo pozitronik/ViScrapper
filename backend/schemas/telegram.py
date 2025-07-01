@@ -2,7 +2,7 @@
 Pydantic schemas for Telegram functionality
 """
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -25,14 +25,14 @@ class TelegramChannelBase(BaseModel):
     send_photos: bool = Field(True, description="Whether to include product photos")
     disable_web_page_preview: bool = Field(True, description="Disable link previews")
     disable_notification: bool = Field(False, description="Send messages silently")
-    
+
     @field_validator('chat_id')
     @classmethod
-    def validate_chat_id(cls, v):
+    def validate_chat_id(cls, v: str) -> str:
         """Validate chat ID format"""
         if not v:
             raise ValueError("Chat ID cannot be empty")
-        
+
         # Accept numeric IDs (positive/negative) or @username format
         if v.startswith('@'):
             if len(v) < 2:
@@ -42,7 +42,7 @@ class TelegramChannelBase(BaseModel):
                 int(v)  # Should be numeric
             except ValueError:
                 raise ValueError("Chat ID must be numeric or start with @")
-        
+
         return v
 
 
@@ -62,17 +62,17 @@ class TelegramChannelUpdate(BaseModel):
     send_photos: Optional[bool] = None
     disable_web_page_preview: Optional[bool] = None
     disable_notification: Optional[bool] = None
-    
+
     @field_validator('chat_id')
     @classmethod
-    def validate_chat_id(cls, v):
+    def validate_chat_id(cls, v: Optional[str]) -> Optional[str]:
         """Validate chat ID format"""
         if v is None:
             return v
-        
+
         if not v:
             raise ValueError("Chat ID cannot be empty")
-        
+
         # Accept numeric IDs (positive/negative) or @username format
         if v.startswith('@'):
             if len(v) < 2:
@@ -82,7 +82,7 @@ class TelegramChannelUpdate(BaseModel):
                 int(v)  # Should be numeric
             except ValueError:
                 raise ValueError("Chat ID must be numeric or start with @")
-        
+
         return v
 
 
@@ -92,7 +92,7 @@ class TelegramChannel(TelegramChannelBase):
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime] = None
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -119,7 +119,7 @@ class TelegramPost(TelegramPostBase):
     retry_count: int = 0
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -167,7 +167,7 @@ class TelegramChannelTest(BaseModel):
 class TelegramChannelTestResponse(BaseModel):
     """Schema for telegram channel test response"""
     success: bool
-    chat_info: Optional[dict] = None
+    chat_info: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
 

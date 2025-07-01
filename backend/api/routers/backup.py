@@ -2,9 +2,9 @@
 API endpoints for database backup management
 """
 from fastapi import APIRouter, HTTPException, Body
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
-from services.backup_service import backup_service
+from services.backup_service import backup_service, is_backup_service_enabled
 from api.models.responses import SuccessResponse, FileDeleteResponse
 from utils.logger import get_logger
 
@@ -13,19 +13,19 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/backup", tags=["Backup"])
 
 
-def check_backup_service_enabled():
+def check_backup_service_enabled() -> None:
     """Check if backup service is enabled and available"""
     if backup_service is None:
         raise HTTPException(
-            status_code=503, 
+            status_code=503,
             detail="Backup service is disabled. Set BACKUP_ENABLED=true in environment variables to enable."
         )
 
 
-@router.post("/create", response_model=SuccessResponse[dict])
+@router.post("/create", response_model=SuccessResponse[Dict[str, Any]])
 async def create_backup(
-    name: Optional[str] = Body(None, description="Optional backup name"),
-):
+        name: Optional[str] = Body(None, description="Optional backup name"),
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Create a new database backup manually.
     
@@ -33,25 +33,31 @@ async def create_backup(
     The backup will be stored with a timestamp and optional custom name.
     """
     check_backup_service_enabled()
+
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        # This should never happen after check_backup_service_enabled()
+        raise RuntimeError("Backup service unexpectedly None")
+
     try:
         logger.info(f"Creating manual backup with name: {name}")
-        
+
         backup_info = await backup_service.create_backup(name=name, auto=False)
-        
+
         logger.info(f"Manual backup created successfully: {backup_info.filename}")
-        
+
         return SuccessResponse(
             data=backup_info.to_dict(),
             message=f"Backup created successfully: {backup_info.filename}"
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to create backup: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create backup: {str(e)}")
 
 
-@router.get("/list", response_model=SuccessResponse[List[dict]])
-async def list_backups():
+@router.get("/list", response_model=SuccessResponse[List[Dict[str, Any]]])
+async def list_backups() -> SuccessResponse[List[Dict[str, Any]]]:
     """
     List all available database backups.
     
@@ -61,26 +67,31 @@ async def list_backups():
     - Compression and verification status
     """
     check_backup_service_enabled()
+
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+
     try:
         logger.info("Listing all backups")
-        
+
         backups = await backup_service.list_backups()
         backup_data = [backup.to_dict() for backup in backups]
-        
+
         logger.info(f"Found {len(backups)} backups")
-        
+
         return SuccessResponse(
             data=backup_data,
             message=f"Found {len(backups)} backup(s)"
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to list backups: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list backups: {str(e)}")
 
 
-@router.get("/stats", response_model=SuccessResponse[dict])
-async def get_backup_stats():
+@router.get("/stats", response_model=SuccessResponse[Dict[str, Any]])
+async def get_backup_stats() -> SuccessResponse[Dict[str, Any]]:
     """
     Get backup statistics and information.
     
@@ -91,26 +102,31 @@ async def get_backup_stats():
     - Scheduled backup status
     """
     check_backup_service_enabled()
+
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+
     try:
         logger.info("Getting backup statistics")
-        
+
         stats = await backup_service.get_backup_stats()
-        
+
         return SuccessResponse(
             data=stats,
             message="Backup statistics retrieved successfully"
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get backup stats: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get backup stats: {str(e)}")
 
 
-@router.post("/restore/{backup_filename}", response_model=SuccessResponse[dict])
+@router.post("/restore/{backup_filename}", response_model=SuccessResponse[Dict[str, Any]])
 async def restore_backup(
-    backup_filename: str,
-    target_path: Optional[str] = Body(None, description="Optional target path for restore")
-):
+        backup_filename: str,
+        target_path: Optional[str] = Body(None, description="Optional target path for restore")
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Restore a database from a backup file.
     
@@ -122,21 +138,26 @@ async def restore_backup(
         target_path: Optional target path (defaults to main database)
     """
     check_backup_service_enabled()
+
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+
     try:
         logger.warning(f"Restoring backup: {backup_filename} to {target_path or 'main database'}")
-        
+
         success = await backup_service.restore_backup(backup_filename, target_path)
-        
+
         if not success:
             raise HTTPException(status_code=500, detail="Backup restore failed")
-        
+
         logger.info(f"Backup restored successfully: {backup_filename}")
-        
+
         return SuccessResponse(
             data={"backup_filename": backup_filename, "target_path": target_path},
             message=f"Backup restored successfully: {backup_filename}"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -145,7 +166,7 @@ async def restore_backup(
 
 
 @router.delete("/{backup_filename}", response_model=FileDeleteResponse)
-async def delete_backup(backup_filename: str):
+async def delete_backup(backup_filename: str) -> FileDeleteResponse:
     """
     Delete a specific backup file.
     
@@ -156,21 +177,26 @@ async def delete_backup(backup_filename: str):
         backup_filename: Name of the backup file to delete
     """
     check_backup_service_enabled()
+
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+
     try:
         logger.info(f"Deleting backup: {backup_filename}")
-        
+
         success = await backup_service.delete_backup(backup_filename)
-        
+
         if not success:
             raise HTTPException(status_code=404, detail=f"Backup not found: {backup_filename}")
-        
+
         logger.info(f"Backup deleted successfully: {backup_filename}")
-        
+
         return FileDeleteResponse(
             deleted_filename=backup_filename,
             message=f"Backup deleted successfully: {backup_filename}"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -178,8 +204,8 @@ async def delete_backup(backup_filename: str):
         raise HTTPException(status_code=500, detail=f"Failed to delete backup: {str(e)}")
 
 
-@router.post("/start-scheduled", response_model=SuccessResponse[dict])
-async def start_scheduled_backups():
+@router.post("/start-scheduled", response_model=SuccessResponse[Dict[str, Any]])
+async def start_scheduled_backups() -> SuccessResponse[Dict[str, Any]]:
     """
     Start automatic scheduled backups.
     
@@ -187,23 +213,28 @@ async def start_scheduled_backups():
     at regular intervals according to the configured schedule.
     """
     check_backup_service_enabled()
+
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+
     try:
         logger.info("Starting scheduled backups")
-        
+
         await backup_service.start_scheduled_backups()
-        
+
         return SuccessResponse(
             data={"status": "started"},
             message="Scheduled backups started successfully"
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to start scheduled backups: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start scheduled backups: {str(e)}")
 
 
-@router.post("/stop-scheduled", response_model=SuccessResponse[dict])
-async def stop_scheduled_backups():
+@router.post("/stop-scheduled", response_model=SuccessResponse[Dict[str, Any]])
+async def stop_scheduled_backups() -> SuccessResponse[Dict[str, Any]]:
     """
     Stop automatic scheduled backups.
     
@@ -211,23 +242,28 @@ async def stop_scheduled_backups():
     Manual backups can still be created.
     """
     check_backup_service_enabled()
+
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+
     try:
         logger.info("Stopping scheduled backups")
-        
+
         await backup_service.stop_scheduled_backups()
-        
+
         return SuccessResponse(
             data={"status": "stopped"},
             message="Scheduled backups stopped successfully"
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to stop scheduled backups: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to stop scheduled backups: {str(e)}")
 
 
-@router.post("/verify/{backup_filename}", response_model=SuccessResponse[dict])
-async def verify_backup(backup_filename: str):
+@router.post("/verify/{backup_filename}", response_model=SuccessResponse[Dict[str, Any]])
+async def verify_backup(backup_filename: str) -> SuccessResponse[Dict[str, Any]]:
     """
     Verify the integrity of a specific backup file.
     
@@ -238,39 +274,44 @@ async def verify_backup(backup_filename: str):
         backup_filename: Name of the backup file to verify
     """
     check_backup_service_enabled()
+
+    # TypeGuard ensures backup_service is not None
+    if not is_backup_service_enabled(backup_service):
+        raise RuntimeError("Backup service unexpectedly None")
+
     try:
         logger.info(f"Verifying backup: {backup_filename}")
-        
+
         # Find the backup in the list
         backups = await backup_service.list_backups()
         backup_info = None
-        
+
         for backup in backups:
             if backup.filename == backup_filename:
                 backup_info = backup
                 break
-        
+
         if not backup_info:
             raise HTTPException(status_code=404, detail=f"Backup not found: {backup_filename}")
-        
+
         # Verify the backup
-        is_valid = await backup_service._verify_backup(backup_info)
-        
+        is_valid = await backup_service.verify_backup(backup_info)
+
         result = {
             "backup_filename": backup_filename,
             "valid": is_valid,
             "checksum": backup_info.checksum,
             "size_bytes": backup_info.size_bytes
         }
-        
+
         message = f"Backup verification {'passed' if is_valid else 'failed'}: {backup_filename}"
         logger.info(message)
-        
+
         return SuccessResponse(
             data=result,
             message=message
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:

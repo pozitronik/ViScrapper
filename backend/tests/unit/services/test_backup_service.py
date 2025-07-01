@@ -163,29 +163,29 @@ class TestBackupInfo:
         assert result == expected
 
     def test_backup_info_format_size_bytes(self):
-        """Test _format_size method with bytes."""
+        """Test format_size method with bytes."""
         backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
-        assert backup_info._format_size(512) == "512.0 B"
+        assert backup_info.format_size(512) == "512.0 B"
 
     def test_backup_info_format_size_kb(self):
-        """Test _format_size method with kilobytes."""
+        """Test format_size method with kilobytes."""
         backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
-        assert backup_info._format_size(1536) == "1.5 KB"
+        assert backup_info.format_size(1536) == "1.5 KB"
 
     def test_backup_info_format_size_mb(self):
-        """Test _format_size method with megabytes."""
+        """Test format_size method with megabytes."""
         backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
-        assert backup_info._format_size(1572864) == "1.5 MB"
+        assert backup_info.format_size(1572864) == "1.5 MB"
 
     def test_backup_info_format_size_gb(self):
-        """Test _format_size method with gigabytes."""
+        """Test format_size method with gigabytes."""
         backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
-        assert backup_info._format_size(1610612736) == "1.5 GB"
+        assert backup_info.format_size(1610612736) == "1.5 GB"
 
     def test_backup_info_format_size_tb(self):
-        """Test _format_size method with terabytes."""
+        """Test format_size method with terabytes."""
         backup_info = BackupInfo("test", Path("test"), datetime.now(), 512, "hash")
-        assert backup_info._format_size(1649267441664) == "1.5 TB"
+        assert backup_info.format_size(1649267441664) == "1.5 TB"
 
 
 class TestDatabaseBackupService:
@@ -460,13 +460,13 @@ class TestDatabaseBackupService:
         backup1.size_bytes = 1024
         backup1.filename = "auto_backup1.db"
         backup1.created_at = datetime(2023, 6, 15, 12, 0, 0)
-        backup1._format_size.return_value = "1.5 KB"
+        backup1.format_size.return_value = "1.5 KB"
         
         backup2 = Mock()
         backup2.size_bytes = 512
         backup2.filename = "manual_backup2.db"
         backup2.created_at = datetime(2023, 6, 14, 12, 0, 0)
-        backup2._format_size.return_value = "1.5 KB"
+        backup2.format_size.return_value = "1.5 KB"
         
         backups = [backup1, backup2]
         

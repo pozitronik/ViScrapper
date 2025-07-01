@@ -25,22 +25,22 @@ def get_template_by_id(db: Session, template_id: int, include_deleted: bool = Fa
         Template instance if found, None otherwise
     """
     logger.debug(f"Searching for template with ID: {template_id}")
-    
+
     try:
         query = db.query(MessageTemplate).filter(MessageTemplate.id == template_id)
-        
+
         if not include_deleted:
             query = query.filter(MessageTemplate.deleted_at.is_(None))
-        
+
         template = query.first()
-        
+
         if template:
             logger.debug(f"Found template: {template.name}")
         else:
             logger.debug(f"No template found for ID: {template_id}")
-        
+
         return template
-        
+
     except Exception as e:
         logger.error(f"Error retrieving template by ID {template_id}: {e}")
         raise DatabaseException(
@@ -65,22 +65,22 @@ def get_template_by_name(db: Session, name: str, include_deleted: bool = False) 
         Template instance if found, None otherwise
     """
     logger.debug(f"Searching for template with name: {name}")
-    
+
     try:
         query = db.query(MessageTemplate).filter(MessageTemplate.name == name)
-        
+
         if not include_deleted:
             query = query.filter(MessageTemplate.deleted_at.is_(None))
-        
+
         template = query.first()
-        
+
         if template:
             logger.debug(f"Found template with ID: {template.id}")
         else:
             logger.debug(f"No template found for name: {name}")
-        
+
         return template
-        
+
     except Exception as e:
         logger.error(f"Error retrieving template by name {name}: {e}")
         raise DatabaseException(
@@ -93,11 +93,11 @@ def get_template_by_name(db: Session, name: str, include_deleted: bool = False) 
 
 
 def get_templates(
-    db: Session, 
-    skip: int = 0, 
-    limit: int = 100,
-    include_deleted: bool = False,
-    active_only: bool = False
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        include_deleted: bool = False,
+        active_only: bool = False
 ) -> List[MessageTemplate]:
     """
     Get a list of templates with pagination.
@@ -113,24 +113,24 @@ def get_templates(
         List of templates
     """
     logger.debug(f"Fetching templates with skip={skip}, limit={limit}")
-    
+
     try:
         query = db.query(MessageTemplate)
-        
+
         if not include_deleted:
             query = query.filter(MessageTemplate.deleted_at.is_(None))
-        
+
         if active_only:
             query = query.filter(MessageTemplate.is_active == True)
-        
+
         # Order by updated_at desc to show most recently modified first
         query = query.order_by(MessageTemplate.updated_at.desc())
-        
+
         templates = query.offset(skip).limit(limit).all()
         logger.debug(f"Retrieved {len(templates)} templates")
-        
+
         return templates
-        
+
     except Exception as e:
         logger.error(f"Error retrieving templates: {e}")
         raise DatabaseException(
@@ -158,7 +158,7 @@ def create_template(db: Session, template: MessageTemplateCreate) -> MessageTemp
         DatabaseException: If database operation fails
     """
     logger.info(f"Creating template: {template.name}")
-    
+
     try:
         with atomic_transaction(db):
             # Check if template with same name already exists
@@ -168,7 +168,7 @@ def create_template(db: Session, template: MessageTemplateCreate) -> MessageTemp
                     message="Template with this name already exists",
                     details={"name": template.name, "existing_id": existing_template.id}
                 )
-            
+
             # Create the template
             db_template = MessageTemplate(
                 name=template.name,
@@ -176,17 +176,17 @@ def create_template(db: Session, template: MessageTemplateCreate) -> MessageTemp
                 template_content=template.template_content,
                 is_active=template.is_active
             )
-            
+
             db.add(db_template)
             db.flush()
-            
+
             logger.info(f"Successfully created template with ID: {db_template.id}")
-            
+
     except ValidationException:
         raise  # Re-raise validation exceptions
     except IntegrityError as e:
         error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
-        
+
         if "UNIQUE constraint failed: message_templates.name" in error_msg:
             raise ValidationException(
                 message="Template name already exists",
@@ -209,7 +209,7 @@ def create_template(db: Session, template: MessageTemplateCreate) -> MessageTemp
             details={"name": template.name},
             original_exception=e
         )
-    
+
     return db_template
 
 
@@ -230,7 +230,7 @@ def update_template(db: Session, template_id: int, template_update: MessageTempl
         DatabaseException: If database operation fails
     """
     logger.info(f"Updating template with ID: {template_id}")
-    
+
     try:
         with atomic_transaction(db):
             # Get existing template
@@ -240,10 +240,10 @@ def update_template(db: Session, template_id: int, template_update: MessageTempl
                     message="Template not found for update",
                     details={"template_id": template_id}
                 )
-            
+
             # Update fields that are provided (not None)
             update_data = template_update.model_dump(exclude_unset=True, exclude_none=True)
-            
+
             if update_data:
                 # Check for name uniqueness if name is being updated
                 if 'name' in update_data and update_data['name'] != template.name:
@@ -253,22 +253,22 @@ def update_template(db: Session, template_id: int, template_update: MessageTempl
                             message="Template name already exists",
                             details={"name": update_data['name'], "existing_id": existing_template.id}
                         )
-                
+
                 # Apply updates
                 for field, value in update_data.items():
                     setattr(template, field, value)
-                
+
                 # Update the updated_at timestamp manually since we're not using onupdate
                 template.updated_at = datetime.now(timezone.utc)
-                
+
                 db.flush()
                 logger.debug(f"Updated template fields: {list(update_data.keys())}")
-            
+
     except ValidationException:
         raise  # Re-raise validation exceptions
     except IntegrityError as e:
         error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
-        
+
         if "UNIQUE constraint failed: message_templates.name" in error_msg:
             raise ValidationException(
                 message="Template name already exists",
@@ -291,7 +291,7 @@ def update_template(db: Session, template_id: int, template_update: MessageTempl
             details={"template_id": template_id},
             original_exception=e
         )
-    
+
     logger.info(f"Successfully updated template ID: {template_id}")
     return template
 
@@ -312,7 +312,7 @@ def soft_delete_template(db: Session, template_id: int) -> bool:
         DatabaseException: If database operation fails
     """
     logger.info(f"Soft deleting template with ID: {template_id}")
-    
+
     try:
         with atomic_transaction(db):
             # Get existing template (including already soft-deleted ones)
@@ -322,21 +322,21 @@ def soft_delete_template(db: Session, template_id: int) -> bool:
                     message="Template not found for soft deletion",
                     details={"template_id": template_id}
                 )
-            
+
             # Check if already soft deleted
             if template.deleted_at is not None:
                 logger.warning(f"Template {template_id} is already soft deleted at {template.deleted_at}")
                 return True
-            
+
             # Soft delete the template
             template.deleted_at = datetime.now(timezone.utc)
             template.is_active = False  # Also mark as inactive
             db.flush()
-            
+
             logger.info(f"Successfully soft deleted template ID: {template_id}")
-            
+
         return True
-        
+
     except ValidationException:
         raise  # Re-raise validation exceptions
     except Exception as e:
@@ -366,7 +366,7 @@ def restore_template(db: Session, template_id: int) -> bool:
         DatabaseException: If database operation fails
     """
     logger.info(f"Restoring soft-deleted template with ID: {template_id}")
-    
+
     try:
         with atomic_transaction(db):
             # Get soft-deleted template
@@ -374,7 +374,7 @@ def restore_template(db: Session, template_id: int) -> bool:
                 MessageTemplate.id == template_id,
                 MessageTemplate.deleted_at.isnot(None)
             ).first()
-            
+
             if not template:
                 # Check if template exists but is not soft deleted
                 existing_template = db.query(MessageTemplate).filter(MessageTemplate.id == template_id).first()
@@ -388,16 +388,16 @@ def restore_template(db: Session, template_id: int) -> bool:
                         message="Template not found for restoration",
                         details={"template_id": template_id}
                     )
-            
+
             # Restore the template
             template.deleted_at = None
             template.is_active = True  # Also mark as active
             db.flush()
-            
+
             logger.info(f"Successfully restored template ID: {template_id}")
-            
+
         return True
-        
+
     except ValidationException:
         raise  # Re-raise validation exceptions
     except Exception as e:
@@ -425,13 +425,13 @@ def get_template_count(db: Session, include_deleted: bool = False, active_only: 
     """
     try:
         query = db.query(MessageTemplate)
-        
+
         if not include_deleted:
             query = query.filter(MessageTemplate.deleted_at.is_(None))
-        
+
         if active_only:
             query = query.filter(MessageTemplate.is_active == True)
-        
+
         count = query.count()
         logger.debug(f"Total template count: {count}")
         return count
