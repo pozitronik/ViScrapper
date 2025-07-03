@@ -10,6 +10,11 @@ let currentProductData = null;
 let lastJsonLdContent = null;
 let isPageValid = true;
 let extractionInProgress = false;
+let isProductChanged = false;
+let changeTrackingActive = false;
+let mutationObserver = null;
+let currentUrl = window.location.href;
+let changeTrackingStartTime = null;
 
 // Обработчик сообщений от background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -52,11 +57,10 @@ async function handleExtractData(sendResponse) {
       return;
     }
     
-    // Проверяем актуальность данных
-    const needsRefresh = await checkIfPageNeedsRefresh();
-    if (needsRefresh) {
+    // Проверяем, изменился ли продукт
+    if (isProductChanged) {
       sendResponse({
-        error: 'Страница содержит неактуальные данные. Требуется обновление.',
+        error: 'Продукт был изменен. Необходимо обновить страницу для получения актуальных данных.',
         needsRefresh: true,
         isValid: false
       });
@@ -103,7 +107,10 @@ async function handleExtractData(sendResponse) {
 function isValidProductPage() {
   // Проверяем URL
   const url = window.location.href;
+  console.log('Checking page validity, URL:', url);
+  
   if (!url.includes('victoriassecret.com')) {
+    console.log('Not a Victoria\'s Secret page');
     return false;
   }
   
@@ -111,7 +118,13 @@ function isValidProductPage() {
   const hasProductInfo = document.querySelector('[data-testid="ProductInfo-shortDescription"]');
   const hasProductPrice = document.querySelector('[data-testid="ProductPrice"]');
   
-  return hasProductInfo && hasProductPrice;
+  console.log('ProductInfo element:', hasProductInfo);
+  console.log('ProductPrice element:', hasProductPrice);
+  
+  const isValid = hasProductInfo && hasProductPrice;
+  console.log('Page is valid product page:', isValid);
+  
+  return isValid;
 }
 
 /**
@@ -240,9 +253,25 @@ async function extractProductData() {
     
     // Извлекаем размеры (это может занять время)
     try {
+      // Временно отключаем отслеживание мутаций во время извлечения размеров
+      const wasTrackingActive = changeTrackingActive;
+      if (mutationObserver) {
+        console.log('Temporarily disabling mutation tracking for size extraction');
+        mutationObserver.disconnect();
+        changeTrackingActive = false;
+      }
+      
       const sizesData = await extractSizes();
       if (sizesData) {
         productData.sizes = sizesData;
+      }
+      
+      // Восстанавливаем отслеживание
+      if (wasTrackingActive && mutationObserver) {
+        console.log('Re-enabling mutation tracking after size extraction');
+        setTimeout(() => {
+          setupJsonLdTracking();
+        }, 1000); // Небольшая задержка чтобы дать странице стабилизироваться
       }
     } catch (error) {
       console.error('Error extracting sizes:', error);
@@ -660,21 +689,244 @@ if (document.readyState === 'loading') {
 function initialize() {
   console.log('VIParser content script initialized');
   
-  // Начальная проверка страницы
-  isPageValid = isValidProductPage();
+  // Сброс флага изменения продукта при инициализации
+  resetProductChangeFlag();
   
-  if (isPageValid) {
-    console.log('Valid product page detected');
+  // Ожидание загрузки элементов и настройка отслеживания
+  waitForPageElements();
+}
+
+/**
+ * Ожидание загрузки ключевых элементов страницы
+ */
+async function waitForPageElements() {
+  console.log('Waiting for page elements to load...');
+  
+  let attempts = 0;
+  const maxAttempts = 20; // 10 секунд максимум
+  
+  while (attempts < maxAttempts) {
+    isPageValid = isValidProductPage();
     
-    // Настройка отслеживания изменений (будет реализовано позже)
-    setupChangeTracking();
+    if (isPageValid) {
+      console.log('Valid product page detected after', attempts * 500, 'ms');
+      
+      // Настройка отслеживания изменений
+      setupChangeTracking();
+      return;
+    }
+    
+    attempts++;
+    console.log(`Attempt ${attempts}/${maxAttempts} - elements not ready yet`);
+    
+    // Ждем 500мс перед следующей попыткой
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  
+  console.warn('Page elements did not load within timeout, page may not be a valid product page');
+}
+
+// Слушатель события обновления страницы
+window.addEventListener('beforeunload', () => {
+  console.log('Page unloading, cleaning up observers');
+  
+  // Отключаем MutationObserver при выгрузке страницы
+  if (mutationObserver) {
+    mutationObserver.disconnect();
+    mutationObserver = null;
+  }
+  
+  changeTrackingActive = false;
+});
+
+/**
+ * Настройка отслеживания изменений продукта
+ */
+function setupChangeTracking() {
+  if (changeTrackingActive) {
+    console.log('Change tracking already active');
+    return;
+  }
+  
+  console.log('Setting up change tracking...');
+  
+  // Ждем полной загрузки страницы
+  if (document.readyState === 'complete') {
+    // Страница уже загружена
+    console.log('Page already loaded, starting change tracking immediately');
+    startChangeTracking();
+  } else {
+    // Ждем события load
+    console.log('Waiting for page load event...');
+    window.addEventListener('load', () => {
+      console.log('Page load event fired, starting change tracking...');
+      // Небольшая дополнительная задержка для асинхронных скриптов
+      setTimeout(startChangeTracking, 1000);
+    });
   }
 }
 
 /**
- * Настройка отслеживания изменений (заглушка)
+ * Запуск отслеживания изменений
  */
-function setupChangeTracking() {
-  // Будет реализовано в следующем этапе
-  console.log('Change tracking setup - not implemented yet');
+function startChangeTracking() {
+  console.log('Starting change tracking after page load...');
+  
+  // Записываем время начала отслеживания
+  changeTrackingStartTime = Date.now();
+  
+  // 1. Отслеживание изменений JSON-LD
+  setupJsonLdTracking();
+  
+  // 2. Отслеживание изменений URL
+  setupUrlTracking();
+  
+  changeTrackingActive = true;
+  console.log('Change tracking activated');
+}
+
+/**
+ * Настройка отслеживания изменений JSON-LD через MutationObserver
+ */
+function setupJsonLdTracking() {
+  const jsonLdElement = document.querySelector('#structured-data-pdp');
+  
+  if (!jsonLdElement) {
+    console.warn('JSON-LD element #structured-data-pdp not found, will retry in 2 seconds');
+    setTimeout(setupJsonLdTracking, 2000);
+    return;
+  }
+  
+  console.log('Setting up MutationObserver for JSON-LD changes');
+  
+  // Останавливаем предыдущий observer если есть
+  if (mutationObserver) {
+    mutationObserver.disconnect();
+  }
+  
+  // Находим родительский элемент (head или body)
+  const parentElement = jsonLdElement.parentNode || document.head;
+  console.log('Observing parent element:', parentElement.tagName);
+  
+  // Создаем новый MutationObserver
+  mutationObserver = new MutationObserver((mutations) => {
+    console.log('JSON-LD area mutations detected:', mutations.length);
+    
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList') {
+        // Проверяем добавленные узлы
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE && 
+              node.id === 'structured-data-pdp') {
+            console.log('JSON-LD element replaced, marking product as changed');
+            handleProductChange('JSON-LD element replaced');
+          }
+        });
+        
+        // Проверяем удаленные узлы
+        mutation.removedNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE && 
+              node.id === 'structured-data-pdp') {
+            console.log('JSON-LD element removed');
+          }
+        });
+      }
+      
+      // Также отслеживаем изменения внутри текущего элемента
+      if (mutation.target.id === 'structured-data-pdp' && 
+          (mutation.type === 'characterData' || mutation.type === 'childList')) {
+        console.log('JSON-LD content changed, marking product as changed');
+        handleProductChange('JSON-LD content changed');
+      }
+    });
+  });
+  
+  // Настраиваем observer для отслеживания замены элемента
+  mutationObserver.observe(parentElement, {
+    childList: true,        // отслеживать добавление/удаление дочерних элементов
+    subtree: true          // отслеживать изменения во всех потомках
+  });
+  
+  console.log('MutationObserver for JSON-LD activated');
+}
+
+/**
+ * Настройка отслеживания изменений URL
+ */
+function setupUrlTracking() {
+  console.log('Setting up URL change tracking');
+  
+  // 1. Слушатель события popstate (назад/вперед в браузере)
+  window.addEventListener('popstate', (event) => {
+    console.log('Popstate event detected');
+    handleUrlChange();
+  });
+  
+  // 2. Перехват методов history для SPA навигации
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+  
+  history.pushState = function(...args) {
+    originalPushState.apply(history, args);
+    console.log('PushState detected');
+    handleUrlChange();
+  };
+  
+  history.replaceState = function(...args) {
+    originalReplaceState.apply(history, args);
+    console.log('ReplaceState detected');
+    handleUrlChange();
+  };
+  
+  console.log('URL change tracking activated');
+}
+
+/**
+ * Обработка изменения URL
+ */
+function handleUrlChange() {
+  const newUrl = window.location.href;
+  
+  if (newUrl !== currentUrl) {
+    console.log('URL changed:', currentUrl, '->', newUrl);
+    currentUrl = newUrl;
+    handleProductChange('URL changed');
+  }
+}
+
+/**
+ * Обработка события изменения продукта
+ */
+function handleProductChange(reason) {
+  console.log(`Product change detected: ${reason}`);
+  
+  // Игнорируем изменения в первые 2 секунды после начала отслеживания
+  if (changeTrackingStartTime && (Date.now() - changeTrackingStartTime < 2000)) {
+    console.log('Ignoring change during initial tracking setup period');
+    return;
+  }
+  
+  if (!isProductChanged) {
+    isProductChanged = true;
+    console.log('Marking product as changed - popup will show refresh warning');
+    
+    // Опционально: можно отправить сообщение в popup если он открыт
+    try {
+      chrome.runtime.sendMessage({
+        action: 'productChanged',
+        reason: reason
+      });
+    } catch (error) {
+      // Popup может быть закрыт, это нормально
+      console.log('Could not send message to popup (probably closed)');
+    }
+  }
+}
+
+/**
+ * Сброс флага изменения продукта (вызывается при обновлении страницы)
+ */
+function resetProductChangeFlag() {
+  console.log('Resetting product change flag');
+  isProductChanged = false;
 }

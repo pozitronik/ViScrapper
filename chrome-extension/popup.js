@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Инициализация элементов
   initializeElements();
   
+  // Настройка слушателя сообщений от content script
+  setupMessageListener();
+  
   // Проверка статуса бэкенда
   await checkBackendStatus();
   
@@ -27,6 +30,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Настройка обработчиков событий
   setupEventHandlers();
 });
+
+/**
+ * Настройка слушателя сообщений от content script
+ */
+function setupMessageListener() {
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log('Popup received message:', request);
+    
+    if (request.action === 'productChanged') {
+      handleProductChangedNotification(request.reason);
+    }
+  });
+}
+
+/**
+ * Обработка уведомления о смене продукта
+ */
+function handleProductChangedNotification(reason) {
+  console.log('Product changed notification received:', reason);
+  
+  // Показываем уведомление
+  showNotification('warning', `Продукт изменен (${reason}). Обновите страницу для получения актуальных данных.`);
+  
+  // Блокируем кнопку отправки
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Продукт изменен - обновите страницу';
+  
+  // Показываем в превью что данные устарели
+  const previewContainer = document.getElementById('dataPreview');
+  previewContainer.innerHTML = `
+    <div style="text-align: center; padding: 20px; color: #ff9800;">
+      <strong>⚠️ Данные устарели</strong><br>
+      <small>Продукт был изменен. Обновите страницу.</small>
+    </div>
+  `;
+}
 
 /**
  * Инициализация элементов интерфейса
