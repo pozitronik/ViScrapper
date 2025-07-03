@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIParser</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>VIParser</h1>
+      <div class="status-indicator" id="backendStatus">
+        <span class="status-dot"></span>
+        <span class="status-text">Проверка...</span>
+      </div>
+    </header>
+    
+    <main>
+      <div class="status-card" id="productStatus">
+        <div class="loading">Загрузка...</div>
+      </div>
+      
+      <div class="preview-container" id="dataPreview">
+        <div class="loading">Загрузка данных...</div>
+      </div>
+      
+      <textarea 
+        id="commentInput" 
+        placeholder="Комментарий (необязательно)..."
+        maxlength="500"
+        rows="2"
+      ></textarea>
+      <div class="char-counter">
+        <span id="charCount">0</span>/500
+      </div>
+      
+      <div class="actions">
+        <button id="refreshBtn" class="btn btn-secondary">
+          Обновить страницу
+        </button>
+        <button id="submitBtn" class="btn btn-primary" disabled>
+          Отправить данные
+        </button>
+      </div>
+    </main>
+    
+    <div class="notifications" id="notifications"></div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

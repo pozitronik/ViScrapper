@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Фон -->
+  <rect width="128" height="128" rx="20" fill="#FF69B4"/>
+  
+  <!-- Символ парсера (стрелка вниз с данными) -->
+  <g transform="translate(32, 20)">
+    <!-- Стрелка вниз -->
+    <polygon points="32,10 50,30 40,30 40,60 24,60 24,30 14,30" fill="white"/>
+    
+    <!-- Данные (линии) -->
+    <rect x="10" y="70" width="44" height="4" rx="2" fill="white"/>
+    <rect x="10" y="78" width="36" height="4" rx="2" fill="white"/>
+    <rect x="10" y="86" width="40" height="4" rx="2" fill="white"/>
+    <rect x="10" y="94" width="32" height="4" rx="2" fill="white"/>
+  </g>
+  
+  <!-- Символ "V" для Victoria's Secret -->
+  <text x="64" y="110" font-family="Arial, sans-serif" font-size="20" font-weight="bold" text-anchor="middle" fill="white">V</text>
+</svg>
