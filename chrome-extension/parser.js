@@ -138,7 +138,13 @@
           productData.currency = offers.priceCurrency;
 
           const availabilitySchema = offers.availability || '';
-          productData.availability = availabilitySchema.includes('InStock') ? 'In Stock' : 'Out of Stock';
+          if (availabilitySchema.includes('InStock')) {
+            productData.availability = 'In Stock';
+          } else if (availabilitySchema.includes('OutOfStock')) {
+            productData.availability = 'Out of Stock';
+          } else {
+            productData.availability = null; // No availability info found
+          }
 
           const imageUrls = data.image || [];
           if (imageUrls.length > 0) {

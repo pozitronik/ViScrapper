@@ -295,9 +295,15 @@ document.getElementById('scrape').addEventListener('click', async () => {
 
     const data = results[0].result;
     
-    // Validate extracted data
-    if (!data.name || !data.product_url) {
-      throw new Error('Incomplete product data - missing name or URL');
+    // Validate extracted data with detailed error reporting
+    const missingFields = [];
+    if (!data.name) missingFields.push('name');
+    if (!data.product_url) missingFields.push('URL');
+    
+    if (missingFields.length > 0) {
+      console.error('Validation failed - missing fields:', missingFields);
+      console.error('Extracted data:', data);
+      throw new Error(`Incomplete product data - missing: ${missingFields.join(', ')}`);
     }
 
     // Add comment to the data
