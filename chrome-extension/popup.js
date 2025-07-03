@@ -50,22 +50,26 @@ function setupMessageListener() {
 function handleProductChangedNotification(reason) {
   console.log('Product changed notification received:', reason);
   
-  // Показываем уведомление
-  showNotification('warning', `Продукт изменен (${reason}). Обновите страницу для получения актуальных данных.`);
+  // Показываем статус в блоке статуса
+  updateProductStatus(null, { 
+    status: 'changed', 
+    message: 'Продукт изменен - обновите страницу' 
+  });
   
   // Блокируем кнопку отправки
   const submitBtn = document.getElementById('submitBtn');
   submitBtn.disabled = true;
   submitBtn.textContent = 'Продукт изменен - обновите страницу';
   
-  // Показываем в превью что данные устарели
+  // Скрываем превью данных
   const previewContainer = document.getElementById('dataPreview');
-  previewContainer.innerHTML = `
-    <div style="text-align: center; padding: 20px; color: #ff9800;">
-      <strong>⚠️ Данные устарели</strong><br>
-      <small>Продукт был изменен. Обновите страницу.</small>
-    </div>
-  `;
+  previewContainer.style.display = 'none';
+  
+  // Скрываем поле комментария
+  const commentInput = document.getElementById('commentInput');
+  const charCounter = document.querySelector('.char-counter');
+  commentInput.style.display = 'none';
+  charCounter.style.display = 'none';
 }
 
 /**
@@ -153,9 +157,28 @@ async function loadProductData() {
     });
     
     if (response.error) {
-      showNotification('error', response.error);
-      previewContainer.innerHTML = '<div class="error">Ошибка загрузки данных</div>';
-      productStatus.innerHTML = '<div class="error">Ошибка проверки статуса</div>';
+      // Скрываем превью данных при ошибке
+      previewContainer.style.display = 'none';
+      
+      // Показываем ошибку в статусе продукта
+      if (response.needsRefresh) {
+        updateProductStatus(null, { 
+          status: 'changed', 
+          message: 'Обновите страницу для актуальных данных' 
+        });
+      } else {
+        updateProductStatus(null, { 
+          status: 'error', 
+          message: 'Не удалось загрузить данные' 
+        });
+      }
+      
+      // Скрываем поле комментария
+      const commentInput = document.getElementById('commentInput');
+      const charCounter = document.querySelector('.char-counter');
+      commentInput.style.display = 'none';
+      charCounter.style.display = 'none';
+      
       return;
     }
     
@@ -174,8 +197,21 @@ async function loadProductData() {
     
   } catch (error) {
     console.error('Error loading product data:', error);
-    showNotification('error', 'Ошибка загрузки данных');
-    previewContainer.innerHTML = '<div class="error">Ошибка загрузки данных</div>';
+    
+    // Скрываем превью данных
+    previewContainer.style.display = 'none';
+    
+    // Показываем ошибку в статусе
+    updateProductStatus(null, { 
+      status: 'error', 
+      message: 'Не удалось загрузить данные' 
+    });
+    
+    // Скрываем поле комментария
+    const commentInput = document.getElementById('commentInput');
+    const charCounter = document.querySelector('.char-counter');
+    commentInput.style.display = 'none';
+    charCounter.style.display = 'none';
   }
 }
 
@@ -325,7 +361,7 @@ async function checkProductStatus(sku) {
     
   } catch (error) {
     console.error('Error checking product status:', error);
-    updateProductStatus(null, { status: 'error', message: 'Ошибка проверки' });
+    updateProductStatus(null, { status: 'error', message: 'Не удалось проверить статус' });
   }
 }
 
@@ -361,7 +397,11 @@ function updateProductStatus(data, statusResponse) {
       statusClass = 'unavailable';
       break;
     case 'error':
-      statusText = '⚠️ Ошибка проверки';
+      statusText = '⚠️ Не удалось проверить';
+      statusClass = 'warning';
+      break;
+    case 'changed':
+      statusText = '🔄 Продукт изменен';
       statusClass = 'warning';
       break;
     default:
@@ -448,37 +488,25 @@ async function handleSubmit() {
     });
     
     if (response.error) {
-      showNotification('error', response.error);
+      // Показываем ошибку в кнопке
+      submitBtn.textContent = 'Ошибка отправки - попробуйте снова';
+      setTimeout(() => {
+        updateSubmitButton();
+      }, 3000);
     } else {
-      showNotification('success', 'Данные успешно отправлены!');
+      submitBtn.textContent = 'Данные отправлены!';
       setTimeout(() => window.close(), 1500);
     }
     
   } catch (error) {
     console.error('Error submitting data:', error);
-    showNotification('error', 'Ошибка при отправке данных');
+    // Показываем ошибку в кнопке
+    submitBtn.textContent = 'Ошибка отправки - попробуйте снова';
+    setTimeout(() => {
+      updateSubmitButton();
+    }, 3000);
   } finally {
     submitBtn.disabled = false;
-    updateSubmitButton();
   }
 }
 
-/**
- * Показ уведомления
- */
-function showNotification(type, message) {
-  const notifications = document.getElementById('notifications');
-  
-  const notification = document.createElement('div');
-  notification.className = `notification ${type}`;
-  notification.textContent = message;
-  
-  notifications.appendChild(notification);
-  
-  // Автоматическое удаление через 5 секунд
-  setTimeout(() => {
-    if (notification.parentNode) {
-      notification.parentNode.removeChild(notification);
-    }
-  }, 5000);
-}
