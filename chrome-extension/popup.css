@@ -216,7 +216,7 @@ textarea:focus {
 }
 
 .btn {
-  flex: 1;
+  width: 100%;
   padding: 10px 16px;
   border: none;
   border-radius: 6px;
