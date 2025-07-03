@@ -121,28 +121,136 @@
     const productData = {};
 
     try {
+      // Method 1: Try the specific script ID first
+      console.log('Attempting name extraction - Method 1: Specific script ID');
       const jsonLdScript = document.getElementById('StructuredDataPDP-json-ld');
-      if (jsonLdScript) {
+      if (jsonLdScript && jsonLdScript.textContent.trim()) {
+        console.log('Found StructuredDataPDP-json-ld script');
         const data = JSON.parse(jsonLdScript.textContent);
-        productData.name = data.name;
-        productData.sku = data.sku;
-        productData.brand = data.brand?.name;
+        if (data.name) {
+          console.log('Successfully extracted name from specific script:', data.name);
+          productData.name = data.name;
+          productData.sku = data.sku;
+          productData.brand = data.brand?.name;
 
-        const offers = data.offers || {};
-        productData.price = offers.price;
-        productData.currency = offers.priceCurrency;
+          const offers = data.offers || {};
+          productData.price = offers.price;
+          productData.currency = offers.priceCurrency;
 
-        const availabilitySchema = offers.availability || '';
-        productData.availability = availabilitySchema.includes('InStock') ? 'In Stock' : 'Out of Stock';
+          const availabilitySchema = offers.availability || '';
+          productData.availability = availabilitySchema.includes('InStock') ? 'In Stock' : 'Out of Stock';
 
-        const imageUrls = data.image || [];
-        if (imageUrls.length > 0) {
-          productData.main_image_url = imageUrls[0].startsWith('http') ? imageUrls[0] : `https://${imageUrls[0]}`;
-          productData.all_image_urls = imageUrls.map(img => img.startsWith('http') ? img : `https://${img}`);
+          const imageUrls = data.image || [];
+          if (imageUrls.length > 0) {
+            productData.main_image_url = imageUrls[0].startsWith('http') ? imageUrls[0] : `https://${imageUrls[0]}`;
+            productData.all_image_urls = imageUrls.map(img => img.startsWith('http') ? img : `https://${img}`);
+          }
+        } else {
+          console.log('Script found but no name field');
+        }
+      } else {
+        console.log('StructuredDataPDP-json-ld script not found or empty');
+      }
+
+      // Method 2: If name still not found, try all JSON-LD scripts
+      if (!productData.name) {
+        console.log('Attempting name extraction - Method 2: All JSON-LD scripts');
+        const allScripts = document.querySelectorAll('script[type="application/ld+json"]');
+        console.log(`Found ${allScripts.length} JSON-LD scripts to check`);
+        
+        for (let i = 0; i < allScripts.length; i++) {
+          const script = allScripts[i];
+          try {
+            const data = JSON.parse(script.textContent);
+            console.log(`Checking script ${i + 1}:`, data['@type'], data.name ? 'HAS_NAME' : 'NO_NAME');
+            
+            if (data['@type'] === 'Product' && data.name) {
+              console.log('Successfully extracted name from fallback script:', data.name);
+              productData.name = data.name;
+              productData.sku = data.sku || productData.sku;
+              productData.brand = data.brand?.name || productData.brand;
+
+              if (!productData.price) {
+                const offers = data.offers || {};
+                productData.price = offers.price;
+                productData.currency = offers.priceCurrency;
+                const availabilitySchema = offers.availability || '';
+                productData.availability = availabilitySchema.includes('InStock') ? 'In Stock' : 'Out of Stock';
+              }
+
+              if (!productData.main_image_url) {
+                const imageUrls = data.image || [];
+                if (imageUrls.length > 0) {
+                  productData.main_image_url = imageUrls[0].startsWith('http') ? imageUrls[0] : `https://${imageUrls[0]}`;
+                  productData.all_image_urls = imageUrls.map(img => img.startsWith('http') ? img : `https://${img}`);
+                }
+              }
+              break;
+            }
+          } catch (e) {
+            console.log(`Error parsing script ${i + 1}:`, e.message);
+            continue;
+          }
         }
       }
+
+      // Method 3: Try meta tags as fallback
+      if (!productData.name) {
+        console.log('Attempting name extraction - Method 3: Meta tags');
+        const metaTags = [
+          'meta[property="og:title"]',
+          'meta[name="twitter:title"]',
+          'meta[property="product:name"]',
+          'title'
+        ];
+        
+        for (const selector of metaTags) {
+          const element = document.querySelector(selector);
+          if (element) {
+            const name = element.tagName.toLowerCase() === 'title' ? 
+              element.textContent.trim() : 
+              element.getAttribute('content');
+            
+            if (name && name.length > 0) {
+              console.log(`Successfully extracted name from ${selector}:`, name);
+              productData.name = name;
+              break;
+            }
+          }
+        }
+      }
+
+      // Method 4: Try common CSS selectors as last resort
+      if (!productData.name) {
+        console.log('Attempting name extraction - Method 4: Common CSS selectors');
+        const selectors = [
+          'h1[data-testid*="product"]',
+          'h1[class*="product"]',
+          '.product-name',
+          '.product-title',
+          '[data-testid="product-name"]',
+          '[data-testid="ProductName"]',
+          'h1'
+        ];
+        
+        for (const selector of selectors) {
+          const element = document.querySelector(selector);
+          if (element && element.textContent.trim()) {
+            console.log(`Successfully extracted name from ${selector}:`, element.textContent.trim());
+            productData.name = element.textContent.trim();
+            break;
+          }
+        }
+      }
+
+      // Log final result
+      if (productData.name) {
+        console.log('Final extracted name:', productData.name);
+      } else {
+        console.error('FAILED to extract product name using all methods');
+      }
     } catch (e) {
-      console.error('Error parsing JSON-LD:', e);
+      console.error('Error during name extraction:', e);
     }
 
     try {
@@ -256,6 +364,28 @@
         console.error('Could not find item information:', e);
     }
     productData.comment = '';
+
+    // Final validation and debugging
+    console.log('=== FINAL PRODUCT DATA VALIDATION ===');
+    console.log('Name:', productData.name ? `"${productData.name}"` : 'MISSING');
+    console.log('URL:', productData.product_url ? `"${productData.product_url}"` : 'MISSING');
+    console.log('SKU:', productData.sku ? `"${productData.sku}"` : 'MISSING');
+    console.log('Brand:', productData.brand ? `"${productData.brand}"` : 'MISSING');
+    console.log('Price:', productData.price ? `"${productData.price}"` : 'MISSING');
+    
+    if (!productData.name) {
+        console.error('CRITICAL: Product name is missing! This will cause the "Incomplete product data" error.');
+        // Try one more emergency fallback
+        const emergencyName = document.title || 'Unknown Product';
+        console.log('Using emergency fallback name:', emergencyName);
+        productData.name = emergencyName;
+    }
+    
+    if (!productData.product_url) {
+        console.error('CRITICAL: Product URL is missing! This will cause the "Incomplete product data" error.');
+    }
+    
+    console.log('=== END VALIDATION ===');
 
     return productData;
   }
