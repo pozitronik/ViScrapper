@@ -155,10 +155,22 @@ function updateDataPreview(data) {
     { key: 'sku', label: 'SKU' },
     { key: 'price', label: 'Цена', format: (value, data) => value ? `${value} ${data.currency || 'USD'}` : value },
     { key: 'availability', label: 'Доступность', format: (value) => {
-      if (value === 'InStock') return '✅ В наличии';
-      if (value === 'OutOfStock') return '❌ Нет в наличии';
-      if (value === 'PreOrder') return '⏰ Предзаказ';
-      return value;
+      const availabilityMap = {
+        'InStock': '✅ В наличии',
+        'OutOfStock': '❌ Нет в наличии', 
+        'SoldOut': '❌ Распродано',
+        'PreOrder': '⏰ Предзаказ',
+        'PreSale': '⏰ Предпродажа',
+        'BackOrder': '📦 Под заказ',
+        'MadeToOrder': '🔨 Изготовление на заказ',
+        'Discontinued': '🚫 Снят с производства',
+        'InStoreOnly': '🏪 Только в магазине',
+        'OnlineOnly': '💻 Только онлайн',
+        'LimitedAvailability': '⚠️ Ограниченная доступность',
+        'Reserved': '🔒 Зарезервировано'
+      };
+      
+      return availabilityMap[value] || `❓ ${value}`;
     }},
     { key: 'color', label: 'Цвет' },
     { key: 'composition', label: 'Состав' },
@@ -211,18 +223,44 @@ function updateDataPreview(data) {
   }
   
   // Добавляем размеры
-  if (data.sizes && data.sizes.length > 0) {
-    html += `
-      <div class="data-item">
-        <div class="data-label">Размеры:</div>
-        <div class="data-value">${data.sizes.join(', ')}</div>
-      </div>
-    `;
+  if (data.sizes) {
+    // Проверяем тип размеров
+    if (Array.isArray(data.sizes) && data.sizes.length > 0) {
+      // Простые размеры (одноразмерный продукт)
+      html += `
+        <div class="data-item">
+          <div class="data-label">Размеры:</div>
+          <div class="data-value">${data.sizes.join(', ')}</div>
+        </div>
+      `;
+    } else if (data.sizes.combinations) {
+      // Комбинации размеров (двухразмерный продукт)
+      const combinationCount = Object.keys(data.sizes.combinations).length;
+      let combinationPreview = '';
+      
+      if (combinationCount > 0) {
+        const firstKey = Object.keys(data.sizes.combinations)[0];
+        const firstCombination = data.sizes.combinations[firstKey];
+        combinationPreview = `${firstKey}: ${firstCombination.slice(0, 3).join(', ')}${firstCombination.length > 3 ? '...' : ''}`;
+        if (combinationCount > 1) {
+          combinationPreview += ` (+${combinationCount - 1} др.)`;
+        }
+      }
+      
+      html += `
+        <div class="data-item">
+          <div class="data-label">Размеры:</div>
+          <div class="data-value">
+            <small style="color: #666;">${combinationPreview}</small>
+          </div>
+        </div>
+      `;
+    }
   } else {
     html += `
       <div class="data-item">
         <div class="data-label">Размеры:</div>
-        <div class="data-value missing">Отсутствуют</div>
+        <div class="data-value missing">Не найдены</div>
       </div>
     `;
   }

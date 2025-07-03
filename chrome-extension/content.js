@@ -324,8 +324,19 @@ function extractCurrency(jsonData) {
  */
 function extractAvailability(jsonData) {
   if (jsonData && jsonData.offers && jsonData.offers.availability) {
-    return jsonData.offers.availability;
+    const availabilityUrl = jsonData.offers.availability;
+    
+    // Извлекаем тип из URL schema.org
+    if (availabilityUrl.includes('schema.org/')) {
+      const type = availabilityUrl.split('schema.org/').pop();
+      console.log(`Extracted availability type: ${type} from ${availabilityUrl}`);
+      return type;
+    }
+    
+    // Если не URL schema.org, возвращаем как есть
+    return availabilityUrl;
   }
+  
   // Если доступность не найдена, считаем продукт доступным
   return 'InStock';
 }
@@ -381,13 +392,216 @@ function extractImages() {
 }
 
 /**
- * Извлечение размеров (заглушка для сложной логики)
+ * Извлечение размеров продукта
  */
 async function extractSizes() {
-  // Эта функция будет реализована в следующем этапе
-  // с использованием сложной логики из технического задания
-  console.log('Size extraction not implemented yet');
-  return [];
+  try {
+    console.log('Starting size extraction...');
+    
+    const sizeContainer1 = document.querySelector('[data-testid="BoxSelector-size1"]');
+    const sizeContainer2 = document.querySelector('[data-testid="BoxSelector-size2"]');
+    
+    // Проверяем связность контейнеров
+    let areContainersRelated = false;
+    if (sizeContainer1 && sizeContainer2) {
+      const container1Parent = sizeContainer1.closest('.sc-s4utl4-0, .size-selection, .product-variants, .variant-selector, [class*="size"], [class*="variant"]');
+      const container2Parent = sizeContainer2.closest('.sc-s4utl4-0, .size-selection, .product-variants, .variant-selector, [class*="size"], [class*="variant"]');
+      
+      if (container1Parent && container2Parent) {
+        areContainersRelated = container1Parent === container2Parent || 
+                              container1Parent.contains(sizeContainer2) || 
+                              container2Parent.contains(sizeContainer1);
+      }
+      
+      console.log(`Containers related check: ${areContainersRelated}`);
+    }
+    
+    // Проверяем валидность контейнеров
+    let hasValidSize1 = false;
+    let hasValidSize2 = false;
+    let size1Options = [];
+    let size2Options = [];
+    
+    if (sizeContainer1) {
+      size1Options = Array.from(sizeContainer1.querySelectorAll('[role="radio"]'));
+      const enabledSize1Options = size1Options.filter(opt => opt.getAttribute('aria-disabled') !== 'true');
+      hasValidSize1 = enabledSize1Options.length > 0;
+      size1Options = enabledSize1Options;
+    }
+    
+    if (sizeContainer2 && areContainersRelated) {
+      size2Options = Array.from(sizeContainer2.querySelectorAll('[role="radio"]'));
+      const enabledSize2Options = size2Options.filter(opt => opt.getAttribute('aria-disabled') !== 'true');
+      hasValidSize2 = enabledSize2Options.length > 0;
+      size2Options = enabledSize2Options;
+    }
+    
+    console.log(`Size detection: Size1 valid: ${hasValidSize1} (${size1Options.length} options), Size2 valid: ${hasValidSize2} (${size2Options.length} options)`);
+    
+    // Определяем тип продукта
+    const isRealCombination = hasValidSize1 && hasValidSize2 && areContainersRelated;
+    
+    console.log(`Is real combination product: ${isRealCombination}`);
+    
+    if (isRealCombination) {
+      // Двухразмерный продукт - извлекаем комбинации
+      console.log('True dual size selectors detected, extracting combinations...');
+      const combinationResult = await extractSizeCombinations(sizeContainer1, sizeContainer2);
+      if (combinationResult.success) {
+        console.log('Size combinations extracted:', combinationResult.data);
+        return combinationResult.data;
+      } else {
+        console.error('Failed to extract size combinations:', combinationResult.error);
+        return null;
+      }
+    } else if (hasValidSize1) {
+      // Одноразмерный продукт (используем size1)
+      console.log('Single size selector detected (using size1), extracting simple sizes...');
+      const availableSizes = size1Options.map(btn => btn.textContent.trim()).filter(size => size);
+      console.log('Simple sizes extracted:', availableSizes);
+      return availableSizes;
+    } else if (hasValidSize2 && !areContainersRelated) {
+      // Одноразмерный продукт (используем несвязанный size2)
+      console.log('Single size selector detected (using unrelated size2), extracting simple sizes...');
+      const availableSizes = size2Options.map(btn => btn.textContent.trim()).filter(size => size);
+      console.log('Simple sizes extracted:', availableSizes);
+      return availableSizes;
+    } else {
+      console.log('No valid size options found');
+      return [];
+    }
+    
+  } catch (error) {
+    console.error('Error in extractSizes:', error);
+    return [];
+  }
+}
+
+/**
+ * Извлечение комбинаций размеров для двухразмерных продуктов
+ */
+async function extractSizeCombinations(sizeContainer1, sizeContainer2) {
+  try {
+    console.log('Starting size combination extraction...');
+    
+    // Получаем типы размеров
+    const size1Type = getSizeTypeLabel(sizeContainer1);
+    const size2Type = getSizeTypeLabel(sizeContainer2);
+    
+    console.log(`Size types detected: ${size1Type} and ${size2Type}`);
+    
+    // Получаем все опции size1
+    const size1Options = Array.from(sizeContainer1.querySelectorAll('[role="radio"]'));
+    const combinations = {};
+    
+    console.log(`Found ${size1Options.length} size1 options to iterate through`);
+    
+    // Сохраняем оригинальные выборы для восстановления
+    const originallySelected1 = sizeContainer1.querySelector('[role="radio"][aria-checked="true"]');
+    const originallySelected2 = sizeContainer2.querySelector('[role="radio"][aria-checked="true"]');
+    
+    // Итерируемся по каждой опции size1
+    for (let i = 0; i < size1Options.length; i++) {
+      const size1Option = size1Options[i];
+      const size1Value = size1Option.getAttribute('data-value');
+      
+      // Пропускаем disabled опции
+      if (size1Option.getAttribute('aria-disabled') === 'true') {
+        console.log(`Skipping disabled size1 option: ${size1Value}`);
+        continue;
+      }
+      
+      console.log(`Clicking size1 option: ${size1Value}`);
+      
+      // Кликаем по опции size1
+      size1Option.click();
+      
+      // Ждем обновления страницы
+      await wait(200);
+      
+      // Получаем доступные опции size2 после выбора size1
+      const availableSize2Options = Array.from(sizeContainer2.querySelectorAll('[role="radio"][aria-disabled="false"]'));
+      const size2Values = availableSize2Options.map(opt => opt.getAttribute('data-value'));
+      
+      console.log(`Size1 ${size1Value} -> Available size2 options:`, size2Values);
+      
+      if (size2Values.length > 0) {
+        combinations[size1Value] = size2Values;
+      }
+    }
+    
+    // Восстанавливаем оригинальные выборы
+    try {
+      if (originallySelected1) {
+        originallySelected1.click();
+        await wait(100);
+      }
+      if (originallySelected2) {
+        originallySelected2.click();
+        await wait(100);
+      }
+    } catch (e) {
+      console.warn('Could not restore original selections:', e);
+    }
+    
+    console.log('Final combinations extracted:', combinations);
+    
+    return {
+      success: true,
+      data: {
+        size1_type: size1Type,
+        size2_type: size2Type,
+        combinations: combinations
+      }
+    };
+    
+  } catch (error) {
+    console.error('Error extracting size combinations:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Получение типа размера из контейнера
+ */
+function getSizeTypeLabel(sizeContainer) {
+  try {
+    // Ищем label в родительском контейнере
+    const parent = sizeContainer.closest('.sc-s4utl4-0');
+    if (parent) {
+      const labelElement = parent.querySelector('[data-testid]');
+      if (labelElement) {
+        return labelElement.getAttribute('data-testid');
+      }
+    }
+    
+    // Резерв: используем aria-label от radiogroup
+    const ariaLabel = sizeContainer.getAttribute('aria-label');
+    if (ariaLabel) {
+      return ariaLabel;
+    }
+    
+    // Резерв: используем data-testid
+    const testId = sizeContainer.getAttribute('data-testid');
+    if (testId) {
+      return testId.replace('BoxSelector-', '');
+    }
+    
+    return 'Unknown';
+  } catch (e) {
+    console.warn('Could not determine size type label:', e);
+    return 'Unknown';
+  }
+}
+
+/**
+ * Функция ожидания
+ */
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -399,6 +613,7 @@ function validateProductData(data) {
   
   let isValid = true;
   
+  // Проверяем обязательные поля
   requiredFields.forEach(field => {
     if (!data[field]) {
       warnings.push(`Отсутствует обязательное поле: ${field}`);
@@ -406,16 +621,17 @@ function validateProductData(data) {
     }
   });
   
+  // Предупреждения для опциональных полей (не влияют на isValid)
   if (!data.images || data.images.length === 0) {
     warnings.push('Изображения не найдены');
   }
   
   if (!data.sizes || data.sizes.length === 0) {
-    warnings.push('Размеры не найдены');
+    warnings.push('Размеры не извлечены (будет реализовано позже)');
   }
   
   return {
-    isValid: isValid && warnings.length === 0,
+    isValid: isValid, // Только обязательные поля влияют на валидность
     warnings
   };
 }
