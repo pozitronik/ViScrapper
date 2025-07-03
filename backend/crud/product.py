@@ -161,7 +161,7 @@ def compare_product_data(existing_product: Product, new_data: ProductCreate) -> 
         has_changes = True
 
     # Compare sizes
-    existing_size_names = {size.name for size in existing_product.sizes if not size.deleted_at}
+    existing_size_names = {size.size_value for size in existing_product.sizes if not size.deleted_at}
     new_size_names = set(new_data.available_sizes) if new_data.available_sizes else set()
 
     size_changes = {
