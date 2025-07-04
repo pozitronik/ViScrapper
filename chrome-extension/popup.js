@@ -56,13 +56,12 @@ function handleProductChangedNotification(reason) {
     message: 'Нужно обновить страницу' 
   });
   
-  // Меняем кнопку на обновление страницы
-  const actionBtn = document.getElementById('actionBtn');
-  actionBtn.disabled = false;
-  actionBtn.textContent = 'Обновить страницу';
-  actionBtn.className = 'btn btn-secondary';
-  actionBtn.dataset.action = 'refresh';
-  console.log('Button configured for refresh:', actionBtn.dataset.action);
+  // Показываем кнопку обновления, скрываем кнопку отправки
+  const refreshBtn = document.getElementById('refreshBtn');
+  const submitBtn = document.getElementById('submitBtn');
+  
+  refreshBtn.style.display = 'block';
+  submitBtn.style.display = 'none';
   
   // Скрываем превью данных
   const previewContainer = document.getElementById('dataPreview');
@@ -417,15 +416,14 @@ function updateProductStatus(data, statusResponse) {
   
   // Специальная обработка для случая изменения продукта
   if (statusResponse && statusResponse.status === 'changed') {
-    const actionBtn = document.getElementById('actionBtn');
-    actionBtn.disabled = false;
-    actionBtn.textContent = 'Обновить страницу';
-    actionBtn.className = 'btn btn-secondary';
-    actionBtn.dataset.action = 'refresh';
-    console.log('Button configured for refresh in updateProductStatus');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    refreshBtn.style.display = 'block';
+    submitBtn.style.display = 'none';
   } else {
-    // Обновляем состояние кнопки для других случаев
-    updateActionButton();
+    // Обновляем состояние кнопок для других случаев
+    updateButtons();
   }
 }
 
@@ -433,62 +431,62 @@ function updateProductStatus(data, statusResponse) {
  * Настройка обработчиков событий
  */
 function setupEventHandlers() {
-  const actionBtn = document.getElementById('actionBtn');
+  const submitBtn = document.getElementById('submitBtn');
+  const refreshBtn = document.getElementById('refreshBtn');
   
-  // Универсальная кнопка действия
-  actionBtn.addEventListener('click', async () => {
-    const action = actionBtn.dataset.action || 'submit';
-    
-    if (action === 'refresh') {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        chrome.tabs.reload(tabs[0].id);
-        window.close();
-      });
-    } else {
-      await handleSubmit();
-    }
+  // Кнопка отправки
+  submitBtn.addEventListener('click', async () => {
+    await handleSubmit();
   });
   
-  // Обновление состояния кнопки
-  updateActionButton();
+  // Кнопка обновления
+  refreshBtn.addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      chrome.tabs.reload(tabs[0].id);
+      window.close();
+    });
+  });
+  
+  // Обновление состояния кнопок
+  updateButtons();
 }
 
 /**
- * Обновление состояния кнопки действия
+ * Обновление состояния кнопок
  */
-function updateActionButton() {
-  const actionBtn = document.getElementById('actionBtn');
+function updateButtons() {
+  const submitBtn = document.getElementById('submitBtn');
+  const refreshBtn = document.getElementById('refreshBtn');
   
-  // Если нужно обновление страницы, показываем кнопку обновления
-  if (actionBtn.dataset.action === 'refresh') {
-    console.log('Button is set for refresh, skipping update');
-    return; // Кнопка уже настроена в handleProductChangedNotification
+  // Если показывается кнопка обновления, не трогаем состояние
+  if (refreshBtn.style.display !== 'none') {
+    return;
   }
   
-  console.log('Updating action button for submit');
+  // Показываем кнопку отправки, скрываем кнопку обновления
+  submitBtn.style.display = 'block';
+  refreshBtn.style.display = 'none';
   
   const canSubmit = appState.backendStatus === 'available' && 
                    appState.productData && 
                    appState.isDataValid;
   
-  actionBtn.dataset.action = 'submit';
-  actionBtn.className = 'btn btn-primary';
-  actionBtn.disabled = !canSubmit;
+  submitBtn.disabled = !canSubmit;
   
   if (!canSubmit) {
     if (appState.backendStatus !== 'available') {
-      actionBtn.textContent = 'Бэкенд недоступен';
+      submitBtn.textContent = 'Бэкенд недоступен';
     } else if (!appState.productData) {
-      actionBtn.textContent = 'Нет данных';
+      submitBtn.textContent = 'Нет данных';
     } else if (!appState.isDataValid) {
-      actionBtn.textContent = 'Данные некорректны';
+      submitBtn.textContent = 'Данные некорректны';
     }
   } else {
     // Проверяем статус продукта для определения текста кнопки
     if (appState.productStatus === 'existing') {
-      actionBtn.textContent = 'Повторно отправить';
+      submitBtn.textContent = 'Повторно отправить';
     } else {
-      actionBtn.textContent = 'Отправить данные';
+      submitBtn.textContent = 'Отправить данные';
     }
   }
 }
@@ -497,11 +495,11 @@ function updateActionButton() {
  * Обработка отправки данных
  */
 async function handleSubmit() {
-  const actionBtn = document.getElementById('actionBtn');
+  const submitBtn = document.getElementById('submitBtn');
   const commentInput = document.getElementById('commentInput');
   
-  actionBtn.disabled = true;
-  actionBtn.textContent = 'Отправка...';
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Отправка...';
   
   try {
     const dataToSend = {
@@ -518,24 +516,24 @@ async function handleSubmit() {
     
     if (response.error) {
       // Показываем ошибку в кнопке
-      actionBtn.textContent = 'Ошибка отправки - попробуйте снова';
+      submitBtn.textContent = 'Ошибка отправки - попробуйте снова';
       setTimeout(() => {
-        updateActionButton();
+        updateButtons();
       }, 3000);
     } else {
-      actionBtn.textContent = 'Данные отправлены!';
+      submitBtn.textContent = 'Данные отправлены!';
       setTimeout(() => window.close(), 1500);
     }
     
   } catch (error) {
     console.error('Error submitting data:', error);
     // Показываем ошибку в кнопке
-    actionBtn.textContent = 'Ошибка отправки - попробуйте снова';
+    submitBtn.textContent = 'Ошибка отправки - попробуйте снова';
     setTimeout(() => {
-      updateActionButton();
+      updateButtons();
     }, 3000);
   } finally {
-    actionBtn.disabled = false;
+    submitBtn.disabled = false;
   }
 }
 
