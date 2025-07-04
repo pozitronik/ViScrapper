@@ -4,6 +4,7 @@ Telegram service for sending messages and media
 import httpx
 from typing import List, Optional, Dict, Any
 import os
+import json
 
 from utils.logger import get_logger
 from exceptions.base import ExternalServiceException, ValidationException
@@ -75,7 +76,7 @@ class TelegramService:
                 details={"text_length": len(text) if text else 0}
             )
 
-        logger.info(f"Sending message to chat {chat_id}")
+        logger.info(f"Sending message to chat {chat_id} (text length: {len(text)})")
 
         # Prepare request data
         data = {
@@ -91,31 +92,61 @@ class TelegramService:
         if reply_to_message_id:
             data["reply_to_message_id"] = reply_to_message_id
 
+        logger.debug(f"Request data for chat {chat_id}: {data}")
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
+                logger.debug(f"Making POST request to: {self.base_url}/sendMessage")
                 response = await client.post(
                     f"{self.base_url}/sendMessage",
                     data=data
                 )
 
+                logger.debug(f"Response status: {response.status_code}")
+                
                 if response.status_code == 200:
                     result = response.json()
+                    logger.debug(f"Response JSON: {result}")
                     if isinstance(result, dict) and result.get("ok"):
                         logger.info(f"Message sent successfully to {chat_id}")
                         return result
                     else:
-                        logger.error(f"Telegram API error: {result}")
+                        error_code = result.get("error_code", "unknown")
+                        error_description = result.get("description", "Unknown error")
+                        logger.error(f"Telegram API error for chat {chat_id}: Code {error_code}, Description: {error_description}, Full response: {result}")
                         raise ExternalServiceException(
                             service="telegram",
-                            message=f"Telegram API error: {result.get('description', 'Unknown error')}",
-                            details={"telegram_response": result, "chat_id": chat_id, "operation": "send_message"}
+                            message=f"Telegram API error: {error_description}",
+                            details={
+                                "telegram_response": result, 
+                                "chat_id": chat_id, 
+                                "operation": "send_message",
+                                "error_code": error_code,
+                                "bot_token_present": bool(self.bot_token),
+                                "request_data": {k: v for k, v in data.items() if k != "text"}  # Exclude text for privacy
+                            }
                         )
                 else:
-                    logger.error(f"HTTP error {response.status_code}: {response.text}")
+                    response_text = response.text
+                    logger.error(f"HTTP error {response.status_code} for chat {chat_id}: {response_text}")
+                    
+                    # Try to parse JSON error response
+                    try:
+                        error_json = response.json()
+                        logger.error(f"Parsed error response: {error_json}")
+                    except Exception:
+                        logger.error("Could not parse error response as JSON")
+                    
                     raise ExternalServiceException(
                         service="telegram",
                         message=f"HTTP error {response.status_code}",
-                        details={"status_code": response.status_code, "response": response.text, "operation": "send_message"}
+                        details={
+                            "status_code": response.status_code, 
+                            "response": response_text, 
+                            "operation": "send_message",
+                            "chat_id": chat_id,
+                            "bot_token_present": bool(self.bot_token)
+                        }
                     )
 
         except httpx.RequestError as e:
@@ -289,9 +320,13 @@ class TelegramService:
 
             media.append(media_item)
 
+        # Properly serialize media to JSON
+        media_json = json.dumps(media)
+        logger.debug(f"Media JSON for chat {chat_id}: {media_json}")
+
         data = {
             "chat_id": chat_id,
-            "media": str(media).replace("'", '"'),  # Convert to JSON string
+            "media": media_json,
             "disable_notification": disable_notification
         }
 
@@ -315,18 +350,42 @@ class TelegramService:
                         logger.info(f"Media group sent successfully to {chat_id}")
                         return result
                     else:
-                        logger.error(f"Telegram API error: {result}")
+                        error_code = result.get("error_code", "unknown")
+                        error_description = result.get("description", "Unknown error")
+                        logger.error(f"Telegram API error for media group to {chat_id}: Code {error_code}, Description: {error_description}, Full response: {result}")
                         raise ExternalServiceException(
                             service="telegram",
-                            message=f"Telegram API error: {result.get('description', 'Unknown error')}",
-                            details={"telegram_response": result, "chat_id": chat_id, "operation": "send_media_group"}
+                            message=f"Telegram API error: {error_description}",
+                            details={
+                                "telegram_response": result, 
+                                "chat_id": chat_id, 
+                                "operation": "send_media_group",
+                                "error_code": error_code,
+                                "media_count": len(media_paths),
+                                "media_json": media_json
+                            }
                         )
                 else:
-                    logger.error(f"HTTP error {response.status_code}: {response.text}")
+                    response_text = response.text
+                    logger.error(f"HTTP error {response.status_code} for media group to {chat_id}: {response_text}")
+                    
+                    # Try to parse JSON error response
+                    try:
+                        error_json = response.json()
+                        logger.error(f"Parsed media group error response: {error_json}")
+                    except Exception:
+                        logger.error("Could not parse media group error response as JSON")
+                    
                     raise ExternalServiceException(
                         service="telegram",
                         message=f"HTTP error {response.status_code}",
-                        details={"status_code": response.status_code, "response": response.text, "operation": "send_media_group"}
+                        details={
+                            "status_code": response.status_code, 
+                            "response": response_text, 
+                            "operation": "send_media_group",
+                            "chat_id": chat_id,
+                            "media_count": len(media_paths)
+                        }
                     )
         except FileNotFoundError as e:
             raise ValidationException(
@@ -367,32 +426,60 @@ class TelegramService:
             )
 
         logger.info(f"Getting chat info for {chat_id}")
+        logger.debug(f"Chat ID type: {type(chat_id)}, value: {chat_id}")
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
+                logger.debug(f"Making POST request to: {self.base_url}/getChat")
                 response = await client.post(
                     f"{self.base_url}/getChat",
                     data={"chat_id": chat_id}
                 )
 
+                logger.debug(f"Response status for getChat: {response.status_code}")
+
                 if response.status_code == 200:
                     result = response.json()
+                    logger.debug(f"getChat response JSON: {result}")
                     if isinstance(result, dict) and result.get("ok"):
-                        logger.info(f"Chat info retrieved for {chat_id}")
+                        logger.info(f"Chat info retrieved for {chat_id}: {result.get('result', {}).get('title', 'N/A')}")
                         return result
                     else:
-                        logger.error(f"Telegram API error: {result}")
+                        error_code = result.get("error_code", "unknown")
+                        error_description = result.get("description", "Unknown error")
+                        logger.error(f"Telegram API error for getChat {chat_id}: Code {error_code}, Description: {error_description}, Full response: {result}")
                         raise ExternalServiceException(
                             service="telegram",
-                            message=f"Telegram API error: {result.get('description', 'Unknown error')}",
-                            details={"telegram_response": result, "chat_id": chat_id, "operation": "get_chat_info"}
+                            message=f"Telegram API error: {error_description}",
+                            details={
+                                "telegram_response": result, 
+                                "chat_id": chat_id, 
+                                "operation": "get_chat_info",
+                                "error_code": error_code,
+                                "bot_token_present": bool(self.bot_token)
+                            }
                         )
                 else:
-                    logger.error(f"HTTP error {response.status_code}: {response.text}")
+                    response_text = response.text
+                    logger.error(f"HTTP error {response.status_code} for getChat {chat_id}: {response_text}")
+                    
+                    # Try to parse JSON error response
+                    try:
+                        error_json = response.json()
+                        logger.error(f"Parsed getChat error response: {error_json}")
+                    except Exception:
+                        logger.error("Could not parse getChat error response as JSON")
+                    
                     raise ExternalServiceException(
                         service="telegram",
                         message=f"HTTP error {response.status_code}",
-                        details={"status_code": response.status_code, "response": response.text, "operation": "get_chat_info"}
+                        details={
+                            "status_code": response.status_code, 
+                            "response": response_text, 
+                            "operation": "get_chat_info",
+                            "chat_id": chat_id,
+                            "bot_token_present": bool(self.bot_token)
+                        }
                     )
 
         except httpx.RequestError as e:
@@ -403,6 +490,71 @@ class TelegramService:
                 original_exception=e,
                 details={"chat_id": chat_id, "operation": "get_chat_info"}
             )
+
+    async def diagnose_chat(self, chat_id: str) -> Dict[str, Any]:
+        """
+        Diagnose chat accessibility and provide detailed information
+        
+        Args:
+            chat_id: Telegram chat ID to diagnose
+        
+        Returns:
+            Diagnostic information about the chat
+        """
+        if not self.enabled:
+            return {
+                "accessible": False,
+                "reason": "service_disabled",
+                "details": "Telegram service is disabled - bot token not configured"
+            }
+
+        logger.info(f"Diagnosing chat {chat_id}")
+        
+        try:
+            # Try to get chat info first
+            chat_info = await self.get_chat_info(chat_id)
+            
+            if chat_info.get("ok"):
+                chat_result = chat_info.get("result", {})
+                return {
+                    "accessible": True,
+                    "chat_info": {
+                        "id": chat_result.get("id"),
+                        "title": chat_result.get("title"),
+                        "type": chat_result.get("type"),
+                        "username": chat_result.get("username"),
+                        "description": chat_result.get("description", "")[:100]  # First 100 chars
+                    },
+                    "details": "Chat is accessible"
+                }
+            else:
+                return {
+                    "accessible": False,
+                    "reason": "api_error",
+                    "details": chat_info.get("description", "Unknown API error"),
+                    "error_code": chat_info.get("error_code")
+                }
+                
+        except ExternalServiceException as e:
+            error_details = e.details or {}
+            telegram_response = error_details.get("telegram_response", {})
+            
+            return {
+                "accessible": False,
+                "reason": "telegram_api_error",
+                "details": str(e),
+                "error_code": telegram_response.get("error_code"),
+                "description": telegram_response.get("description"),
+                "full_error": telegram_response
+            }
+            
+        except Exception as e:
+            logger.error(f"Unexpected error diagnosing chat {chat_id}: {e}")
+            return {
+                "accessible": False,
+                "reason": "unexpected_error",
+                "details": str(e)
+            }
 
     def is_enabled(self) -> bool:
         """Check if Telegram service is enabled"""

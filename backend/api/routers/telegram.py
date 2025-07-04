@@ -194,6 +194,43 @@ async def test_telegram_channel(
         )
 
 
+@router.post("/channels/diagnose")
+async def diagnose_telegram_channel(
+        test_request: TelegramChannelTest
+) -> Dict[str, Any]:
+    """Diagnose telegram channel with detailed error information"""
+    try:
+        logger.info(f"Diagnosing channel: {test_request.chat_id}")
+        
+        # Get detailed diagnosis
+        diagnosis = await telegram_service.diagnose_chat(test_request.chat_id)
+        
+        # Add additional debugging info
+        diagnosis["debug_info"] = {
+            "service_enabled": telegram_service.is_enabled(),
+            "bot_token_configured": bool(telegram_service.bot_token),
+            "chat_id_type": str(type(test_request.chat_id)),
+            "chat_id_value": test_request.chat_id
+        }
+        
+        return {
+            "success": True,
+            "diagnosis": diagnosis
+        }
+        
+    except Exception as e:
+        logger.error(f"Error diagnosing telegram channel {test_request.chat_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "diagnosis": {
+                "accessible": False,
+                "reason": "diagnosis_failed",
+                "details": f"Failed to diagnose channel: {str(e)}"
+            }
+        }
+
+
 # Post Management Endpoints
 
 @router.get("/posts", response_model=PaginatedResponse[TelegramPost])
