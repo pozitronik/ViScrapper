@@ -246,9 +246,15 @@ async function extractProductData() {
       color: extractColor(),
       composition: extractComposition(),
       item: extractItem(),
-      images: extractImages(),
-      sizes: [] // Будет заполнено позже
+      comment: ''
     };
+    
+    // Извлекаем изображения
+    const allImages = extractImages();
+    if (allImages.length > 0) {
+      productData.main_image_url = allImages[0];
+      productData.all_image_urls = allImages;
+    }
     
     // Извлекаем размеры (это может занять время)
     try {
@@ -262,7 +268,14 @@ async function extractProductData() {
       
       const sizesData = await extractSizes();
       if (sizesData) {
-        productData.sizes = sizesData;
+        // Проверяем тип данных размеров
+        if (Array.isArray(sizesData)) {
+          // Простые размеры
+          productData.available_sizes = sizesData;
+        } else if (sizesData.combinations) {
+          // Комбинации размеров
+          productData.size_combinations = sizesData;
+        }
       }
       
       // Восстанавливаем отслеживание
@@ -648,12 +661,12 @@ function validateProductData(data) {
   });
   
   // Предупреждения для опциональных полей (не влияют на isValid)
-  if (!data.images || data.images.length === 0) {
+  if (!data.all_image_urls || data.all_image_urls.length === 0) {
     warnings.push('Изображения не найдены');
   }
   
-  if (!data.sizes || data.sizes.length === 0) {
-    warnings.push('Размеры не извлечены (будет реализовано позже)');
+  if (!data.available_sizes && !data.size_combinations) {
+    warnings.push('Размеры не извлечены');
   }
   
   return {

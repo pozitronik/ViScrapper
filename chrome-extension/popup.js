@@ -277,17 +277,17 @@ function updateDataPreview(data) {
   });
   
   // Добавляем изображения
-  if (data.images && data.images.length > 0) {
+  if (data.all_image_urls && data.all_image_urls.length > 0) {
     html += `
       <div class="data-item">
         <div class="data-label">Изображения:</div>
         <div class="data-value">
           <div class="images-preview">
-            ${data.images.slice(0, 6).map(img => 
+            ${data.all_image_urls.slice(0, 6).map(img => 
               `<img src="${img}" alt="Product image" class="image-thumbnail">`
             ).join('')}
           </div>
-          <div class="images-count">Всего: ${data.images.length}</div>
+          <div class="images-count">Всего: ${data.all_image_urls.length}</div>
         </div>
       </div>
     `;
@@ -301,39 +301,36 @@ function updateDataPreview(data) {
   }
   
   // Добавляем размеры
-  if (data.sizes) {
-    // Проверяем тип размеров
-    if (Array.isArray(data.sizes) && data.sizes.length > 0) {
-      // Простые размеры (одноразмерный продукт)
-      html += `
-        <div class="data-item">
-          <div class="data-label">Размеры:</div>
-          <div class="data-value">${data.sizes.join(', ')}</div>
-        </div>
-      `;
-    } else if (data.sizes.combinations) {
-      // Комбинации размеров (двухразмерный продукт)
-      const combinationCount = Object.keys(data.sizes.combinations).length;
-      let combinationPreview = '';
-      
-      if (combinationCount > 0) {
-        const firstKey = Object.keys(data.sizes.combinations)[0];
-        const firstCombination = data.sizes.combinations[firstKey];
-        combinationPreview = `${firstKey}: ${firstCombination.slice(0, 3).join(', ')}${firstCombination.length > 3 ? '...' : ''}`;
-        if (combinationCount > 1) {
-          combinationPreview += ` (+${combinationCount - 1} др.)`;
-        }
+  if (data.available_sizes && data.available_sizes.length > 0) {
+    // Простые размеры (одноразмерный продукт)
+    html += `
+      <div class="data-item">
+        <div class="data-label">Размеры:</div>
+        <div class="data-value">${data.available_sizes.join(', ')}</div>
+      </div>
+    `;
+  } else if (data.size_combinations && data.size_combinations.combinations) {
+    // Комбинации размеров (двухразмерный продукт)
+    const combinationCount = Object.keys(data.size_combinations.combinations).length;
+    let combinationPreview = '';
+    
+    if (combinationCount > 0) {
+      const firstKey = Object.keys(data.size_combinations.combinations)[0];
+      const firstCombination = data.size_combinations.combinations[firstKey];
+      combinationPreview = `${firstKey}: ${firstCombination.slice(0, 3).join(', ')}${firstCombination.length > 3 ? '...' : ''}`;
+      if (combinationCount > 1) {
+        combinationPreview += ` (+${combinationCount - 1} др.)`;
       }
-      
-      html += `
-        <div class="data-item">
-          <div class="data-label">Размеры:</div>
-          <div class="data-value">
-            <small style="color: #666;">${combinationPreview}</small>
-          </div>
-        </div>
-      `;
     }
+    
+    html += `
+      <div class="data-item">
+        <div class="data-label">Размеры:</div>
+        <div class="data-value">
+          <small style="color: #666;">${combinationPreview}</small>
+        </div>
+      </div>
+    `;
   } else {
     html += `
       <div class="data-item">
