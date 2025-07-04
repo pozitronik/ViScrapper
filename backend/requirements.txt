@@ -15,3 +15,4 @@ websockets
 faker
 requests
 sqlalchemy[mypy]
+pytest-xdist
