@@ -138,7 +138,6 @@ async function checkIfPageNeedsRefresh() {
     const jsonLdScript = await waitForJsonLd();
     
     if (!jsonLdScript) {
-      console.warn('JSON-LD script not found after waiting');
       return true; // Требуется обновление
     }
     
@@ -570,8 +569,7 @@ async function extractSizeCombinations(sizeContainer1, sizeContainer2) {
         await wait(100);
       }
     } catch (e) {
-      console.warn('Could not restore original selections:', e);
-    }
+      }
     
     console.log('Final combinations extracted:', combinations);
     
@@ -621,7 +619,6 @@ function getSizeTypeLabel(sizeContainer) {
     
     return 'Unknown';
   } catch (e) {
-    console.warn('Could not determine size type label:', e);
     return 'Unknown';
   }
 }
@@ -723,7 +720,6 @@ async function waitForPageElements() {
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   
-  console.warn('Page elements did not load within timeout, page may not be a valid product page');
 }
 
 // Слушатель события обновления страницы
@@ -792,7 +788,6 @@ function setupJsonLdTracking() {
   const jsonLdElement = document.querySelector('#structured-data-pdp');
   
   if (!jsonLdElement) {
-    console.warn('JSON-LD element #structured-data-pdp not found, will retry in 2 seconds');
     setTimeout(setupJsonLdTracking, 2000);
     return;
   }
