@@ -80,6 +80,41 @@
             border-color: #1d4ed8;
         }
         
+        .thumbnail-container {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .delete-image-btn {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 20px;
+            height: 20px;
+            background: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+            z-index: 10;
+        }
+        
+        .delete-image-btn:hover {
+            background: #b91c1c;
+            transform: scale(1.1);
+        }
+        
+        .delete-image-btn:active {
+            transform: scale(0.95);
+        }
+        
         .product-info {
             display: flex;
             flex-direction: column;
@@ -236,6 +271,39 @@
             padding: 20px;
             border-radius: 8px;
             text-align: center;
+        }
+        
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .toast-success {
+            background: #059669;
+        }
+        
+        .toast-error {
+            background: #dc2626;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
         
         @media (max-width: 768px) {
@@ -559,19 +627,40 @@
 
                 // Main image
                 const mainImage = document.getElementById('main-image');
-                mainImage.src = this.getImageUrl(this.images[0].url);
                 mainImage.alt = this.product.name || 'Product image';
 
-                // Thumbnails
+                // Ensure currentImageIndex is valid
+                if (this.currentImageIndex >= this.images.length) {
+                    this.currentImageIndex = Math.max(0, this.images.length - 1);
+                }
+                
+                // Update main image with current index
+                if (this.images.length > 0) {
+                    mainImage.src = this.getImageUrl(this.images[this.currentImageIndex].url);
+                    mainImage.style.display = 'block';
+                    document.getElementById('image-thumbnails').style.display = 'flex';
+                    document.getElementById('no-images').classList.add('hidden');
+                }
+
+                // Thumbnails with delete buttons
                 const thumbnailsContainer = document.getElementById('image-thumbnails');
                 thumbnailsContainer.innerHTML = this.images
                     .map((image, index) => `
-                        <img 
-                            class="thumbnail ${index === 0 ? 'active' : ''}" 
-                            src="${this.getImageUrl(image.url)}" 
-                            alt="Thumbnail ${index + 1}"
-                            data-index="${index}"
-                        >
+                        <div class="thumbnail-container">
+                            <img 
+                                class="thumbnail ${index === this.currentImageIndex ? 'active' : ''}" 
+                                src="${this.getImageUrl(image.url)}" 
+                                alt="Thumbnail ${index + 1}"
+                                data-index="${index}"
+                            >
+                            <button 
+                                class="delete-image-btn" 
+                                data-image-id="${image.id}"
+                                data-index="${index}"
+                                title="Delete image"
+                                onclick="event.stopPropagation()"
+                            >×</button>
+                        </div>
                     `)
                     .join('');
 
@@ -580,6 +669,16 @@
                     thumb.addEventListener('click', (e) => {
                         const index = parseInt(e.target.dataset.index);
                         this.setActiveImage(index);
+                    });
+                });
+
+                // Add delete button events
+                thumbnailsContainer.querySelectorAll('.delete-image-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const imageId = parseInt(e.target.dataset.imageId);
+                        const index = parseInt(e.target.dataset.index);
+                        this.deleteImage(imageId, index);
                     });
                 });
             }
@@ -603,6 +702,83 @@
                     return filename;
                 }
                 return `/images/${filename}`;
+            }
+
+            async deleteImage(imageId, index) {
+                const imageName = this.images[index]?.url || 'this image';
+                
+                // Show confirmation dialog
+                const confirmed = confirm(`Are you sure you want to delete ${imageName}?`);
+                if (!confirmed) {
+                    return;
+                }
+
+                try {
+                    // Call API to delete image
+                    const response = await fetch(`/api/v1/products/${this.productId}/images/${imageId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error?.message || 'Failed to delete image');
+                    }
+
+                    const result = await response.json();
+                    
+                    // Remove image from local array
+                    this.images.splice(index, 1);
+                    
+                    // Update current image index properly
+                    if (this.currentImageIndex === index) {
+                        // If we deleted the current image, keep the same position if possible
+                        // or move to the previous one if we deleted the last image
+                        this.currentImageIndex = Math.min(this.currentImageIndex, this.images.length - 1);
+                    } else if (this.currentImageIndex > index) {
+                        // If we deleted an image before the current one, shift index down
+                        this.currentImageIndex--;
+                    }
+                    
+                    // Ensure currentImageIndex is valid
+                    this.currentImageIndex = Math.max(0, this.currentImageIndex);
+                    
+                    // Re-render images
+                    this.renderImages();
+                    
+                    // Show success message
+                    this.showSuccessMessage(`Image deleted successfully`);
+                    
+                } catch (error) {
+                    console.error('Error deleting image:', error);
+                    this.showErrorMessage(`Failed to delete image: ${error.message}`);
+                }
+            }
+            
+            showSuccessMessage(message) {
+                // Simple toast notification
+                const toast = document.createElement('div');
+                toast.className = 'toast toast-success';
+                toast.textContent = message;
+                document.body.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.remove();
+                }, 3000);
+            }
+            
+            showErrorMessage(message) {
+                // Simple toast notification
+                const toast = document.createElement('div');
+                toast.className = 'toast toast-error';
+                toast.textContent = message;
+                document.body.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.remove();
+                }, 5000);
             }
 
             setupEventListeners() {

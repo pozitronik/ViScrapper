@@ -8,7 +8,7 @@ get_products, update_product, delete_product, and get_product_count.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import Mock, patch, MagicMock, AsyncMock, call
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -27,7 +27,8 @@ from crud.product import (
     get_product_count,
     create_size_combinations_new,
     create_simple_sizes,
-    filter_duplicate_images_by_hash
+    filter_duplicate_images_by_hash,
+    delete_product_image
 )
 from models.product import Product, Image, Size
 from schemas.product import ProductCreate, ProductUpdate
@@ -1002,3 +1003,163 @@ class TestDeleteProduct:
             delete_product(mock_db, 123)
         
         mock_soft_delete.assert_called_once_with(mock_db, 123)
+
+
+class TestDeleteProductImage:
+    """Test suite for delete_product_image function."""
+
+    @patch('os.path.exists')
+    @patch('os.remove')
+    @patch.dict('os.environ', {'IMAGE_DIR': './test_images'})
+    def test_delete_product_image_success(self, mock_remove, mock_exists):
+        """Test successful deletion of product image."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_image = Mock(spec=Image)
+        mock_image.id = 1
+        mock_image.product_id = 123
+        mock_image.url = "/static/images/test_image.jpg"
+        
+        # Setup query chain
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.first.return_value = mock_image
+        mock_exists.return_value = True
+        
+        # Mock func.now()
+        with patch('sqlalchemy.func.now') as mock_now:
+            mock_now.return_value = datetime.now()
+            
+            result = delete_product_image(mock_db, 123, 1)
+        
+        assert result == mock_image
+        assert mock_image.deleted_at is not None
+        mock_db.commit.assert_called_once()
+        assert mock_exists.call_args_list[-1] == call('./test_images/test_image.jpg')
+        mock_remove.assert_called_once_with('./test_images/test_image.jpg')
+
+    def test_delete_product_image_not_found(self):
+        """Test deletion of non-existent image."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        
+        # Setup query chain to return None
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.first.return_value = None
+        
+        result = delete_product_image(mock_db, 123, 999)
+        
+        assert result is None
+        mock_db.commit.assert_not_called()
+
+    @patch('os.path.exists')
+    @patch('os.remove')
+    def test_delete_product_image_file_not_found(self, mock_remove, mock_exists):
+        """Test deletion when image file doesn't exist on disk."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_image = Mock(spec=Image)
+        mock_image.id = 1
+        mock_image.product_id = 123
+        mock_image.url = "/static/images/missing_image.jpg"
+        
+        # Setup query chain
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.first.return_value = mock_image
+        mock_exists.return_value = False  # File doesn't exist
+        
+        with patch('sqlalchemy.func.now') as mock_now:
+            mock_now.return_value = datetime.now()
+            
+            result = delete_product_image(mock_db, 123, 1)
+        
+        assert result == mock_image
+        assert mock_image.deleted_at is not None
+        mock_db.commit.assert_called_once()
+        # Check that exists was called for our file specifically
+        assert any('./images/missing_image.jpg' in str(call_args) for call_args in mock_exists.call_args_list)
+        mock_remove.assert_not_called()  # Should not try to remove non-existent file
+
+    @patch('os.path.exists')
+    def test_delete_product_image_no_url(self, mock_exists):
+        """Test deletion when image has no URL."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_image = Mock(spec=Image)
+        mock_image.id = 1
+        mock_image.product_id = 123
+        mock_image.url = None  # No URL
+        
+        # Setup query chain
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.first.return_value = mock_image
+        
+        with patch('sqlalchemy.func.now') as mock_now:
+            mock_now.return_value = datetime.now()
+            
+            result = delete_product_image(mock_db, 123, 1)
+        
+        assert result == mock_image
+        assert mock_image.deleted_at is not None
+        mock_db.commit.assert_called_once()
+        mock_exists.assert_not_called()  # Should not check file existence
+
+    def test_delete_product_image_wrong_product(self):
+        """Test deletion when image belongs to different product."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        
+        # Setup query chain to return None (no match for product_id + image_id)
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.first.return_value = None
+        
+        result = delete_product_image(mock_db, 123, 1)  # Image 1 doesn't belong to product 123
+        
+        assert result is None
+        mock_db.commit.assert_not_called()
+
+    def test_delete_product_image_database_exception(self):
+        """Test deletion with database exception."""
+        mock_db = Mock(spec=Session)
+        mock_db.query.side_effect = Exception("Database error")
+        
+        with pytest.raises(DatabaseException) as exc_info:
+            delete_product_image(mock_db, 123, 1)
+        
+        assert "Failed to delete image 1 from product 123" in str(exc_info.value)
+        mock_db.rollback.assert_called_once()
+
+    @patch('os.path.exists')
+    @patch('os.remove')
+    def test_delete_product_image_file_removal_error(self, mock_remove, mock_exists):
+        """Test deletion when file removal fails."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_image = Mock(spec=Image)
+        mock_image.id = 1
+        mock_image.product_id = 123
+        mock_image.url = "/static/images/test_image.jpg"
+        
+        # Setup query chain
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.first.return_value = mock_image
+        mock_exists.return_value = True
+        mock_remove.side_effect = OSError("Permission denied")  # File removal fails
+        
+        with patch('sqlalchemy.func.now') as mock_now:
+            mock_now.return_value = datetime.now()
+            
+            # Should still succeed even if file removal fails
+            with pytest.raises(DatabaseException):
+                delete_product_image(mock_db, 123, 1)

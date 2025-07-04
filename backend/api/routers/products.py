@@ -571,3 +571,29 @@ async def restore_deleted_product(
         data=Product.model_validate(restored_product),
         message="Product restored successfully"
     )
+
+
+@router.delete("/{product_id}/images/{image_id}")
+async def delete_product_image(
+    product_id: int,
+    image_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete a specific image from a product."""
+    from crud.product import get_product_by_id
+    from crud.product import delete_product_image as crud_delete_image
+    
+    # Verify product exists
+    product = get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Delete the image
+    deleted_image = crud_delete_image(db, product_id, image_id)
+    if not deleted_image:
+        raise HTTPException(status_code=404, detail="Image not found for this product")
+    
+    return SuccessResponse(
+        data={"deleted_image_id": image_id, "deleted_image_url": deleted_image.url},
+        message="Image deleted successfully"
+    )

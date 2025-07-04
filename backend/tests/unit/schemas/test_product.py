@@ -465,6 +465,7 @@ class TestProductUpdate:
         assert update.name is None
         assert update.sku is None
         assert update.price is None
+        assert update.selling_price is None
         assert update.currency is None
         assert update.availability is None
         assert update.color is None
@@ -521,6 +522,20 @@ class TestProductUpdate:
         # Invalid URL should raise ValidationError
         with pytest.raises(ValidationError):
             ProductUpdate(product_url="invalid-url")
+
+    def test_product_update_selling_price(self):
+        """Test ProductUpdate selling_price field."""
+        # Test with selling_price set
+        update = ProductUpdate(selling_price=45.99)
+        assert update.selling_price == 45.99
+        
+        # Test with selling_price as zero
+        update_zero = ProductUpdate(selling_price=0.0)
+        assert update_zero.selling_price == 0.0
+        
+        # Test with selling_price as None (default)
+        update_none = ProductUpdate()
+        assert update_none.selling_price is None
 
 
 class TestProduct:
@@ -708,6 +723,195 @@ class TestProduct:
         )
         
         assert isinstance(product, ProductBase)
+
+    def test_product_selling_price_manual_override(self):
+        """Test Product sell_price with manual selling_price override."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=20.00,
+            selling_price=35.00,  # Manual override
+            images=[],
+            sizes=[]
+        )
+        
+        # Should use manual selling_price, not multiplier calculation
+        assert product.sell_price == 35.0
+
+    @patch.dict(os.environ, {"PRICE_MULTIPLIER": "2.0"})
+    def test_product_selling_price_override_ignores_multiplier(self):
+        """Test that manual selling_price ignores PRICE_MULTIPLIER."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.00,
+            selling_price=50.00,  # Manual override
+            images=[],
+            sizes=[]
+        )
+        
+        # Should use manual selling_price (50.00), not price * multiplier (20.00)
+        assert product.sell_price == 50.0
+
+    @patch.dict(os.environ, {"PRICE_MULTIPLIER": "1.5"})
+    def test_product_selling_price_fallback_to_multiplier(self):
+        """Test Product sell_price falls back to multiplier when selling_price is None."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=20.00,
+            selling_price=None,  # No manual override
+            images=[],
+            sizes=[]
+        )
+        
+        # Should use price * multiplier calculation
+        assert product.sell_price == 30.0  # 20.00 * 1.5
+
+    def test_product_selling_price_precision_rounding(self):
+        """Test selling_price precision and rounding."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.00,
+            selling_price=25.999,  # Should be rounded to 2 decimal places
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 26.0  # Rounded to 2 decimal places
+
+    def test_product_selling_price_zero_value(self):
+        """Test selling_price with zero value."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=20.00,
+            selling_price=0.0,  # Zero manual price
+            images=[],
+            sizes=[]
+        )
+        
+        # Should use manual selling_price even if it's 0
+        assert product.sell_price == 0.0
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1"})
+    def test_product_price_rounding_below_threshold(self):
+        """Test price rounding when decimal part is below threshold."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.05,  # 0.05 < 0.1, should not round up
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 10.05
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1"})
+    def test_product_price_rounding_above_threshold(self):
+        """Test price rounding when decimal part is above threshold."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.15,  # 0.15 > 0.1, should round up to 11
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 11.0
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1"})
+    def test_product_price_rounding_exactly_threshold(self):
+        """Test price rounding when decimal part equals threshold."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.1,  # 0.1 = 0.1, should not round up (not greater than)
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 10.1
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1", "PRICE_MULTIPLIER": "1.5"})
+    def test_product_price_rounding_with_multiplier(self):
+        """Test price rounding works with multiplier calculation."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.0,  # 10.0 * 1.5 = 15.0, no rounding needed
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 15.0
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.5", "PRICE_MULTIPLIER": "1.2"})
+    def test_product_price_rounding_complex_case(self):
+        """Test price rounding with multiplier that creates decimal above threshold."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.5,  # 10.5 * 1.2 = 12.6, decimal part 0.6 > 0.5, should round to 13
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 13.0
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.0"})
+    def test_product_price_rounding_disabled(self):
+        """Test price rounding when threshold is 0 (disabled)."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.99,  # Should just round to 2 decimal places
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 10.99
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "invalid"})
+    def test_product_price_rounding_invalid_threshold(self):
+        """Test price rounding with invalid threshold value."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.55,  # Should fallback to normal rounding
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 10.55
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1"})
+    def test_product_price_rounding_with_manual_selling_price(self):
+        """Test price rounding applies to manual selling_price too."""
+        product = Product(
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=10.0,
+            selling_price=25.75,  # 0.75 > 0.1, should round up to 26
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 26.0
 
 
 class TestProductSchemaIntegration:

@@ -49,6 +49,40 @@ class ProductTable {
     }
 
     /**
+     * Update a single product row with new data
+     */
+    updateProductRow(updatedProduct) {
+        // Update the product in internal data
+        const productIndex = this.products.findIndex(p => p.id === updatedProduct.id);
+        if (productIndex !== -1) {
+            this.products[productIndex] = updatedProduct;
+            
+            // Find and replace the row
+            const row = document.querySelector(`tr[data-product-id="${updatedProduct.id}"]`);
+            if (row) {
+                const newRow = this.createProductRow(updatedProduct);
+                row.parentNode.replaceChild(newRow, row);
+                
+                // Re-apply column configuration
+                if (window.columnConfig) {
+                    setTimeout(() => {
+                        window.columnConfig.applyConfiguration();
+                    }, 0);
+                }
+                
+                // Re-initialize inline editor for the new row
+                this.inlineEditor.initializeTable(this.table);
+                
+                // Re-initialize row selection for the new row
+                this.rowSelection.initializeTable(this.table, this.products);
+                
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Update total count display
      */
     updateTotalCount(count) {
@@ -83,6 +117,7 @@ class ProductTable {
         row.appendChild(this.createNameCell(product));
         row.appendChild(this.createSkuCell(product));
         row.appendChild(this.createPriceCell(product));
+        row.appendChild(this.createSellingPriceCell(product));
         row.appendChild(this.createAvailabilityCell(product));
         row.appendChild(this.createColorCell(product));
         row.appendChild(this.createCompositionCell(product));
@@ -257,21 +292,39 @@ class ProductTable {
         
         if (product.price !== null && product.price !== undefined) {
             const formattedPrice = formatCurrency(product.price, product.currency);
-            let priceDisplay = formattedPrice;
-            
-            // Add sell price if available
-            if (product.sell_price !== null && product.sell_price !== undefined) {
-                const formattedSellPrice = formatCurrency(product.sell_price, product.currency);
-                priceDisplay = `${formattedPrice} / ${formattedSellPrice}`;
-            }
-            
-            cell.innerHTML = `<span class="cell-price" title="Original Price / Sell Price">${priceDisplay}</span>`;
+            cell.innerHTML = `<span class="cell-price" title="Original price">${formattedPrice}</span>`;
         } else {
             cell.innerHTML = '<span class="text-muted">-</span>';
         }
         
         // Make editable
         this.inlineEditor.makeEditable(cell, product.id, 'price', product.price);
+        
+        return cell;
+    }
+
+    /**
+     * Create selling price cell
+     */
+    createSellingPriceCell(product) {
+        const cell = createElement('td', {
+            dataset: { column: 'selling_price' }
+        });
+        
+        // Check if selling_price is set manually
+        if (product.selling_price !== null && product.selling_price !== undefined) {
+            const formattedSellingPrice = formatCurrency(product.selling_price, product.currency);
+            cell.innerHTML = `<span class="cell-selling-price manual" title="Manual selling price (click to edit or clear)">${formattedSellingPrice}</span>`;
+        } else if (product.sell_price !== null && product.sell_price !== undefined) {
+            // Show calculated sell_price with indication it's auto-calculated
+            const formattedSellPrice = formatCurrency(product.sell_price, product.currency);
+            cell.innerHTML = `<span class="cell-selling-price auto" title="Auto-calculated selling price (click to set manual override)">${formattedSellPrice}</span>`;
+        } else {
+            cell.innerHTML = '<span class="text-muted" title="Click to set manual selling price">-</span>';
+        }
+        
+        // Make editable - this will allow setting the manual selling_price
+        this.inlineEditor.makeEditable(cell, product.id, 'selling_price', product.selling_price);
         
         return cell;
     }

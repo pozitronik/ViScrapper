@@ -681,8 +681,18 @@ def update_product(db: Session, product_id: int, product_update: ProductUpdate) 
                     details={"product_id": product_id}
                 )
 
-            # Update fields that are provided (not None)
-            update_data = product_update.model_dump(exclude_unset=True, exclude_none=True)
+            # Update fields that are provided
+            # For selling_price, we need to allow null values to clear manual price
+            update_data = product_update.model_dump(exclude_unset=True)
+            
+            # Remove None values except for selling_price which can be explicitly set to None
+            filtered_update_data = {}
+            for key, value in update_data.items():
+                if value is not None or key == 'selling_price':
+                    filtered_update_data[key] = value
+            update_data = filtered_update_data
+            
+            logger.debug(f"Update data after filtering: {update_data}")
 
             # Validate the update data
             if update_data:
@@ -809,5 +819,70 @@ def get_product_count(db: Session, include_deleted: bool = False) -> int:
             message="Failed to get product count",
             operation="get_product_count",
             table="products",
+            original_exception=e
+        )
+
+
+def delete_product_image(db: Session, product_id: int, image_id: int) -> Optional[Image]:
+    """
+    Delete a specific image from a product and remove the file from disk.
+    
+    Args:
+        db: Database session
+        product_id: Product ID that owns the image
+        image_id: Image ID to delete
+        
+    Returns:
+        Deleted Image instance if found and deleted, None otherwise
+    """
+    import os
+    logger.debug(f"Deleting image {image_id} from product {product_id}")
+    
+    try:
+        # Find the image that belongs to the specific product
+        image = db.query(Image).filter(
+            Image.id == image_id,
+            Image.product_id == product_id,
+            Image.deleted_at.is_(None)  # Only active images
+        ).first()
+        
+        if not image:
+            logger.warning(f"Image {image_id} not found for product {product_id}")
+            return None
+        
+        # Extract filename from URL for file deletion
+        image_url = image.url
+        filename = None
+        if image_url:
+            # Extract filename from URL (assuming it's in format like /static/images/filename.jpg)
+            filename = os.path.basename(image_url)
+        
+        # Soft delete the image record
+        from sqlalchemy import func
+        image.deleted_at = func.now()
+        db.commit()
+        
+        # Delete the physical file if it exists
+        if filename:
+            # Get image directory from environment or use default
+            image_dir = os.getenv('IMAGE_DIR', './images')
+            file_path = os.path.join(image_dir, filename)
+            
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                logger.info(f"Deleted image file: {file_path}")
+            else:
+                logger.warning(f"Image file not found: {file_path}")
+        
+        logger.info(f"Successfully deleted image {image_id} from product {product_id}")
+        return image
+        
+    except Exception as e:
+        logger.error(f"Error deleting image {image_id} from product {product_id}: {e}")
+        db.rollback()
+        raise DatabaseException(
+            message=f"Failed to delete image {image_id} from product {product_id}",
+            operation="delete_product_image",
+            table="images",
             original_exception=e
         )

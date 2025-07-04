@@ -200,7 +200,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.875rem;
-    min-width: 1650px; /* Ensure table doesn't get too cramped */
+    min-width: 1750px; /* Ensure table doesn't get too cramped */
 }
 
 .products-table th {
@@ -262,6 +262,7 @@
 .products-table th[data-column="name"] { width: 200px; }
 .products-table th[data-column="sku"] { width: 100px; }
 .products-table th[data-column="price"] { width: 80px; }
+.products-table th[data-column="selling_price"] { width: 100px; }
 .products-table th[data-column="availability"] { width: 100px; }
 .products-table th[data-column="color"] { width: 80px; }
 .products-table th[data-column="composition"] { width: 200px; }
@@ -317,6 +318,38 @@
 .cell-price {
     font-weight: 600;
     color: #059669;
+}
+
+.cell-selling-price {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.cell-selling-price.manual {
+    color: #7c3aed;
+    position: relative;
+}
+
+.cell-selling-price.manual::before {
+    content: "✏️";
+    font-size: 0.7rem;
+    margin-right: 0.25rem;
+}
+
+.cell-selling-price.auto {
+    color: #059669;
+    opacity: 0.8;
+}
+
+.cell-selling-price.auto:hover {
+    opacity: 1;
+    cursor: pointer;
+    background-color: rgba(5, 150, 105, 0.1);
+}
+
+.cell-selling-price.manual:hover {
+    cursor: pointer;
+    background-color: rgba(124, 58, 237, 0.1);
 }
 
 .cell-availability {
@@ -725,6 +758,14 @@
     background-color: #fee2e2;
 }
 
+.edit-btn-clear {
+    color: #d97706;
+}
+
+.edit-btn-clear:hover {
+    background-color: #fef3c7;
+}
+
 .edit-indicator {
     position: absolute;
     top: 2px;
@@ -735,6 +776,15 @@
     border-radius: 50%;
     opacity: 0;
     transition: opacity 0.2s;
+}
+
+.cell-editable {
+    cursor: pointer;
+    position: relative;
+}
+
+.cell-editable:hover {
+    background-color: rgba(102, 126, 234, 0.05);
 }
 
 .cell-editable:hover .edit-indicator {

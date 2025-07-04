@@ -11,6 +11,7 @@ class InlineEditor {
             'name': { type: 'text', required: true },
             'sku': { type: 'text', required: false },
             'price': { type: 'number', required: false, step: '0.01', min: '0' },
+            'selling_price': { type: 'number', required: false, step: '0.01', min: '0', placeholder: 'Set manual selling price' },
             'availability': { type: 'select', options: ['In Stock', 'Out of Stock', 'Limited'] },
             'color': { type: 'text', required: false },
             'composition': { type: 'textarea', required: false },
@@ -376,6 +377,21 @@ class InlineEditor {
             title: 'Cancel (Esc)'
         }, '✕');
 
+        // Add clear button for selling_price field
+        if (field === 'selling_price') {
+            const clearBtn = createElement('button', {
+                className: 'edit-btn edit-btn-clear',
+                title: 'Clear manual price (use auto calculation)'
+            }, '🗑️');
+
+            clearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.clearField();
+            });
+
+            actions.appendChild(clearBtn);
+        }
+
         saveBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.saveEdit();
@@ -478,6 +494,50 @@ class InlineEditor {
     }
 
     /**
+     * Clear the field (set to null) - for selling_price
+     */
+    async clearField() {
+        if (!this.currentlyEditing) return;
+
+        const { cell, productId, field } = this.currentlyEditing;
+        
+        console.log(`Clear field requested: productId=${productId}, field=${field}`);
+        
+        // Only allow clearing for selling_price field
+        if (field !== 'selling_price') {
+            console.log('Clear field rejected: not selling_price field');
+            return;
+        }
+
+        try {
+            // Show loading state
+            this.showSavingState(cell);
+            console.log('Calling onUpdateProduct with null value...');
+
+            // Call update function with null value
+            if (this.onUpdateProduct) {
+                await this.onUpdateProduct(productId, field, null);
+                console.log('onUpdateProduct completed successfully');
+            } else {
+                console.log('No onUpdateProduct handler found');
+            }
+
+            // Update succeeded - restore cell with null value (will show auto-calculated price)
+            this.restoreCell(cell, this.formatDisplayValue(field, null));
+            
+            // Show success animation
+            cell.classList.add('cell-updated');
+            
+            this.currentlyEditing = null;
+            console.log('Clear field completed successfully');
+
+        } catch (error) {
+            console.error('Failed to clear field:', error);
+            this.showValidationError(cell, 'Failed to clear field');
+        }
+    }
+
+    /**
      * Get value from editor element
      */
     getEditorValue(element) {
@@ -517,6 +577,8 @@ class InlineEditor {
         switch (field) {
             case 'price':
                 return `<span class="cell-price">${formatCurrency(value)}</span>`;
+            case 'selling_price':
+                return `<span class="cell-selling-price manual" title="Manual selling price">${formatCurrency(value)}</span>`;
             case 'availability':
                 const availabilityClass = getAvailabilityClass(value);
                 return `<span class="cell-availability ${availabilityClass}">${escapeHtml(value)}</span>`;

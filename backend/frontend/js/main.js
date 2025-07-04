@@ -353,9 +353,20 @@ class VIParserApp {
             updateData[field] = newValue;
             
             // Call API to update product
-            await api.updateProduct(productId, updateData);
+            const response = await api.updateProduct(productId, updateData);
             
             console.log(`Successfully updated product ${productId}`);
+            
+            // For selling_price updates, we need to refresh the product data
+            // to get the updated sell_price calculation
+            if (field === 'selling_price') {
+                // Get the updated product data
+                const updatedProductResponse = await api.getProduct(productId);
+                const updatedProduct = updatedProductResponse.data || updatedProductResponse;
+                
+                // Update the row with new data
+                this.table.updateProductRow(updatedProduct);
+            }
             
         } catch (error) {
             console.error(`Failed to update product ${productId}:`, error);

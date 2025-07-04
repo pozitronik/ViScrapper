@@ -503,3 +503,69 @@ class TestProductsAPI:
         data = response.json()
         assert data["name"] == sample_product_data["name"]
         assert data["sku"] == sample_product_data["sku"]
+
+    def test_delete_product_image_success(self, client, create_test_products):
+        """Test successful deletion of product image."""
+        # First create a product with images
+        products = create_test_products(1)
+        product_id = products[0].id
+        
+        # Get the first image ID from the product
+        response = client.get(f"/api/v1/products/{product_id}")
+        assert response.status_code == 200
+        product_data = response.json()["data"]
+        
+        if not product_data["images"]:
+            pytest.skip("No images found in test product")
+        
+        image_id = product_data["images"][0]["id"]
+        
+        # Delete the image
+        response = client.delete(f"/api/v1/products/{product_id}/images/{image_id}")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "Image deleted successfully"
+        assert data["data"]["deleted_image_id"] == image_id
+
+    def test_delete_product_image_product_not_found(self, client):
+        """Test deletion of image from non-existent product."""
+        response = client.delete("/api/v1/products/99999/images/1")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "Product not found" in data["error"]["message"]
+
+    def test_delete_product_image_image_not_found(self, client, create_test_products):
+        """Test deletion of non-existent image."""
+        products = create_test_products(1)
+        product_id = products[0].id
+        
+        response = client.delete(f"/api/v1/products/{product_id}/images/99999")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "Image not found for this product" in data["error"]["message"]
+
+    def test_delete_product_image_wrong_product(self, client, create_test_products):
+        """Test deletion of image that belongs to different product."""
+        products = create_test_products(2)
+        product1_id = products[0].id
+        product2_id = products[1].id
+        
+        # Get image from product 1
+        response = client.get(f"/api/v1/products/{product1_id}")
+        assert response.status_code == 200
+        product_data = response.json()["data"]
+        
+        if not product_data["images"]:
+            pytest.skip("No images found in test product")
+        
+        image_id = product_data["images"][0]["id"]
+        
+        # Try to delete it from product 2
+        response = client.delete(f"/api/v1/products/{product2_id}/images/{image_id}")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "Image not found for this product" in data["error"]["message"]

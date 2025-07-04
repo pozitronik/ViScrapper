@@ -43,6 +43,7 @@ class ProductBase(BaseModel):
     name: Optional[str] = None
     sku: Optional[str] = None
     price: Optional[float] = None
+    selling_price: Optional[float] = None
     currency: Optional[str] = None
     availability: Optional[str] = None
     color: Optional[str] = None
@@ -63,6 +64,7 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     sku: Optional[str] = None
     price: Optional[float] = None
+    selling_price: Optional[float] = None
     currency: Optional[str] = None
     availability: Optional[str] = None
     color: Optional[str] = None
@@ -80,14 +82,44 @@ class Product(ProductBase):
 
     @computed_field
     def sell_price(self) -> Optional[float]:
-        """Calculate sell price using PRICE_MULTIPLIER environment variable"""
+        """Calculate sell price using manual selling_price if set, otherwise PRICE_MULTIPLIER with optional rounding"""
+        # If manual selling_price is set, use it
+        if self.selling_price is not None:
+            return self._apply_price_rounding(self.selling_price)
+        
+        # Otherwise use price with multiplier
         if self.price is None:
             return None
 
         try:
             multiplier = float(os.getenv('PRICE_MULTIPLIER', '1.0'))
-            return round(self.price * multiplier, 2)
+            calculated_price = self.price * multiplier
+            return self._apply_price_rounding(calculated_price)
         except (ValueError, TypeError):
             return None
+    
+    def _apply_price_rounding(self, price: float) -> float:
+        """Apply price rounding based on PRICE_ROUNDING_THRESHOLD"""
+        try:
+            threshold = float(os.getenv('PRICE_ROUNDING_THRESHOLD', '0.0'))
+            
+            # If threshold is 0 or negative, just round to 2 decimal places
+            if threshold <= 0:
+                return round(price, 2)
+            
+            # Check if the decimal part exceeds the threshold
+            integer_part = int(price)
+            decimal_part = price - integer_part
+            
+            if decimal_part > threshold:
+                # Round up to the next integer
+                return float(integer_part + 1)
+            else:
+                # Keep as is, just round to 2 decimal places
+                return round(price, 2)
+                
+        except (ValueError, TypeError):
+            # If threshold is invalid, just round to 2 decimal places
+            return round(price, 2)
 
     model_config = ConfigDict(from_attributes=True)

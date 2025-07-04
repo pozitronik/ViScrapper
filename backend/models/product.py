@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON, and_
 from sqlalchemy.orm import relationship, declarative_base
 from typing import TYPE_CHECKING
 
@@ -16,6 +16,7 @@ class Product(Base):
     name = Column(String, index=True)
     sku = Column(String, unique=True, index=True)
     price = Column(Float)
+    selling_price = Column(Float, nullable=True, comment="Manual override for selling price. If null, uses price modifier calculation")
     currency = Column(String)
     availability = Column(String)
     color = Column(String)
@@ -26,8 +27,8 @@ class Product(Base):
     telegram_posted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
-    images = relationship("Image", back_populates="product")
-    sizes = relationship("Size", back_populates="product")
+    images = relationship("Image", back_populates="product", primaryjoin="and_(Product.id == Image.product_id, Image.deleted_at.is_(None))")
+    sizes = relationship("Size", back_populates="product", primaryjoin="and_(Product.id == Size.product_id, Size.deleted_at.is_(None))")
 
 
 class Image(Base):
