@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "VIParser - Victoria's Secret Product Parser",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Автоматический парсер продуктов с Victoria's Secret для VIParser",
   
   "permissions": [
