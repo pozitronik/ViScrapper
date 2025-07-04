@@ -178,9 +178,13 @@ main > *:last-child {
 }
 
 /* Comment textarea */
+.comment-container {
+  position: relative;
+}
+
 textarea {
   width: 100%;
-  padding: 8px;
+  padding: 8px 50px 8px 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-family: inherit;
@@ -196,10 +200,15 @@ textarea:focus {
 }
 
 .char-counter {
-  text-align: right;
+  position: absolute;
+  top: 8px;
+  right: 8px;
   font-size: 11px;
   color: #666;
-  margin-top: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2px 4px;
+  border-radius: 3px;
+  pointer-events: none;
 }
 
 .char-counter.warning {

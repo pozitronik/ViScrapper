@@ -68,10 +68,8 @@ function handleProductChangedNotification(reason) {
   previewContainer.style.display = 'none';
   
   // Скрываем поле комментария
-  const commentInput = document.getElementById('commentInput');
-  const charCounter = document.querySelector('.char-counter');
-  commentInput.style.display = 'none';
-  charCounter.style.display = 'none';
+  const commentContainer = document.querySelector('.comment-container');
+  commentContainer.style.display = 'none';
 }
 
 /**
@@ -176,10 +174,8 @@ async function loadProductData() {
       }
       
       // Скрываем поле комментария
-      const commentInput = document.getElementById('commentInput');
-      const charCounter = document.querySelector('.char-counter');
-      commentInput.style.display = 'none';
-      charCounter.style.display = 'none';
+      const commentContainer = document.querySelector('.comment-container');
+      commentContainer.style.display = 'none';
       
       return;
     }
@@ -210,10 +206,8 @@ async function loadProductData() {
     });
     
     // Скрываем поле комментария
-    const commentInput = document.getElementById('commentInput');
-    const charCounter = document.querySelector('.char-counter');
-    commentInput.style.display = 'none';
-    charCounter.style.display = 'none';
+    const commentContainer = document.querySelector('.comment-container');
+    commentContainer.style.display = 'none';
   }
 }
 
