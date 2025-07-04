@@ -421,11 +421,11 @@ class TestCompareProductData:
     def test_compare_product_data_size_changes(self):
         """Test comparison when sizes have changed."""
         existing_size1 = Mock(spec=Size)
-        existing_size1.name = "S"
+        existing_size1.size_value = "S"
         existing_size1.deleted_at = None
         
         existing_size2 = Mock(spec=Size)
-        existing_size2.name = "M"
+        existing_size2.size_value = "M"
         existing_size2.deleted_at = None
         
         existing_product = Mock(spec=Product)
@@ -507,11 +507,11 @@ class TestCompareProductData:
     def test_compare_product_data_ignore_deleted_sizes(self):
         """Test that deleted sizes are ignored in comparison."""
         existing_size1 = Mock(spec=Size)
-        existing_size1.name = "S"
+        existing_size1.size_value = "S"
         existing_size1.deleted_at = None
         
         deleted_size = Mock(spec=Size)
-        deleted_size.name = "DELETED"
+        deleted_size.size_value = "DELETED"
         deleted_size.deleted_at = datetime.now(timezone.utc)
         
         existing_product = Mock(spec=Product)
