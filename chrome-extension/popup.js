@@ -382,8 +382,14 @@ function updateProductStatus(data, statusResponse) {
       statusClass = 'new';
       break;
     case 'existing':
-      statusText = statusResponse.message || '✅ Уже существует';
       statusClass = 'existing';
+      
+      // Делаем саму надпись ссылкой, если есть URL продукта
+      if (statusResponse.productUrl) {
+        statusText = `<a href="${statusResponse.productUrl}" target="_blank" style="color: #4ade80; text-decoration: underline;">${statusResponse.message || '✅ Продукт уже существует'}</a>`;
+      } else {
+        statusText = statusResponse.message || '✅ Уже существует';
+      }
       break;
     case 'unavailable':
       statusText = statusResponse.message || '❌ Бэкенд недоступен';

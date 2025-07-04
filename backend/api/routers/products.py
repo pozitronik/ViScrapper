@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, desc, asc
+from sqlalchemy import or_, desc, asc, and_
 from typing import List, Optional, Any, Dict
 from datetime import datetime, timedelta, timezone
 
@@ -310,26 +310,73 @@ async def cleanup_old_deleted_products(
 
 @router.get("/search", response_model=PaginatedResponse[Product])
 async def search_products(
-        q: str = Query(..., min_length=1, description="Search query"),
+        q: Optional[str] = Query(None, min_length=1, description="General search query (for backward compatibility)"),
+        sku: Optional[str] = Query(None, min_length=1, description="Search by SKU"),
+        name: Optional[str] = Query(None, min_length=1, description="Search by product name"),
+        url: Optional[str] = Query(None, min_length=1, description="Search by product URL"),
+        comment: Optional[str] = Query(None, min_length=1, description="Search by comment"),
         page: int = Query(1, ge=1, description="Page number"),
         per_page: int = Query(20, ge=1, le=100, description="Items per page"),
         db: Session = Depends(get_db)
 ) -> PaginatedResponse[Product]:
-    """Search products by name, SKU, URL, or comment."""
-    logger.info(f"Searching products with query: '{q}'")
+    """
+    Search products by specific fields or general query.
+    
+    You can search by specific fields (sku, name, url, comment) or use the general 'q' parameter.
+    If both specific fields and 'q' are provided, specific fields take precedence.
+    """
+    # Validate that at least one search parameter is provided
+    if not any([q, sku, name, url, comment]):
+        raise HTTPException(
+            status_code=400, 
+            detail="At least one search parameter must be provided (q, sku, name, url, or comment)"
+        )
+    
+    # Build search conditions
+    search_conditions = []
+    search_info = []
+    
+    if sku:
+        logger.info(f"Searching products by SKU: '{sku}'")
+        search_conditions.append(ProductModel.sku.ilike(f"%{sku}%"))
+        search_info.append(f"SKU: '{sku}'")
+    
+    if name:
+        logger.info(f"Searching products by name: '{name}'")
+        search_conditions.append(ProductModel.name.ilike(f"%{name}%"))
+        search_info.append(f"name: '{name}'")
+    
+    if url:
+        logger.info(f"Searching products by URL: '{url}'")
+        search_conditions.append(ProductModel.product_url.ilike(f"%{url}%"))
+        search_info.append(f"URL: '{url}'")
+    
+    if comment:
+        logger.info(f"Searching products by comment: '{comment}'")
+        search_conditions.append(ProductModel.comment.ilike(f"%{comment}%"))
+        search_info.append(f"comment: '{comment}'")
+    
+    # If no specific fields provided, use general query (backward compatibility)
+    if not search_conditions and q:
+        logger.info(f"Searching products with general query: '{q}'")
+        search_term = f"%{q}%"
+        search_conditions.append(
+            or_(
+                ProductModel.name.ilike(search_term),
+                ProductModel.sku.ilike(search_term),
+                ProductModel.product_url.ilike(search_term),
+                ProductModel.comment.ilike(search_term)
+            )
+        )
+        search_info.append(f"general query: '{q}'")
 
-    search_term = f"%{q}%"
+    # Build final query
     query = db.query(ProductModel).options(
         joinedload(ProductModel.images),
         joinedload(ProductModel.sizes)
     ).filter(
         ProductModel.deleted_at.is_(None),
-        or_(
-            ProductModel.name.ilike(search_term),
-            ProductModel.sku.ilike(search_term),
-            ProductModel.product_url.ilike(search_term),
-            ProductModel.comment.ilike(search_term)
-        )
+        and_(*search_conditions) if len(search_conditions) > 1 else search_conditions[0]
     ).order_by(desc(ProductModel.created_at))
 
     total = query.count()
@@ -338,7 +385,8 @@ async def search_products(
 
     pagination = calculate_pagination(page, per_page, total)
 
-    logger.info(f"Search found {total} products, returning {len(products)} for page {page}")
+    search_criteria = ", ".join(search_info)
+    logger.info(f"Search by {search_criteria} found {total} products, returning {len(products)} for page {page}")
 
     # Convert SQLAlchemy models to Pydantic schemas
     product_schemas = [Product.model_validate(product) for product in products]
@@ -346,7 +394,7 @@ async def search_products(
     return PaginatedResponse(
         data=product_schemas,
         pagination=pagination,
-        message=f"Found {total} products matching search query"
+        message=f"Found {total} products matching search criteria: {search_criteria}"
     )
 
 

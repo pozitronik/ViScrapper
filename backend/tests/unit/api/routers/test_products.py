@@ -388,6 +388,94 @@ class TestProductsAPI:
         
         assert response.status_code == 422  # Validation error
     
+    def test_search_products_by_sku(self, client, create_test_products):
+        """Test searching products by SKU field."""
+        products = create_test_products
+        # Test data has SKUs like "PROD-001", "PROD-002", "PROD-003"
+        
+        response = client.get("/api/v1/products/search?sku=PROD-001")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert len(data["data"]) == 1
+        assert data["data"][0]["sku"] == "PROD-001"
+        assert "SKU: 'PROD-001'" in data["message"]
+    
+    def test_search_products_by_name(self, client, create_test_products):
+        """Test searching products by name field."""
+        response = client.get("/api/v1/products/search?name=Product One")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert len(data["data"]) == 1
+        assert data["data"][0]["name"] == "Product One"
+        assert "name: 'Product One'" in data["message"]
+    
+    def test_search_products_by_url(self, client, create_test_products):
+        """Test searching products by URL field."""
+        products = create_test_products
+        test_url = products[0]["product_url"]
+        
+        response = client.get(f"/api/v1/products/search?url={test_url}")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert len(data["data"]) == 1
+        assert data["data"][0]["product_url"] == test_url
+        assert f"URL: '{test_url}'" in data["message"]
+    
+    def test_search_products_by_comment(self, client, create_test_products):
+        """Test searching products by comment field."""
+        response = client.get("/api/v1/products/search?comment=test comment")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # Results depend on test data, but should not error
+    
+    def test_search_products_multiple_fields(self, client, create_test_products):
+        """Test searching products with multiple specific fields."""
+        response = client.get("/api/v1/products/search?sku=PROD-001&name=Product")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # Should find products matching BOTH criteria (AND operation)
+        assert "SKU: 'PROD-001'" in data["message"]
+        assert "name: 'Product'" in data["message"]
+    
+    def test_search_products_no_parameters_fails(self, client):
+        """Test that search without any parameters fails."""
+        response = client.get("/api/v1/products/search")
+        
+        assert response.status_code == 400
+        data = response.json()
+        assert "At least one search parameter must be provided" in data["error"]["message"]
+    
+    def test_search_products_backward_compatibility(self, client, create_test_products):
+        """Test that old 'q' parameter still works (backward compatibility)."""
+        response = client.get("/api/v1/products/search?q=Product")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert len(data["data"]) == 3  # All products contain "Product"
+        assert "general query: 'Product'" in data["message"]
+    
+    def test_search_products_specific_fields_override_general(self, client, create_test_products):
+        """Test that specific fields take precedence over general 'q' parameter."""
+        response = client.get("/api/v1/products/search?q=Product&sku=PROD-001")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # Should use SKU search, not general search
+        assert "SKU: 'PROD-001'" in data["message"]
+        assert "general query" not in data["message"]
+    
     def test_invalid_pagination_parameters(self, client):
         """Test API behavior with invalid pagination parameters."""
         # Invalid page number
