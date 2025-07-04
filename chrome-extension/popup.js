@@ -191,10 +191,10 @@ async function loadProductData() {
     updateDataPreview(response.data);
     
     // Проверяем статус продукта на бэкенде
-    if (response.data && response.data.sku) {
-      await checkProductStatus(response.data.sku);
+    if (response.data && (response.data.sku || response.data.product_url)) {
+      await checkProductStatus(response.data);
     } else {
-      updateProductStatus(null, { status: 'unknown', message: 'SKU не найден' });
+      updateProductStatus(null, { status: 'unknown', message: 'Недостаточно данных для поиска' });
     }
     
   } catch (error) {
@@ -346,11 +346,11 @@ function updateDataPreview(data) {
 /**
  * Проверка статуса продукта на бэкенде
  */
-async function checkProductStatus(sku) {
+async function checkProductStatus(data) {
   try {
     const response = await new Promise((resolve) => {
       chrome.runtime.sendMessage(
-        { action: 'checkProductStatus', sku: sku },
+        { action: 'checkProductStatus', data: data },
         resolve
       );
     });
@@ -384,27 +384,27 @@ function updateProductStatus(data, statusResponse) {
   
   switch (statusResponse.status) {
     case 'new':
-      statusText = '🆕 Новый продукт';
+      statusText = statusResponse.message || '🆕 Новый продукт';
       statusClass = 'new';
       break;
     case 'existing':
-      statusText = '✅ Уже существует';
+      statusText = statusResponse.message || '✅ Уже существует';
       statusClass = 'existing';
       break;
     case 'unavailable':
-      statusText = '❌ Бэкенд недоступен';
+      statusText = statusResponse.message || '❌ Бэкенд недоступен';
       statusClass = 'unavailable';
       break;
     case 'error':
-      statusText = '⚠️ Не удалось проверить';
+      statusText = statusResponse.message || '⚠️ Не удалось проверить';
       statusClass = 'warning';
       break;
     case 'changed':
-      statusText = '🔄 Нужно обновить страницу';
+      statusText = statusResponse.message || '🔄 Нужно обновить страницу';
       statusClass = 'warning';
       break;
     default:
-      statusText = '❓ Неизвестно';
+      statusText = statusResponse.message || '❓ Неизвестно';
       statusClass = 'warning';
   }
   

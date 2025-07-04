@@ -237,7 +237,7 @@ async function extractProductData() {
     
     // Базовые данные
     const productData = {
-      product_url: window.location.href,
+      product_url: sanitizeProductUrl(window.location.href),
       name: extractName(),
       sku: extractSku(jsonData),
       price: extractPrice(jsonData),
@@ -308,6 +308,25 @@ function parseJsonLd(jsonLdText) {
   } catch (error) {
     console.error('Error parsing JSON-LD:', error);
     return null;
+  }
+}
+
+/**
+ * Сантизация URL продукта - удаляет параметры, которые не влияют на идентификацию продукта
+ */
+function sanitizeProductUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    
+    // Сохраняем только базовую часть URL без параметров
+    // Параметры choice, utm_*, session_id и подобные не влияют на идентификацию продукта
+    const cleanUrl = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`;
+    
+    console.log(`URL sanitized: ${url} -> ${cleanUrl}`);
+    return cleanUrl;
+  } catch (error) {
+    console.error('Error sanitizing URL:', error);
+    return url; // Возвращаем оригинальный URL если не удалось обработать
   }
 }
 
