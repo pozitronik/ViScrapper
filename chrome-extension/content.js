@@ -469,8 +469,30 @@ async function extractSizes() {
   try {
     console.log('Starting size extraction...');
     
+    // Ограничиваем поиск основным блоком продукта
+    const primaryProduct = document.querySelector('[data-testid="PrimaryProduct"]');
+    
+    if (!primaryProduct) {
+      console.log('No PrimaryProduct container found');
+      return [];
+    }
+    
+    console.log('Found PrimaryProduct container, searching within it...');
+    
+    // Проверяем статические размеры (простой текст)
+    const staticSizeContainer = primaryProduct.querySelector('[data-testid="Size"]');
+    
+    if (staticSizeContainer) {
+      console.log('Found static size container, extracting text size...');
+      const staticSize = extractStaticSize(staticSizeContainer);
+      if (staticSize) {
+        console.log('Static size extracted:', staticSize);
+        return [staticSize];
+      }
+    }
+    
     // Проверяем комбинированные размеры (BoxSelector-comboSize)
-    const comboSizeContainer = document.querySelector('[data-testid="BoxSelector-comboSize"]');
+    const comboSizeContainer = primaryProduct.querySelector('[data-testid="BoxSelector-comboSize"]');
     
     if (comboSizeContainer) {
       console.log('Found BoxSelector-comboSize container, extracting combo sizes...');
@@ -481,11 +503,11 @@ async function extractSizes() {
       }
     }
     
-    // Находим первый блок BoxSelector-size1
-    const sizeContainer1 = document.querySelector('[data-testid="BoxSelector-size1"]');
+    // Находим первый блок BoxSelector-size1 внутри PrimaryProduct
+    const sizeContainer1 = primaryProduct.querySelector('[data-testid="BoxSelector-size1"]');
     
     if (!sizeContainer1) {
-      console.log('No BoxSelector-size1 found');
+      console.log('No BoxSelector-size1 found within PrimaryProduct');
       return [];
     }
     
@@ -635,6 +657,39 @@ async function extractSizeCombinations(sizeContainer1, sizeContainer2) {
       success: false,
       error: error.message
     };
+  }
+}
+
+/**
+ * Извлечение статических размеров из data-testid="Size"
+ */
+function extractStaticSize(staticSizeContainer) {
+  try {
+    console.log('Extracting static size...');
+    
+    // Ищем все span элементы внутри контейнера
+    const spans = staticSizeContainer.querySelectorAll('span');
+    
+    // Проходим по всем span'ам и ищем тот, который содержит размер (не "Size")
+    for (const span of spans) {
+      const text = span.textContent.trim();
+      
+      // Пропускаем пустые и служебные тексты
+      if (!text || text === 'Size' || text === 'Размер') {
+        continue;
+      }
+      
+      // Возвращаем первый найденный размер
+      console.log(`Found static size: ${text}`);
+      return text;
+    }
+    
+    console.log('No static size found in container');
+    return null;
+    
+  } catch (error) {
+    console.error('Error extracting static size:', error);
+    return null;
   }
 }
 

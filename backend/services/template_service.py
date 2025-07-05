@@ -169,15 +169,16 @@ class TemplateRenderer:
         # Format creation date
         created_at_str = product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else 'Unknown'
 
-        # Calculate sell price
-        sell_price = None
-        if product.price is not None:
-            try:
-                import os
-                multiplier = float(os.getenv('PRICE_MULTIPLIER', '1.0'))
-                sell_price = round(product.price * multiplier, 2)
-            except (ValueError, TypeError):
-                sell_price = None
+        # Get sell price (uses selling_price if set manually, otherwise calculated with multiplier and rounding)
+        sell_price = getattr(product, 'sell_price', None)
+        
+        # Format sell price without unnecessary decimal zeros
+        def format_price(price):
+            if price is None:
+                return '0'
+            # Remove trailing zeros and decimal point if it's a whole number
+            formatted = f"{float(price):g}"
+            return formatted
 
         # Return both short and long format for compatibility
         product_data = {
@@ -185,13 +186,13 @@ class TemplateRenderer:
             'name': product.name or 'Unnamed Product',
             'sku': product.sku or 'No SKU',
             'price': str(product.price) if product.price is not None else '0.00',
-            'sell_price': str(sell_price) if sell_price is not None else '0.00',
+            'sell_price': format_price(sell_price),
             'currency': product.currency or 'USD',
             'availability': product.availability or 'Unknown',
             'color': product.color or 'Not specified',
             'composition': product.composition or 'Not specified',
             'item': product.item or 'Not specified',
-            'comment': product.comment or 'No comment',
+            'comment': product.comment or '',
             'url': product.product_url or '',
             'id': str(product.id),
             'created_at': created_at_str,
@@ -204,13 +205,13 @@ class TemplateRenderer:
             'product_name': product.name or 'Unnamed Product',
             'product_sku': product.sku or 'No SKU',
             'product_price': str(product.price) if product.price is not None else '0.00',
-            'product_sell_price': str(sell_price) if sell_price is not None else '0.00',
+            'product_sell_price': format_price(sell_price),
             'product_currency': product.currency or 'USD',
             'product_availability': product.availability or 'Unknown',
             'product_color': product.color or 'Not specified',
             'product_composition': product.composition or 'Not specified',
             'product_item': product.item or 'Not specified',
-            'product_comment': product.comment or 'No comment',
+            'product_comment': product.comment or '',
             'product_url': product.product_url or '',
             'product_id': str(product.id),
             'product_created_at': created_at_str,
