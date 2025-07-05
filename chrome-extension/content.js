@@ -469,23 +469,33 @@ async function extractSizes() {
   try {
     console.log('Starting size extraction...');
     
-    const sizeContainer1 = document.querySelector('[data-testid="BoxSelector-size1"]');
-    const sizeContainer2 = document.querySelector('[data-testid="BoxSelector-size2"]');
+    // Проверяем комбинированные размеры (BoxSelector-comboSize)
+    const comboSizeContainer = document.querySelector('[data-testid="BoxSelector-comboSize"]');
     
-    // Проверяем связность контейнеров
-    let areContainersRelated = false;
-    if (sizeContainer1 && sizeContainer2) {
-      const container1Parent = sizeContainer1.closest('.sc-s4utl4-0, .size-selection, .product-variants, .variant-selector, [class*="size"], [class*="variant"]');
-      const container2Parent = sizeContainer2.closest('.sc-s4utl4-0, .size-selection, .product-variants, .variant-selector, [class*="size"], [class*="variant"]');
-      
-      if (container1Parent && container2Parent) {
-        areContainersRelated = container1Parent === container2Parent || 
-                              container1Parent.contains(sizeContainer2) || 
-                              container2Parent.contains(sizeContainer1);
+    if (comboSizeContainer) {
+      console.log('Found BoxSelector-comboSize container, extracting combo sizes...');
+      const comboSizes = extractComboSizes(comboSizeContainer);
+      if (comboSizes.length > 0) {
+        console.log('Combo sizes extracted:', comboSizes);
+        return comboSizes;
       }
-      
-      console.log(`Containers related check: ${areContainersRelated}`);
     }
+    
+    // Находим первый блок BoxSelector-size1
+    const sizeContainer1 = document.querySelector('[data-testid="BoxSelector-size1"]');
+    
+    if (!sizeContainer1) {
+      console.log('No BoxSelector-size1 found');
+      return [];
+    }
+    
+    // Ищем BoxSelector-size2 на том же уровне DOM
+    const sizeContainer2 = findRelatedSizeContainer(sizeContainer1);
+    
+    console.log(`Found size containers: size1=${!!sizeContainer1}, size2=${!!sizeContainer2}`);
+    
+    // Проверяем связность - size2 должен быть на том же уровне DOM
+    const areContainersRelated = !!sizeContainer2;
     
     // Проверяем валидность контейнеров
     let hasValidSize1 = false;
@@ -529,12 +539,6 @@ async function extractSizes() {
       // Одноразмерный продукт (используем size1)
       console.log('Single size selector detected (using size1), extracting simple sizes...');
       const availableSizes = size1Options.map(btn => btn.textContent.trim()).filter(size => size);
-      console.log('Simple sizes extracted:', availableSizes);
-      return availableSizes;
-    } else if (hasValidSize2 && !areContainersRelated) {
-      // Одноразмерный продукт (используем несвязанный size2)
-      console.log('Single size selector detected (using unrelated size2), extracting simple sizes...');
-      const availableSizes = size2Options.map(btn => btn.textContent.trim()).filter(size => size);
       console.log('Simple sizes extracted:', availableSizes);
       return availableSizes;
     } else {
@@ -631,6 +635,80 @@ async function extractSizeCombinations(sizeContainer1, sizeContainer2) {
       success: false,
       error: error.message
     };
+  }
+}
+
+/**
+ * Извлечение комбинированных размеров из BoxSelector-comboSize
+ */
+function extractComboSizes(comboSizeContainer) {
+  try {
+    console.log('Extracting combo sizes...');
+    
+    // Получаем все опции размеров
+    const sizeOptions = Array.from(comboSizeContainer.querySelectorAll('[role="radio"]'));
+    
+    // Фильтруем только доступные (не disabled) размеры
+    const availableOptions = sizeOptions.filter(opt => opt.getAttribute('aria-disabled') !== 'true');
+    
+    // Извлекаем значения размеров
+    const comboSizes = availableOptions.map(option => {
+      // Пробуем получить значение из data-value
+      const dataValue = option.getAttribute('data-value');
+      if (dataValue) {
+        return dataValue.trim();
+      }
+      
+      // Если data-value нет, берем из aria-label
+      const ariaLabel = option.getAttribute('aria-label');
+      if (ariaLabel) {
+        return ariaLabel.trim();
+      }
+      
+      // Если и aria-label нет, берем текстовое содержимое
+      const textContent = option.textContent;
+      if (textContent) {
+        return textContent.trim();
+      }
+      
+      return null;
+    }).filter(size => size && size.length > 0);
+    
+    console.log(`Found ${comboSizes.length} combo sizes:`, comboSizes);
+    return comboSizes;
+    
+  } catch (error) {
+    console.error('Error extracting combo sizes:', error);
+    return [];
+  }
+}
+
+/**
+ * Поиск связанного контейнера size2 на том же уровне DOM
+ */
+function findRelatedSizeContainer(sizeContainer1) {
+  try {
+    // Ищем общий родительский элемент для size селекторов
+    const parentElement = sizeContainer1.closest('.sc-s4utl4-0, .size-selection, .product-variants, .variant-selector, [class*="size"], [class*="variant"]');
+    
+    if (!parentElement) {
+      console.log('No parent element found for size1 container');
+      return null;
+    }
+    
+    // Ищем BoxSelector-size2 внутри того же родительского элемента
+    const sizeContainer2 = parentElement.querySelector('[data-testid="BoxSelector-size2"]');
+    
+    if (sizeContainer2) {
+      console.log('Found related size2 container in the same parent element');
+      return sizeContainer2;
+    }
+    
+    console.log('No related size2 container found in the same parent element');
+    return null;
+  } catch (error) {
+    console.error('Error finding related size container:', error);
+    return null;
   }
 }
 
