@@ -433,14 +433,15 @@ async def create_new_product(
     """
     logger.info(f"Creating new product for URL: {product.product_url}")
 
-    # Check if product already exists
-    existing_product = get_product_by_url(db, url=str(product.product_url))
+    # Check if product already exists by SKU (primary identifier)
+    from crud.product import get_product_by_sku
+    existing_product = get_product_by_sku(db, sku=product.sku)
     if existing_product:
-        logger.warning(f"Product already exists for URL: {product.product_url}")
+        logger.warning(f"Product already exists for SKU: {product.sku}")
         raise ProductException(
-            message="Product with this URL already exists",
-            product_url=str(product.product_url),
-            details={"existing_product_id": existing_product.id}
+            message="Product with this SKU already exists",
+            product_url=str(product.product_url) if product.product_url else None,
+            details={"existing_product_id": existing_product.id, "sku": product.sku}
         )
 
     # Download images if requested and URLs provided

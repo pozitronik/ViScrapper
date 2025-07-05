@@ -78,10 +78,21 @@ async function handleExtractData(sendResponse) {
       return;
     }
     
-    currentProductData = productData;
-    
-    // Проверяем валидность данных
+    // Проверяем валидность данных (в первую очередь SKU)
     const validation = validateProductData(productData);
+    
+    // Если нет SKU - не отправляем данные на бэкенд
+    if (!validation.isValid) {
+      sendResponse({
+        error: 'Продукт не может быть отправлен на сервер: отсутствует SKU',
+        isValid: false,
+        warnings: validation.warnings,
+        needsRefresh: false
+      });
+      return;
+    }
+    
+    currentProductData = productData;
     
     sendResponse({
       data: productData,
@@ -237,7 +248,7 @@ async function extractProductData() {
     
     // Базовые данные
     const productData = {
-      product_url: sanitizeProductUrl(window.location.href),
+      product_url: window.location.href,  // Полный URL с параметрами для хранения
       name: extractName(),
       sku: extractSku(jsonData),
       price: extractPrice(jsonData),
@@ -667,7 +678,7 @@ function wait(ms) {
  */
 function validateProductData(data) {
   const warnings = [];
-  const requiredFields = ['name', 'sku', 'price', 'currency'];
+  const requiredFields = ['sku'];  // SKU - единственное обязательное поле для идентификации
   
   let isValid = true;
   
@@ -679,7 +690,25 @@ function validateProductData(data) {
     }
   });
   
-  // Предупреждения для опциональных полей (не влияют на isValid)
+  // Проверяем, что SKU не пустой
+  if (data.sku && data.sku.trim() === '') {
+    warnings.push('SKU не может быть пустым');
+    isValid = false;
+  }
+  
+  // Предупреждения для важных полей (не влияют на isValid, но рекомендуются)
+  if (!data.name) {
+    warnings.push('Название продукта не найдено');
+  }
+  
+  if (!data.price) {
+    warnings.push('Цена продукта не найдена');
+  }
+  
+  if (!data.currency) {
+    warnings.push('Валюта не найдена');
+  }
+  
   if (!data.all_image_urls || data.all_image_urls.length === 0) {
     warnings.push('Изображения не найдены');
   }
@@ -689,7 +718,7 @@ function validateProductData(data) {
   }
   
   return {
-    isValid: isValid, // Только обязательные поля влияют на валидность
+    isValid: isValid, // Только SKU влияет на валидность - остальное предупреждения
     warnings
   };
 }

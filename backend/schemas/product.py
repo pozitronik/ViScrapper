@@ -39,9 +39,9 @@ class Size(SizeBase):
 
 
 class ProductBase(BaseModel):
-    product_url: HttpUrl
+    sku: str  # SKU - единственный обязательный идентификатор
+    product_url: Optional[HttpUrl] = None  # URL только для хранения
     name: Optional[str] = None
-    sku: Optional[str] = None
     price: Optional[float] = None
     selling_price: Optional[float] = None
     currency: Optional[str] = None
@@ -59,10 +59,10 @@ class ProductCreate(ProductBase):
 
 
 class ProductUpdate(BaseModel):
-    """Schema for updating products - all fields are optional."""
+    """Schema for updating products - all fields are optional. SKU cannot be changed."""
     product_url: Optional[HttpUrl] = None
     name: Optional[str] = None
-    sku: Optional[str] = None
+    # sku excluded - SKU cannot be updated as it's the primary identifier
     price: Optional[float] = None
     selling_price: Optional[float] = None
     currency: Optional[str] = None

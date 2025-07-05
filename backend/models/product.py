@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON, and_
+from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON, and_, Index
 from sqlalchemy.orm import relationship, declarative_base
 from typing import TYPE_CHECKING
 
@@ -12,9 +12,9 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
-    product_url = Column(String, unique=True, index=True)
+    product_url = Column(String, index=True)  # URL для хранения, не уникальный
     name = Column(String, index=True)
-    sku = Column(String, unique=True, index=True)
+    sku = Column(String, index=True)  # Уникальность через составной constraint
     price = Column(Float)
     selling_price = Column(Float, nullable=True, comment="Manual override for selling price. If null, uses price modifier calculation")
     currency = Column(String)
@@ -29,6 +29,13 @@ class Product(Base):
 
     images = relationship("Image", back_populates="product", primaryjoin="and_(Product.id == Image.product_id, Image.deleted_at.is_(None))")
     sizes = relationship("Size", back_populates="product", primaryjoin="and_(Product.id == Size.product_id, Size.deleted_at.is_(None))")
+
+    __table_args__ = (
+        # Составной уникальный индекс: (sku, deleted_at)
+        # В production заменен на partial index через миграцию bd6cc0311453
+        # Но оставлен здесь для совместимости при создании новых баз через create_all()
+        Index('ix_products_sku_deleted_unique', 'sku', 'deleted_at', unique=True),
+    )
 
 
 class Image(Base):

@@ -147,8 +147,8 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
     """
     logger.info(f"Starting product scrape for URL: {product.product_url}")
 
-    # Check if product already exists by URL or SKU
-    existing_result = find_existing_product(db, url=str(product.product_url), sku=product.sku)
+    # Check if product already exists by SKU (primary identifier)
+    existing_result = find_existing_product(db, product.sku)
     existing_product = existing_result['product']
     match_type = existing_result['match_type']
 

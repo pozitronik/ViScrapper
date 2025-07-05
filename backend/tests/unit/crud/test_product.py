@@ -196,80 +196,57 @@ class TestGetProductBySku:
 class TestFindExistingProduct:
     """Test suite for find_existing_product function."""
 
-    @patch('crud.product.get_product_by_url')
     @patch('crud.product.get_product_by_sku')
-    def test_find_existing_product_by_url(self, mock_get_by_sku, mock_get_by_url):
-        """Test finding existing product by URL match."""
-        mock_db = Mock(spec=Session)
-        mock_product = Mock(spec=Product)
-        mock_get_by_url.return_value = mock_product
-        mock_get_by_sku.return_value = None
-        
-        result = find_existing_product(mock_db, "http://example.com/product", "SKU123")
-        
-        assert result['product'] == mock_product
-        assert result['match_type'] == 'url'
-        mock_get_by_url.assert_called_once_with(mock_db, "http://example.com/product", False)
-        mock_get_by_sku.assert_not_called()
-
-    @patch('crud.product.get_product_by_url')
-    @patch('crud.product.get_product_by_sku')
-    def test_find_existing_product_by_sku(self, mock_get_by_sku, mock_get_by_url):
+    def test_find_existing_product_by_sku_found(self, mock_get_by_sku):
         """Test finding existing product by SKU match."""
         mock_db = Mock(spec=Session)
         mock_product = Mock(spec=Product)
-        mock_get_by_url.return_value = None
         mock_get_by_sku.return_value = mock_product
         
-        result = find_existing_product(mock_db, "http://example.com/product", "SKU123")
+        result = find_existing_product(mock_db, "SKU123")
         
         assert result['product'] == mock_product
         assert result['match_type'] == 'sku'
-        mock_get_by_url.assert_called_once_with(mock_db, "http://example.com/product", False)
         mock_get_by_sku.assert_called_once_with(mock_db, "SKU123", False)
 
-    @patch('crud.product.get_product_by_url')
     @patch('crud.product.get_product_by_sku')
-    def test_find_existing_product_not_found(self, mock_get_by_sku, mock_get_by_url):
-        """Test finding existing product when none exists."""
+    def test_find_existing_product_by_sku_not_found(self, mock_get_by_sku):
+        """Test finding existing product when SKU doesn't exist."""
         mock_db = Mock(spec=Session)
-        mock_get_by_url.return_value = None
         mock_get_by_sku.return_value = None
         
-        result = find_existing_product(mock_db, "http://example.com/product", "SKU123")
+        result = find_existing_product(mock_db, "SKU123")
         
         assert result['product'] is None
         assert result['match_type'] is None
-        mock_get_by_url.assert_called_once()
-        mock_get_by_sku.assert_called_once()
+        mock_get_by_sku.assert_called_once_with(mock_db, "SKU123", False)
 
-    @patch('crud.product.get_product_by_url')
     @patch('crud.product.get_product_by_sku')
-    def test_find_existing_product_no_sku(self, mock_get_by_sku, mock_get_by_url):
-        """Test finding existing product when no SKU provided."""
-        mock_db = Mock(spec=Session)
-        mock_get_by_url.return_value = None
-        
-        result = find_existing_product(mock_db, "http://example.com/product")
-        
-        assert result['product'] is None
-        assert result['match_type'] is None
-        mock_get_by_url.assert_called_once()
-        mock_get_by_sku.assert_not_called()
-
-    @patch('crud.product.get_product_by_url')
-    @patch('crud.product.get_product_by_sku')
-    def test_find_existing_product_include_deleted(self, mock_get_by_sku, mock_get_by_url):
-        """Test finding existing product with include_deleted flag."""
+    def test_find_existing_product_sku_only(self, mock_get_by_sku):
+        """Test finding existing product with SKU only (no URL)."""
         mock_db = Mock(spec=Session)
         mock_product = Mock(spec=Product)
-        mock_get_by_url.return_value = mock_product
+        mock_get_by_sku.return_value = mock_product
         
-        result = find_existing_product(mock_db, "http://example.com/product", "SKU123", include_deleted=True)
+        result = find_existing_product(mock_db, "SKU123")
         
         assert result['product'] == mock_product
-        assert result['match_type'] == 'url'
-        mock_get_by_url.assert_called_once_with(mock_db, "http://example.com/product", True)
+        assert result['match_type'] == 'sku'
+        mock_get_by_sku.assert_called_once_with(mock_db, "SKU123", False)
+
+    @patch('crud.product.get_product_by_sku')
+    def test_find_existing_product_include_deleted(self, mock_get_by_sku):
+        """Test finding existing product including deleted ones."""
+        mock_db = Mock(spec=Session)
+        mock_product = Mock(spec=Product)
+        mock_get_by_sku.return_value = mock_product
+        
+        result = find_existing_product(mock_db, "SKU123", include_deleted=True)
+        
+        assert result['product'] == mock_product
+        assert result['match_type'] == 'sku'
+        mock_get_by_sku.assert_called_once_with(mock_db, "SKU123", True)
+
 
 
 class TestCompareProductData:

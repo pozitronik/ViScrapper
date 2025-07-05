@@ -65,31 +65,24 @@ def get_product_by_sku(db: Session, sku: str, include_deleted: bool = False) -> 
     return product
 
 
-def find_existing_product(db: Session, url: str, sku: Optional[str] = None, include_deleted: bool = False) -> Dict[str, Any]:
+def find_existing_product(db: Session, sku: str, include_deleted: bool = False) -> Dict[str, Any]:
     """
-    Find an existing product by URL or SKU.
+    Find an existing product by SKU (primary identifier).
     
     Args:
         db: Database session
-        url: Product URL to search for
-        sku: Product SKU to search for (optional)
+        sku: Product SKU to search for (required)
         include_deleted: Whether to include soft-deleted products
         
     Returns:
-        Dict with keys: 'product', 'match_type' ('url', 'sku', or None)
+        Dict with keys: 'product', 'match_type' ('sku' or None)
     """
-    logger.debug(f"Searching for existing product with URL: {url}, SKU: {sku}")
+    logger.debug(f"Searching for existing product with SKU: {sku}")
 
-    # First check for URL match
-    url_product = get_product_by_url(db, url, include_deleted)
-    if url_product:
-        return {'product': url_product, 'match_type': 'url'}
-
-    # Then check for SKU match if SKU is provided
-    if sku:
-        sku_product = get_product_by_sku(db, sku, include_deleted)
-        if sku_product:
-            return {'product': sku_product, 'match_type': 'sku'}
+    # Check for SKU match (only identification method)
+    sku_product = get_product_by_sku(db, sku, include_deleted)
+    if sku_product:
+        return {'product': sku_product, 'match_type': 'sku'}
 
     return {'product': None, 'match_type': None}
 
@@ -264,17 +257,10 @@ def create_product(db: Session, product: ProductCreate, downloaded_images_metada
         error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
 
         # Determine specific constraint violation
-        if "UNIQUE constraint failed: products.product_url" in error_msg:
+        if "UNIQUE constraint failed: products.sku" in error_msg or "ix_products_sku_deleted_unique" in error_msg:
             raise ProductException(
-                message="Product with this URL already exists",
-                product_url=str(product.product_url),
-                details={"constraint": "product_url_unique"},
-                original_exception=e
-            )
-        elif "UNIQUE constraint failed: products.sku" in error_msg:
-            raise ProductException(
-                message="Product with this SKU already exists",
-                product_url=str(product.product_url),
+                message="Product with this SKU already exists among active products",
+                product_url=str(product.product_url) if product.product_url else None,
                 details={"constraint": "sku_unique", "sku": product.sku},
                 original_exception=e
             )
@@ -719,15 +705,9 @@ def update_product(db: Session, product_id: int, product_update: ProductUpdate) 
     except IntegrityError as e:
         error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
 
-        if "UNIQUE constraint failed: products.product_url" in error_msg:
+        if "UNIQUE constraint failed: products.sku" in error_msg or "ix_products_sku_deleted_unique" in error_msg:
             raise ProductException(
-                message="Product URL already exists",
-                details={"product_id": product_id, "constraint": "product_url_unique"},
-                original_exception=e
-            )
-        elif "UNIQUE constraint failed: products.sku" in error_msg:
-            raise ProductException(
-                message="Product SKU already exists",
+                message="Product SKU already exists among active products",
                 details={"product_id": product_id, "constraint": "sku_unique"},
                 original_exception=e
             )
