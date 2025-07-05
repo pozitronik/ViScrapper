@@ -13,6 +13,7 @@ from crud.product import get_product_by_id
 from crud.template import get_template_by_id
 from utils.logger import get_logger
 from exceptions.base import ValidationException
+from schemas.product import Product as ProductSchema
 
 logger = get_logger(__name__)
 
@@ -169,8 +170,14 @@ class TemplateRenderer:
         # Format creation date
         created_at_str = product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else 'Unknown'
 
-        # Get sell price (uses selling_price if set manually, otherwise calculated with multiplier and rounding)
-        sell_price = getattr(product, 'sell_price', None)
+        # Get sell price using Pydantic schema's computed field
+        try:
+            # Create Pydantic object to use computed sell_price property
+            product_schema = ProductSchema.model_validate(product)
+            sell_price = product_schema.sell_price
+        except Exception as e:
+            logger.warning(f"Failed to create ProductSchema for sell_price calculation: {e}")
+            sell_price = None
         
         # Format sell price without unnecessary decimal zeros
         def format_price(price):
