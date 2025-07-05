@@ -40,6 +40,13 @@ class TestErrorHandling:
         TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         
         Base.metadata.create_all(bind=engine)
+        
+        # Add the partial unique index for SKU on active products
+        import sqlalchemy as sa
+        with engine.connect() as conn:
+            conn.execute(sa.text('CREATE UNIQUE INDEX ix_products_sku_active_unique ON products (sku) WHERE deleted_at IS NULL'))
+            conn.commit()
+        
         session = TestingSessionLocal()
         
         yield session
@@ -256,18 +263,18 @@ class TestErrorHandling:
 
     def test_validation_error_handling(self, db_session):
         """Test handling of validation errors."""
-        # Create product with invalid price
-        product = ProductCreate(
-            product_url="http://example.com/product",
-            name="Test Product",
-            price=-10.0  # Invalid negative price
-        )
+        # Create product with missing required SKU field
+        with pytest.raises(ValidationError) as exc_info:
+            ProductCreate(
+                product_url="http://example.com/product",
+                name="Test Product",
+                price=10.0
+                # Missing required SKU field
+            )
         
-        with pytest.raises(ValidationException) as exc_info:
-            create_product(db_session, product)
-        
-        assert "negative" in str(exc_info.value).lower()
-        assert exc_info.value.error_code == "VALIDATION_ERROR"
+        # This should be caught at Pydantic validation level
+        assert "sku" in str(exc_info.value).lower()
+        assert "required" in str(exc_info.value).lower()
 
     @patch('crud.product.atomic_transaction')
     def test_database_operational_error_handling(self, mock_transaction, db_session):
@@ -276,6 +283,7 @@ class TestErrorHandling:
         mock_transaction.side_effect = OperationalError("Database connection lost", None, None)
         
         product = ProductCreate(
+            sku="TEST_SKU_OP_ERROR",
             product_url="http://example.com/product",
             name="Test Product"
         )

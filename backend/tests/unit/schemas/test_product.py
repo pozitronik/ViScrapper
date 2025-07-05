@@ -308,19 +308,19 @@ class TestProductBase:
 
     def test_product_base_minimal(self):
         """Test ProductBase with minimal required data."""
-        product = ProductBase(product_url="https://example.com/product/123")
+        product = ProductBase(sku="SKU123")
         
-        assert str(product.product_url) == "https://example.com/product/123"
+        assert product.sku == "SKU123"
+        assert product.product_url is None
         assert product.name is None
-        assert product.sku is None
         assert product.price is None
 
     def test_product_base_full(self):
         """Test ProductBase with all fields."""
         product = ProductBase(
+            sku="SKU123",
             product_url="https://shop.example.com/item/456",
             name="Test Product",
-            sku="SKU123",
             price=29.99,
             currency="USD",
             availability="In Stock",
@@ -344,35 +344,36 @@ class TestProductBase:
     def test_product_base_url_validation(self):
         """Test ProductBase URL validation."""
         # Valid HTTPS URL
-        product1 = ProductBase(product_url="https://example.com/product")
+        product1 = ProductBase(sku="SKU1", product_url="https://example.com/product")
         assert str(product1.product_url) == "https://example.com/product"
         
         # Valid HTTP URL
-        product2 = ProductBase(product_url="http://localhost:8000/product")
+        product2 = ProductBase(sku="SKU2", product_url="http://localhost:8000/product")
         assert str(product2.product_url) == "http://localhost:8000/product"
         
         # Invalid URL should raise ValidationError
         with pytest.raises(ValidationError) as exc_info:
-            ProductBase(product_url="not-a-url")
+            ProductBase(sku="SKU3", product_url="not-a-url")
         assert "url" in str(exc_info.value).lower()
 
     def test_product_base_price_types(self):
         """Test ProductBase price field type handling."""
         # Float price
-        product1 = ProductBase(product_url="https://example.com/1", price=19.99)
+        product1 = ProductBase(sku="SKU1", price=19.99)
         assert product1.price == 19.99
         
         # Integer price (should be converted to float)
-        product2 = ProductBase(product_url="https://example.com/2", price=25)
+        product2 = ProductBase(sku="SKU2", price=25)
         assert product2.price == 25.0
         
         # String price (should be converted)
-        product3 = ProductBase(product_url="https://example.com/3", price="15.50")
+        product3 = ProductBase(sku="SKU3", price="15.50")
         assert product3.price == 15.50
 
     def test_product_base_serialization(self):
         """Test ProductBase serialization."""
         product = ProductBase(
+            sku="TEST123",
             product_url="https://example.com/product",
             name="Test Item",
             price=12.34
@@ -392,6 +393,7 @@ class TestProductCreate:
     def test_product_create_basic(self):
         """Test basic ProductCreate functionality."""
         product = ProductCreate(
+            sku="NEW123",
             product_url="https://example.com/new-product",
             name="New Product",
             all_image_urls=["https://example.com/img1.jpg", "https://example.com/img2.jpg"],
@@ -415,6 +417,7 @@ class TestProductCreate:
         }
         
         product = ProductCreate(
+            sku="BRA123",
             product_url="https://example.com/bra",
             size_combinations=size_combinations
         )
@@ -424,6 +427,7 @@ class TestProductCreate:
     def test_product_create_empty_lists(self):
         """Test ProductCreate with empty lists."""
         product = ProductCreate(
+            sku="EMPTY123",
             product_url="https://example.com/product",
             all_image_urls=[],
             available_sizes=[]
@@ -434,7 +438,7 @@ class TestProductCreate:
 
     def test_product_create_default_values(self):
         """Test ProductCreate default values."""
-        product = ProductCreate(product_url="https://example.com/product")
+        product = ProductCreate(sku="DEFAULT123", product_url="https://example.com/product")
         
         assert product.all_image_urls == []
         assert product.available_sizes == []
@@ -443,6 +447,7 @@ class TestProductCreate:
     def test_product_create_inheritance(self):
         """Test that ProductCreate inherits from ProductBase."""
         product = ProductCreate(
+            sku="INHERIT123",
             product_url="https://example.com/product",
             name="Inherited Product",
             price=99.99
@@ -463,7 +468,6 @@ class TestProductUpdate:
         
         assert update.product_url is None
         assert update.name is None
-        assert update.sku is None
         assert update.price is None
         assert update.selling_price is None
         assert update.currency is None
@@ -484,7 +488,6 @@ class TestProductUpdate:
         assert update.name == "Updated Name"
         assert update.price == 49.99
         assert update.color == "Red"
-        assert update.sku is None
         assert update.currency is None
 
     def test_product_update_full(self):
@@ -492,7 +495,6 @@ class TestProductUpdate:
         update = ProductUpdate(
             product_url="https://example.com/updated-product",
             name="Fully Updated Product",
-            sku="UPD123",
             price=79.99,
             currency="EUR",
             availability="Limited",
@@ -504,7 +506,6 @@ class TestProductUpdate:
         
         assert str(update.product_url) == "https://example.com/updated-product"
         assert update.name == "Fully Updated Product"
-        assert update.sku == "UPD123"
         assert update.price == 79.99
         assert update.currency == "EUR"
         assert update.availability == "Limited"
@@ -547,6 +548,7 @@ class TestProduct:
         
         product = Product(
             id=1,
+            sku="PROD123",
             product_url="https://example.com/product/1",
             name="Test Product",
             created_at=now,
@@ -577,6 +579,7 @@ class TestProduct:
         ]
         
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             name="Product with Images and Sizes",
@@ -597,6 +600,7 @@ class TestProduct:
     def test_product_sell_price_with_multiplier(self):
         """Test Product sell_price computation with multiplier."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -611,6 +615,7 @@ class TestProduct:
     def test_product_sell_price_rounding(self):
         """Test Product sell_price rounding."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -624,6 +629,7 @@ class TestProduct:
     def test_product_sell_price_no_price(self):
         """Test Product sell_price when price is None."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -638,6 +644,7 @@ class TestProduct:
     def test_product_sell_price_default_multiplier(self):
         """Test Product sell_price with default multiplier."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -652,6 +659,7 @@ class TestProduct:
     def test_product_sell_price_invalid_multiplier(self):
         """Test Product sell_price with invalid multiplier."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -669,6 +677,7 @@ class TestProduct:
         # Missing id
         with pytest.raises(ValidationError) as exc_info:
             Product(
+                sku="MISSING_ID",
                 product_url="https://example.com/product",
                 created_at=now,
                 images=[],
@@ -680,6 +689,7 @@ class TestProduct:
         with pytest.raises(ValidationError) as exc_info:
             Product(
                 id=1,
+                sku="MISSING_CREATED_AT",
                 product_url="https://example.com/product",
                 images=[],
                 sizes=[]
@@ -692,6 +702,7 @@ class TestProduct:
         
         with patch.dict(os.environ, {"PRICE_MULTIPLIER": "1.2"}):
             product = Product(
+            sku="TEST_SKU",
                 id=1,
                 product_url="https://example.com/product/1",
                 name="Serialization Test",
@@ -714,6 +725,7 @@ class TestProduct:
     def test_product_inheritance(self):
         """Test that Product inherits from ProductBase."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product",
             name="Inheritance Test",
@@ -727,6 +739,7 @@ class TestProduct:
     def test_product_selling_price_manual_override(self):
         """Test Product sell_price with manual selling_price override."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -743,6 +756,7 @@ class TestProduct:
     def test_product_selling_price_override_ignores_multiplier(self):
         """Test that manual selling_price ignores PRICE_MULTIPLIER."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -759,6 +773,7 @@ class TestProduct:
     def test_product_selling_price_fallback_to_multiplier(self):
         """Test Product sell_price falls back to multiplier when selling_price is None."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -774,6 +789,7 @@ class TestProduct:
     def test_product_selling_price_precision_rounding(self):
         """Test selling_price precision and rounding."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -788,6 +804,7 @@ class TestProduct:
     def test_product_selling_price_zero_value(self):
         """Test selling_price with zero value."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -804,6 +821,7 @@ class TestProduct:
     def test_product_price_rounding_below_threshold(self):
         """Test price rounding when decimal part is below threshold."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -818,6 +836,7 @@ class TestProduct:
     def test_product_price_rounding_above_threshold(self):
         """Test price rounding when decimal part is above threshold."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -832,6 +851,7 @@ class TestProduct:
     def test_product_price_rounding_exactly_threshold(self):
         """Test price rounding when decimal part equals threshold."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -846,6 +866,7 @@ class TestProduct:
     def test_product_price_rounding_with_multiplier(self):
         """Test price rounding works with multiplier calculation."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -860,6 +881,7 @@ class TestProduct:
     def test_product_price_rounding_complex_case(self):
         """Test price rounding with multiplier that creates decimal above threshold."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -874,6 +896,7 @@ class TestProduct:
     def test_product_price_rounding_disabled(self):
         """Test price rounding when threshold is 0 (disabled)."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -888,6 +911,7 @@ class TestProduct:
     def test_product_price_rounding_invalid_threshold(self):
         """Test price rounding with invalid threshold value."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -902,6 +926,7 @@ class TestProduct:
     def test_product_price_rounding_with_manual_selling_price(self):
         """Test price rounding applies to manual selling_price too."""
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
@@ -935,6 +960,7 @@ class TestProductSchemaIntegration:
         ]
         
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/complex-product",
             name="Complex Product",
@@ -958,6 +984,7 @@ class TestProductSchemaIntegration:
         sizes = [Size(id=1, product_id=1, size_type="simple", size_value="M")]
         
         product = Product(
+            sku="TEST_SKU",
             id=1,
             product_url="https://example.com/nested-test",
             name="Nested Test",
@@ -981,6 +1008,7 @@ class TestProductSchemaIntegration:
         """Test type conversions across product schemas."""
         # Test that string numbers are converted properly
         product = Product(
+            sku="TEST_SKU",
             id="1",  # String should convert to int
             product_url="https://example.com/conversion-test",
             price="19.99",  # String should convert to float
@@ -1000,6 +1028,7 @@ class TestProductSchemaIntegration:
         
         # Test with extreme values
         product = Product(
+            sku="TEST_SKU",
             id=999999999,
             product_url="https://example.com/edge-case",
             price=0.01,  # Very small price
@@ -1015,6 +1044,7 @@ class TestProductSchemaIntegration:
         long_url = "https://example.com/" + "a" * 1000
         product2 = Product(
             id=1,
+            sku="LONG_URL_SKU",
             product_url=long_url,
             created_at=now,
             images=[],

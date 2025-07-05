@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, Column, inspect
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
+import sqlalchemy as sa
 
 from models.product import (
     Base,
@@ -81,6 +82,13 @@ class TestProductModel:
         )
         
         Base.metadata.create_all(bind=engine)
+        
+        # Manually create the partial unique index for SKU on active products
+        # This mimics our migration since SQLAlchemy model definitions don't support partial indexes
+        with engine.connect() as conn:
+            conn.execute(sa.text('CREATE UNIQUE INDEX ix_products_sku_active_unique ON products (sku) WHERE deleted_at IS NULL'))
+            conn.commit()
+        
         TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         
         session = TestingSessionLocal()
@@ -134,8 +142,8 @@ class TestProductModel:
         assert product.item == "Shirt"
         assert product.comment == "Test comment"
 
-    def test_product_url_unique_constraint(self, db_session):
-        """Test that product_url has unique constraint."""
+    def test_product_url_no_unique_constraint(self, db_session):
+        """Test that product_url allows duplicates (no unique constraint)."""
         product1 = Product(
             product_url="https://example.com/duplicate",
             name="Product 1",
@@ -151,11 +159,14 @@ class TestProductModel:
         db_session.commit()
         
         db_session.add(product2)
-        with pytest.raises(IntegrityError):
-            db_session.commit()
+        # Should NOT raise IntegrityError - URLs are not unique anymore
+        db_session.commit()
+        
+        assert product1.id != product2.id
+        assert product1.product_url == product2.product_url
 
-    def test_product_sku_unique_constraint(self, db_session):
-        """Test that SKU has unique constraint."""
+    def test_product_sku_composite_unique_constraint(self, db_session):
+        """Test that SKU has composite unique constraint with deleted_at."""
         product1 = Product(
             product_url="https://example.com/product1",
             name="Product 1",
@@ -170,9 +181,40 @@ class TestProductModel:
         db_session.add(product1)
         db_session.commit()
         
+        # Should fail for same SKU with both deleted_at = NULL (active products)
         db_session.add(product2)
         with pytest.raises(IntegrityError):
             db_session.commit()
+            
+    def test_product_sku_allows_duplicate_after_soft_delete(self, db_session):
+        """Test that SKU allows duplicates when one product is soft-deleted."""
+        product1 = Product(
+            product_url="https://example.com/product1",
+            name="Product 1",
+            sku="REUSABLE-SKU"
+        )
+        
+        db_session.add(product1)
+        db_session.commit()
+        
+        # Soft delete the first product
+        product1.deleted_at = datetime.now(timezone.utc)
+        db_session.commit()
+        
+        # Now we should be able to create a new product with the same SKU
+        product2 = Product(
+            product_url="https://example.com/product2",
+            name="Product 2",
+            sku="REUSABLE-SKU"
+        )
+        
+        db_session.add(product2)
+        # Should NOT raise IntegrityError - one is deleted, one is active
+        db_session.commit()
+        
+        assert product1.deleted_at is not None
+        assert product2.deleted_at is None
+        assert product1.sku == product2.sku
 
     def test_product_soft_delete(self, db_session):
         """Test soft delete functionality."""

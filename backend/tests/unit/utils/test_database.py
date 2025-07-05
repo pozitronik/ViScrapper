@@ -49,6 +49,12 @@ class TestTransactionManagement:
         
         Base.metadata.create_all(bind=engine)
         
+        # Add the partial unique index for SKU on active products
+        import sqlalchemy as sa
+        with engine.connect() as conn:
+            conn.execute(sa.text('CREATE UNIQUE INDEX ix_products_sku_active_unique ON products (sku) WHERE deleted_at IS NULL'))
+            conn.commit()
+        
         session = TestingSessionLocal()
         
         yield session
@@ -253,6 +259,7 @@ class TestTransactionManagement:
         # Pydantic will catch this before our custom validation
         with pytest.raises(ValidationError):
             product_data = ProductCreate(
+                sku="TEST_INVALID",
                 product_url="invalid-url",  # Invalid URL format
                 name="Test Product"
             )
@@ -287,6 +294,7 @@ class TestTransactionManagement:
         """Test that create_product rolls back if images fail but product succeeds."""
         # Create a product with a duplicate image URL to force integrity error
         product_data1 = ProductCreate(
+            sku="TEST_PARTIAL_1",
             product_url="http://example.com/product1",
             name="Test Product 1",
             all_image_urls=["http://example.com/unique_image.jpg"]
@@ -296,6 +304,7 @@ class TestTransactionManagement:
         
         # Try to create another product with the same image URL
         product_data2 = ProductCreate(
+            sku="TEST_PARTIAL_2",
             product_url="http://example.com/product2",
             name="Test Product 2",
             all_image_urls=["http://example.com/unique_image.jpg"]  # Duplicate image URL

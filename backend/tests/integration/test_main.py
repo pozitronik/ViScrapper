@@ -7,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 from main import app
 from database.session import get_db
 from models.product import Base
-from crud.product import get_product_by_url, create_product
+from crud.product import get_product_by_url, get_product_by_sku, create_product
 
 # Setup a test database
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -48,6 +48,7 @@ async def test_scrape_product_success(client, session, mocker):
     mocker.patch("main.download_images", return_value=["image_id_1", "image_id_2"])
 
     product_data = {
+        "sku": "NEW_PRODUCT_123",
         "product_url": "http://example.com/product/new",
         "name": "New Product",
         "price": 100.0,
@@ -65,7 +66,7 @@ async def test_scrape_product_success(client, session, mocker):
     assert data["images"][1]["url"] == "image_id_2"
 
     # Verify product is in the database
-    db_product = get_product_by_url(session, url="http://example.com/product/new")
+    db_product = get_product_by_sku(session, sku="NEW_PRODUCT_123")
     assert db_product is not None
     assert db_product.name == "New Product"
 
@@ -74,6 +75,7 @@ async def test_scrape_product_success(client, session, mocker):
 async def test_scrape_product_already_exists(client, session, mocker):
     # Create a product in the database first
     existing_product_data = {
+        "sku": "EXISTING_PRODUCT_456",
         "product_url": "http://example.com/product/existing",
         "name": "Existing Product",
         "price": 50.0,
@@ -86,6 +88,7 @@ async def test_scrape_product_already_exists(client, session, mocker):
     mocker.patch("main.download_images", return_value=[])
 
     product_data = {
+        "sku": "EXISTING_PRODUCT_456",
         "product_url": "http://example.com/product/existing",
         "name": "Another Product",
         "price": 75.0,
@@ -96,8 +99,10 @@ async def test_scrape_product_already_exists(client, session, mocker):
     assert response.status_code == 200  # Should succeed with update
     response_data = response.json()
     assert "id" in response_data  # Should have product ID
-    # Should return the existing product (potentially updated)
-    assert response_data["product_url"] == "http://example.com/product/existing"
+    # Should return the existing product (potentially updated) - identified by SKU
+    assert response_data["sku"] == "EXISTING_PRODUCT_456"
+    # Name should be updated since it's an existing product
+    assert response_data["name"] == "Another Product"
 
 
 @pytest.mark.asyncio
@@ -106,6 +111,7 @@ async def test_scrape_product_image_download_failure(client, session, mocker):
     mocker.patch("main.download_images", return_value=[])
 
     product_data = {
+        "sku": "NO_IMAGES_789",
         "product_url": "http://example.com/product/no_images",
         "name": "Product with No Images",
         "price": 25.0,
@@ -119,6 +125,6 @@ async def test_scrape_product_image_download_failure(client, session, mocker):
     assert data["images"] == [] # Expecting an empty list if download fails
 
     # Verify product is still created in the database, but with no image IDs
-    db_product = get_product_by_url(session, url="http://example.com/product/no_images")
+    db_product = get_product_by_sku(session, sku="NO_IMAGES_789")
     assert db_product is not None
     assert db_product.images == []
