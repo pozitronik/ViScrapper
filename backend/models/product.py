@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON, and_, Index
+from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Text, Boolean, JSON, Index
 from sqlalchemy.orm import relationship, declarative_base
 from typing import TYPE_CHECKING
 

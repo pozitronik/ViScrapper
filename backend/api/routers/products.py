@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from database.session import get_db
 from schemas.product import Product, ProductCreate, ProductUpdate
 from crud.product import (
-    get_product_by_url, create_product, get_product_by_id,
+    create_product, get_product_by_id,
     update_product
 )
 from crud.delete_operations import (
