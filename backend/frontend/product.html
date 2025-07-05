@@ -330,9 +330,9 @@
 
         <!-- Error State -->
         <div id="error" class="error hidden">
-            <h3>Product Not Found</h3>
+            <h3 id="error-title">Product Not Found</h3>
             <p id="error-message">The requested product could not be found.</p>
-            <button id="back-btn" class="btn btn-primary" onclick="history.back()">← Go Back</button>
+            <button id="back-btn" class="btn btn-primary" onclick="window.location.href='/'">← Go Back</button>
         </div>
 
         <!-- Product Content -->
@@ -346,7 +346,7 @@
                     <button id="edit-btn" class="btn btn-outline">✏️ Edit</button>
                     <button id="telegram-btn" class="btn btn-outline">📤 Post to Telegram</button>
                     <button id="quick-post-btn" class="btn btn-success">⚡ Quick Post</button>
-                    <button id="back-btn-header" class="btn btn-secondary" onclick="history.back()">← Back</button>
+                    <button id="back-btn-header" class="btn btn-secondary" onclick="window.location.href='/'">← Back</button>
                 </div>
             </div>
 

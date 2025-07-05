@@ -304,24 +304,23 @@ function updateDataPreview(data) {
       </div>
     `;
   } else if (data.size_combinations && data.size_combinations.combinations) {
-    // Комбинации размеров (двухразмерный продукт)
-    const combinationCount = Object.keys(data.size_combinations.combinations).length;
-    let combinationPreview = '';
+    // Комбинации размеров (двухразмерный продукт) - показываем все без сокращений
+    const combinations = data.size_combinations.combinations;
+    let combinationDisplay = '';
     
-    if (combinationCount > 0) {
-      const firstKey = Object.keys(data.size_combinations.combinations)[0];
-      const firstCombination = data.size_combinations.combinations[firstKey];
-      combinationPreview = `${firstKey}: ${firstCombination.slice(0, 3).join(', ')}${firstCombination.length > 3 ? '...' : ''}`;
-      if (combinationCount > 1) {
-        combinationPreview += ` (+${combinationCount - 1} др.)`;
+    if (Object.keys(combinations).length > 0) {
+      const combLines = [];
+      for (const [size1, size2Array] of Object.entries(combinations)) {
+        combLines.push(`${size1}: ${size2Array.join(', ')}`);
       }
+      combinationDisplay = combLines.join('; ');
     }
     
     html += `
       <div class="data-item">
         <div class="data-label">Размеры:</div>
         <div class="data-value">
-          <small style="color: #666;">${combinationPreview}</small>
+          <small style="color: #666;">${combinationDisplay}</small>
         </div>
       </div>
     `;
@@ -518,8 +517,21 @@ async function handleSubmit() {
         updateButtons();
       }, 3000);
     } else {
-      submitBtn.textContent = 'Данные отправлены!';
-      setTimeout(() => window.close(), 1500);
+      // Показываем сообщение с ссылкой на продукт
+      const statusCard = document.getElementById('productStatus');
+      
+      if (response.productUrl && response.message) {
+        // Обновляем статус на зеленый с ссылкой
+        statusCard.classList.remove('new', 'existing', 'unavailable', 'warning');
+        statusCard.classList.add('existing');
+        statusCard.innerHTML = `<div class="status-text"><a href="${response.productUrl}" target="_blank" style="color: #4ade80; text-decoration: underline;">${response.message}</a></div>`;
+        
+        submitBtn.textContent = 'Данные отправлены!';
+      } else {
+        submitBtn.textContent = 'Данные отправлены!';
+      }
+      
+      setTimeout(() => window.close(), 2000);
     }
     
   } catch (error) {

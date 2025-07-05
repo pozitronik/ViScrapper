@@ -75,7 +75,33 @@ async function handleSendToBackend(data, sendResponse) {
     
     if (response.ok) {
       const result = await response.json();
-      sendResponse({ success: true, data: result });
+      
+      // Формируем правильное сообщение для новых продуктов
+      let message = 'Продукт успешно отправлен!';
+      let productUrl = null;
+      
+      if (result && result.id) {
+        productUrl = `http://localhost:8000/product/${result.id}`;
+        
+        if (result.created_at) {
+          try {
+            const createdDate = new Date(result.created_at);
+            message = `Продукт успешно создан (добавлен ${createdDate.toLocaleString('ru-RU')})`;
+          } catch (e) {
+            console.warn('Error parsing created_at date:', result.created_at);
+            message = 'Продукт успешно создан';
+          }
+        } else {
+          message = 'Продукт успешно создан';
+        }
+      }
+      
+      sendResponse({ 
+        success: true, 
+        data: result,
+        message: message,
+        productUrl: productUrl
+      });
     } else {
       sendResponse({ error: `Ошибка сервера: ${response.status}` });
     }
