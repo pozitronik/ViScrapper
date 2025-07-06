@@ -93,6 +93,8 @@ class TelegramService:
             data["reply_to_message_id"] = reply_to_message_id
 
         logger.debug(f"Request data for chat {chat_id}: {data}")
+        logger.info(f"Full request URL: {self.base_url}/sendMessage")
+        logger.info(f"Chat ID type: {type(chat_id)}, value: '{chat_id}'")
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:

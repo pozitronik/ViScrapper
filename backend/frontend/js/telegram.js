@@ -558,7 +558,9 @@ class TelegramModal {
 
     async sendPosts() {
         if (!this.selectedProducts.length || !this.selectedChannels.length) {
-            this.showNotification('Please select products and channels', 'warning');
+            if (window.app && window.app.showNotification) {
+                window.app.showNotification('Please select products and channels', 'warning');
+            }
             return;
         }
 
@@ -569,65 +571,110 @@ class TelegramModal {
         }
 
         try {
-            // Prepare request data
+            // Get template configuration
             const templateType = document.querySelector('input[name="template-type"]:checked')?.value;
-            let requestData = {
-                product_id: this.selectedProducts[0], // For now, send first selected product
-                channel_ids: this.selectedChannels,
-                send_photos: document.getElementById('send-photos')?.checked,
-                disable_notification: document.getElementById('disable-notification')?.checked
-            };
-
+            const sendPhotos = document.getElementById('send-photos')?.checked;
+            const disableNotification = document.getElementById('disable-notification')?.checked;
+            
+            let templateId = null;
+            let templateContent = null;
+            
             // Add template information
             if (templateType === 'template-select') {
                 const selectedTemplateId = document.getElementById('template-select')?.value;
                 if (selectedTemplateId) {
-                    requestData.template_id = parseInt(selectedTemplateId);
+                    templateId = parseInt(selectedTemplateId);
                 }
             } else if (templateType === 'custom') {
                 const customContent = document.getElementById('custom-template')?.value;
                 if (customContent) {
-                    requestData.template_content = customContent;
+                    templateContent = customContent;
                 }
             }
 
-            const response = await fetch('/api/v1/telegram/posts/send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestData)
-            });
+            let totalSuccess = 0;
+            let totalFailed = 0;
+            const failedProducts = [];
 
-            const data = await response.json();
+            // Process each selected product
+            for (const productId of this.selectedProducts) {
+                try {
+                    let requestData = {
+                        product_id: productId,
+                        channel_ids: this.selectedChannels,
+                        send_photos: sendPhotos,
+                        disable_notification: disableNotification
+                    };
 
-            if (response.ok) {
-                // Only show warnings for failures, not success confirmations
-                if (data.failed_count > 0) {
-                    console.warn('Some posts failed:', data.errors);
-                    if (data.success_count > 0) {
-                        this.showNotification(`${data.failed_count} of ${data.success_count + data.failed_count} posts failed`, 'warning');
+                    if (templateId) {
+                        requestData.template_id = templateId;
+                    }
+                    if (templateContent) {
+                        requestData.template_content = templateContent;
+                    }
+
+                    const response = await fetch('/api/v1/telegram/posts/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        totalSuccess += data.success_count || 0;
+                        totalFailed += data.failed_count || 0;
+                        
+                        // Update button appearance for successful posts
+                        if (data.success_count > 0) {
+                            this.updateQuickPostButtonAppearance(productId);
+                        }
+                        
+                        if (data.failed_count > 0) {
+                            failedProducts.push(productId);
+                        }
                     } else {
-                        this.showNotification(`All ${data.failed_count} posts failed`, 'error');
+                        failedProducts.push(productId);
+                        totalFailed += this.selectedChannels.length;
+                        console.warn(`Failed to post product ${productId}:`, data);
                     }
+                } catch (productError) {
+                    console.error(`Error posting product ${productId}:`, productError);
+                    failedProducts.push(productId);
+                    totalFailed += this.selectedChannels.length;
                 }
-                
-                // Update button appearance immediately for successful posts
-                if (data.success_count > 0) {
-                    this.updateQuickPostButtonAppearance(this.selectedProducts[0]);
-                    
-                    // Also try to refresh the full table if available
-                    if (window.app && window.app.refreshProducts) {
-                        window.app.refreshProducts();
-                    }
-                }
-                
-                // Always close modal after sending (whether successful or not)
-                this.closeModal();
-            } else {
-                throw new Error(data.detail || 'Failed to send posts');
             }
+
+            // Show summary notification as toast
+            if (totalFailed > 0) {
+                if (totalSuccess > 0) {
+                    if (window.app && window.app.showNotification) {
+                        window.app.showNotification(`${totalFailed} of ${totalSuccess + totalFailed} posts failed`, 'warning');
+                    }
+                } else {
+                    if (window.app && window.app.showNotification) {
+                        window.app.showNotification(`All posts failed`, 'error');
+                    }
+                }
+            } else {
+                // Show success message for multiple products as toast
+                if (window.app && window.app.showNotification) {
+                    window.app.showNotification(`Successfully posted ${this.selectedProducts.length} products to ${this.selectedChannels.length} channels`, 'success');
+                }
+            }
+            
+            // Refresh the table if available
+            if (totalSuccess > 0 && window.app && window.app.refreshProducts) {
+                window.app.refreshProducts();
+            }
+            
+            // Always close modal after sending (whether successful or not)
+            this.closeModal();
         } catch (error) {
             console.error('Send error:', error);
-            this.showNotification(error.message || 'Failed to send posts', 'error');
+            if (window.app && window.app.showNotification) {
+                window.app.showNotification(error.message || 'Failed to send posts', 'error');
+            }
         } finally {
             if (sendBtn) {
                 sendBtn.disabled = false;
@@ -1217,60 +1264,95 @@ class TelegramModal {
         }
         
         if (!productsToPost.length) {
-            this.showNotification('Please select products to post', 'warning');
+            if (window.app && window.app.showNotification) {
+                window.app.showNotification('Please select products to post', 'warning');
+            }
             return;
         }
 
         // Check if quick post is configured
         if (!this.quickPostConfig.channels.length) {
-            this.showNotification('Quick post not configured. Use "📢 Channels" to set it up.', 'warning');
+            if (window.app && window.app.showNotification) {
+                window.app.showNotification('Quick post not configured. Use "📢 Channels" to set it up.', 'warning');
+            }
             return;
         }
 
-        // Send immediately without confirmation
+        // Send all selected products
         try {
-            const requestData = {
-                product_id: productsToPost[0], // Post first product (either specific or selected)
-                channel_ids: this.quickPostConfig.channels,
-                template_id: this.quickPostConfig.template_id,
-                send_photos: this.quickPostConfig.send_photos,
-                disable_notification: this.quickPostConfig.disable_notification
-            };
+            let totalSuccess = 0;
+            let totalFailed = 0;
+            const failedProducts = [];
 
-            const response = await fetch('/api/v1/telegram/posts/send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestData)
-            });
+            // Process each product individually
+            for (const productId of productsToPost) {
+                try {
+                    const requestData = {
+                        product_id: productId,
+                        channel_ids: this.quickPostConfig.channels,
+                        template_id: this.quickPostConfig.template_id,
+                        send_photos: this.quickPostConfig.send_photos,
+                        disable_notification: this.quickPostConfig.disable_notification
+                    };
 
-            const data = await response.json();
+                    const response = await fetch('/api/v1/telegram/posts/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                    });
 
-            if (response.ok) {
-                // Only show warnings for failures, not success confirmations
-                if (data.failed_count > 0) {
-                    if (data.success_count > 0) {
-                        this.showNotification(`${data.failed_count} of ${data.success_count + data.failed_count} posts failed`, 'warning');
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        totalSuccess += data.success_count || 0;
+                        totalFailed += data.failed_count || 0;
+                        
+                        // Update button appearance for successful posts
+                        if (data.success_count > 0) {
+                            this.updateQuickPostButtonAppearance(productId);
+                        }
+                        
+                        if (data.failed_count > 0) {
+                            failedProducts.push(productId);
+                        }
                     } else {
-                        this.showNotification(`All ${data.failed_count} posts failed`, 'error');
+                        failedProducts.push(productId);
+                        totalFailed += this.quickPostConfig.channels.length;
+                    }
+                } catch (productError) {
+                    console.error(`Error posting product ${productId}:`, productError);
+                    failedProducts.push(productId);
+                    totalFailed += this.quickPostConfig.channels.length;
+                }
+            }
+
+            // Show summary notification as toast
+            if (totalFailed > 0) {
+                if (totalSuccess > 0) {
+                    if (window.app && window.app.showNotification) {
+                        window.app.showNotification(`${totalFailed} of ${totalSuccess + totalFailed} posts failed`, 'warning');
+                    }
+                } else {
+                    if (window.app && window.app.showNotification) {
+                        window.app.showNotification(`All posts failed`, 'error');
                     }
                 }
-                
-                // Update button appearance immediately for successful posts
-                if (data.success_count > 0) {
-                    this.updateQuickPostButtonAppearance(productsToPost[0]);
-                    
-                    // Also try to refresh the full table if available
-                    if (window.app && window.app.refreshProducts) {
-                        window.app.refreshProducts();
-                    }
+            } else if (productsToPost.length > 1) {
+                // Only show success message for multiple products as toast
+                if (window.app && window.app.showNotification) {
+                    window.app.showNotification(`Successfully posted ${productsToPost.length} products`, 'success');
                 }
-                // Success posts complete silently
-            } else {
-                throw new Error(data.detail || 'Failed to send posts');
+            }
+            
+            // Refresh the table if available
+            if (totalSuccess > 0 && window.app && window.app.refreshProducts) {
+                window.app.refreshProducts();
             }
         } catch (error) {
             console.error('Quick post error:', error);
-            this.showNotification(error.message || 'Failed to send quick post', 'error');
+            if (window.app && window.app.showNotification) {
+                window.app.showNotification(error.message || 'Failed to send quick post', 'error');
+            }
         }
     }
 
