@@ -63,6 +63,9 @@ class VIParserApp {
             return;
         }
         
+        // Apply any persisted filters before loading data
+        this.currentFilters = this.filters.getApiFilters();
+        
         // Load initial data
         await this.loadProducts();
         

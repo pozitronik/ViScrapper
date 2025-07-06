@@ -129,6 +129,8 @@ async def list_products(
         telegram_posted: Optional[bool] = Query(None, description="Filter by telegram posting status"),
         created_after: Optional[datetime] = Query(None, description="Created after date"),
         created_before: Optional[datetime] = Query(None, description="Created before date"),
+        include_deleted: Optional[bool] = Query(False, description="Include soft-deleted products"),
+        only_deleted: Optional[bool] = Query(False, description="Show only soft-deleted products"),
         sort_by: str = Query("created_at", description="Field to sort by"),
         sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort order"),
         db: Session = Depends(get_db)
@@ -161,7 +163,13 @@ async def list_products(
         joinedload(ProductModel.images),
         joinedload(ProductModel.sizes)
     )
-    query = apply_filters(query, filters, include_deleted=False)
+    # Determine include_deleted logic based on parameters
+    actual_include_deleted = include_deleted or only_deleted
+    query = apply_filters(query, filters, include_deleted=actual_include_deleted)
+    
+    # If only_deleted is True, filter to show only deleted products
+    if only_deleted:
+        query = query.filter(ProductModel.deleted_at.isnot(None))
     query = apply_sorting(query, sort_by, sort_order)
 
     # Get total count

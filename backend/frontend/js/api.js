@@ -100,11 +100,31 @@ class ApiClient {
     }
 
     /**
-     * Delete product by ID
+     * Delete product by ID (with optional mode)
      */
-    async deleteProduct(id) {
-        return await this.request(`/products/${id}`, {
+    async deleteProduct(id, deleteMode = 'soft') {
+        const params = { delete_mode: deleteMode };
+        const queryString = this.buildQueryString(params);
+        return await this.request(`/products/${id}${queryString}`, {
             method: 'DELETE'
+        });
+    }
+
+    /**
+     * Get deleted products with pagination
+     */
+    async getDeletedProducts(page = 1, perPage = 20) {
+        const params = { page, per_page: perPage };
+        const queryString = this.buildQueryString(params);
+        return await this.request(`/products/deleted${queryString}`);
+    }
+
+    /**
+     * Restore deleted product by ID
+     */
+    async restoreProduct(id) {
+        return await this.request(`/products/${id}/restore`, {
+            method: 'POST'
         });
     }
 

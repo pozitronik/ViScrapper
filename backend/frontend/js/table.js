@@ -151,37 +151,64 @@ class ProductTable {
             dataset: { column: 'id' }
         });
         
-        // Determine Quick post button state based on telegram_posted_at
-        const isPosted = product.telegram_posted_at;
-        let quickPostClass, quickPostIcon, quickPostTitle;
+        // Check if product is soft-deleted
+        const isDeleted = product.deleted_at !== null && product.deleted_at !== undefined;
         
-        if (isPosted) {
-            quickPostClass = 'btn btn-sm btn-outline-success posted';
-            quickPostIcon = '✅';
-            const postedDate = new Date(product.telegram_posted_at);
-            quickPostTitle = `Posted to Telegram on ${postedDate.toLocaleString()}. Click to post again.`;
-        } else {
-            quickPostClass = 'btn btn-sm btn-success';
-            quickPostIcon = '⚡';
-            quickPostTitle = 'Quick post to Telegram';
-        }
-        
-        cell.innerHTML = `
-            <div class="id-content">
-                <span class="cell-id">${product.id}</span>
-                <div class="control-buttons">
-                    <a href="/product/${product.id}" class="btn btn-sm btn-primary" title="View product details">
-                        👁️
-                    </a>
-                    <button class="btn btn-sm btn-outline" data-product-id="${product.id}" data-action="telegram" title="Send to Telegram">
-                        📤
-                    </button>
-                    <button class="${quickPostClass}" data-product-id="${product.id}" data-action="quick-post" title="${quickPostTitle}">
-                        ${quickPostIcon}
-                    </button>
+        if (isDeleted) {
+            // Show restore and permanent delete buttons for deleted products
+            const deletedDate = new Date(product.deleted_at);
+            cell.innerHTML = `
+                <div class="id-content">
+                    <span class="cell-id deleted">${product.id}</span>
+                    <div class="control-buttons">
+                        <a href="/product/${product.id}" class="btn btn-sm btn-primary" title="View product details">
+                            👁️
+                        </a>
+                        <button class="btn btn-sm btn-success" data-product-id="${product.id}" data-action="restore" title="Restore product">
+                            🔄 Restore
+                        </button>
+                        <button class="btn btn-sm btn-danger" data-product-id="${product.id}" data-action="permanent-delete" title="Permanently delete product">
+                            🗑️ Delete
+                        </button>
+                    </div>
+                    <div class="deleted-info">
+                        <small>Deleted: ${deletedDate.toLocaleDateString()}</small>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        } else {
+            // Show normal buttons for active products
+            const isPosted = product.telegram_posted_at;
+            let quickPostClass, quickPostIcon, quickPostTitle;
+            
+            if (isPosted) {
+                quickPostClass = 'btn btn-sm btn-outline-success posted';
+                quickPostIcon = '✅';
+                const postedDate = new Date(product.telegram_posted_at);
+                quickPostTitle = `Posted to Telegram on ${postedDate.toLocaleString()}. Click to post again.`;
+            } else {
+                quickPostClass = 'btn btn-sm btn-success';
+                quickPostIcon = '⚡';
+                quickPostTitle = 'Quick post to Telegram';
+            }
+            
+            cell.innerHTML = `
+                <div class="id-content">
+                    <span class="cell-id">${product.id}</span>
+                    <div class="control-buttons">
+                        <a href="/product/${product.id}" class="btn btn-sm btn-primary" title="View product details">
+                            👁️
+                        </a>
+                        <button class="btn btn-sm btn-outline" data-product-id="${product.id}" data-action="telegram" title="Send to Telegram">
+                            📤
+                        </button>
+                        <button class="${quickPostClass}" data-product-id="${product.id}" data-action="quick-post" title="${quickPostTitle}">
+                            ${quickPostIcon}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
         
         // Add event listener for telegram button
         const telegramBtn = cell.querySelector('[data-action="telegram"]');
@@ -198,6 +225,24 @@ class ProductTable {
             quickPostBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.handleQuickPost(product.id);
+            });
+        }
+        
+        // Add event listener for restore button
+        const restoreBtn = cell.querySelector('[data-action="restore"]');
+        if (restoreBtn) {
+            restoreBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleRestore(product.id);
+            });
+        }
+        
+        // Add event listener for permanent delete button
+        const permanentDeleteBtn = cell.querySelector('[data-action="permanent-delete"]');
+        if (permanentDeleteBtn) {
+            permanentDeleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handlePermanentDelete(product.id);
             });
         }
         
@@ -605,6 +650,78 @@ class ProductTable {
             window.telegramModal.quickPost(productId);
         } else {
             console.warn('Telegram modal not available');
+        }
+    }
+
+    /**
+     * Handle restore for soft-deleted product
+     */
+    async handleRestore(productId) {
+        try {
+            if (!confirm('Are you sure you want to restore this product?')) {
+                return;
+            }
+
+            console.log(`Restoring product ${productId}`);
+            
+            // Call API to restore product
+            const response = await api.restoreProduct(productId);
+            
+            console.log(`Successfully restored product ${productId}`);
+            
+            // Reload the current page to reflect changes
+            if (window.app) {
+                await window.app.loadProducts(window.app.currentPage, false);
+            }
+            
+            // Show success message
+            if (window.app && window.app.showNotification) {
+                window.app.showNotification(`Product restored successfully`, 'success');
+            }
+            
+        } catch (error) {
+            console.error(`Failed to restore product ${productId}:`, error);
+            
+            // Show error message
+            if (window.app && window.app.showNotification) {
+                window.app.showNotification(`Failed to restore product: ${error.message}`, 'error');
+            }
+        }
+    }
+
+    /**
+     * Handle permanent delete for soft-deleted product
+     */
+    async handlePermanentDelete(productId) {
+        try {
+            if (!confirm('Are you sure you want to permanently delete this product? This action cannot be undone!')) {
+                return;
+            }
+
+            console.log(`Permanently deleting product ${productId}`);
+            
+            // Call API to permanently delete product
+            const response = await api.deleteProduct(productId, 'hard');
+            
+            console.log(`Successfully permanently deleted product ${productId}`);
+            
+            // Reload the current page to reflect changes
+            if (window.app) {
+                await window.app.loadProducts(window.app.currentPage, false);
+            }
+            
+            // Show success message
+            if (window.app && window.app.showNotification) {
+                window.app.showNotification(`Product permanently deleted`, 'warning');
+            }
+            
+        } catch (error) {
+            console.error(`Failed to permanently delete product ${productId}:`, error);
+            
+            // Show error message
+            if (window.app && window.app.showNotification) {
+                window.app.showNotification(`Failed to permanently delete product: ${error.message}`, 'error');
+            }
         }
     }
 

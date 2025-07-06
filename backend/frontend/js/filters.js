@@ -23,6 +23,7 @@ class ProductFilters {
         this.dateToInput = document.getElementById('date-to');
         this.imagesSelect = document.getElementById('images-filter');
         this.postedSelect = document.getElementById('posted-filter');
+        this.deletedSelect = document.getElementById('deleted-filter');
         
         // Load persisted filters
         this.loadPersistedFilters();
@@ -108,6 +109,13 @@ class ProductFilters {
                 this.updateFilter('posted', this.postedSelect.value);
             });
         }
+
+        // Deleted filter
+        if (this.deletedSelect) {
+            this.deletedSelect.addEventListener('change', () => {
+                this.updateFilter('deleted', this.deletedSelect.value);
+            });
+        }
     }
 
     /**
@@ -163,6 +171,7 @@ class ProductFilters {
         if (this.dateToInput) this.dateToInput.value = '';
         if (this.imagesSelect) this.imagesSelect.value = '';
         if (this.postedSelect) this.postedSelect.value = '';
+        if (this.deletedSelect) this.deletedSelect.value = '';
         
         this.updateClearFiltersButton();
         this.updateFilterSummary();
@@ -249,6 +258,8 @@ class ProductFilters {
                 return value === 'true' ? 'With Images' : 'Without Images';
             case 'posted':
                 return value === 'posted' ? 'Posted to Telegram' : 'Not Posted';
+            case 'deleted':
+                return value === 'deleted' ? 'Deleted Products' : value === 'all' ? 'All Products' : 'Active Products';
             default:
                 return null;
         }
@@ -283,6 +294,9 @@ class ProductFilters {
                 break;
             case 'posted':
                 if (this.postedSelect) this.postedSelect.value = '';
+                break;
+            case 'deleted':
+                if (this.deletedSelect) this.deletedSelect.value = '';
                 break;
         }
 
@@ -356,6 +370,12 @@ class ProductFilters {
         // Posted status
         if (this.activeFilters.posted) {
             apiFilters.telegram_posted = this.activeFilters.posted === 'posted';
+        }
+
+        // Deleted status
+        if (this.activeFilters.deleted) {
+            apiFilters.include_deleted = this.activeFilters.deleted === 'deleted' || this.activeFilters.deleted === 'all';
+            apiFilters.only_deleted = this.activeFilters.deleted === 'deleted';
         }
 
         return apiFilters;
@@ -469,6 +489,9 @@ class ProductFilters {
                             break;
                         case 'posted':
                             if (this.postedSelect) this.postedSelect.value = value;
+                            break;
+                        case 'deleted':
+                            if (this.deletedSelect) this.deletedSelect.value = value;
                             break;
                     }
                 });

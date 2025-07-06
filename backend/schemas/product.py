@@ -77,6 +77,7 @@ class Product(ProductBase):
     id: int
     created_at: datetime
     telegram_posted_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
     images: List[Image] = []
     sizes: List[Size] = []
 
