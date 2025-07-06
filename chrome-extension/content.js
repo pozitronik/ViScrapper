@@ -482,7 +482,10 @@ async function extractSizes() {
     // Проверяем статические размеры (простой текст)
     const staticSizeContainer = primaryProduct.querySelector('[data-testid="Size"]');
     
-    if (staticSizeContainer) {
+    // Находим первый блок BoxSelector-size1 в primaryProduct
+    const sizeContainer1 = primaryProduct.querySelector('[data-testid="BoxSelector-size1"]');
+    
+    if (staticSizeContainer && !sizeContainer1) {
       console.log('Found static size container, extracting text size...');
       const staticSize = extractStaticSize(staticSizeContainer);
       if (staticSize) {
@@ -502,10 +505,7 @@ async function extractSizes() {
         return comboSizes;
       }
     }
-    
-    // Находим первый блок BoxSelector-size1 внутри PrimaryProduct
-    const sizeContainer1 = primaryProduct.querySelector('[data-testid="BoxSelector-size1"]');
-    
+
     if (!sizeContainer1) {
       console.log('No BoxSelector-size1 found within PrimaryProduct');
       return [];
