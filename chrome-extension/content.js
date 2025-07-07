@@ -1,11 +1,12 @@
 /**
  * Content Script для VIParser Chrome Extension
- * Извлекает данные продукта со страницы Victoria's Secret
+ * Универсальный парсер продуктов с поддержкой множественных сайтов
  */
 
 console.log('VIParser content script loaded');
 
 // Глобальные переменные для отслеживания состояния
+let currentParser = null;
 let currentProductData = null;
 let lastJsonLdContent = null;
 let isPageValid = true;
@@ -35,6 +36,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 /**
+ * Инициализация парсера для текущего сайта
+ */
+function initializeParser() {
+  try {
+    console.log('Initializing parser for current site...');
+    
+    if (typeof ParserFactory === 'undefined') {
+      console.error('ParserFactory not available! Make sure parsers are loaded.');
+      return false;
+    }
+    
+    currentParser = ParserFactory.createParser();
+    
+    if (!currentParser) {
+      console.log('No parser available for current site');
+      console.log('Supported sites:', ParserFactory.getSupportedSites());
+      return false;
+    }
+    
+    console.log(`Successfully initialized parser: ${currentParser.siteName}`);
+    return true;
+  } catch (error) {
+    console.error('Error initializing parser:', error);
+    return false;
+  }
+}
+
+/**
  * Обработка запроса на извлечение данных
  */
 async function handleExtractData(sendResponse) {
@@ -48,10 +77,22 @@ async function handleExtractData(sendResponse) {
   try {
     console.log('Starting data extraction...');
     
+    // Инициализируем парсер если еще не инициализирован
+    if (!currentParser) {
+      if (!initializeParser()) {
+        sendResponse({ 
+          error: 'Сайт не поддерживается расширением',
+          isValid: false,
+          supportedSites: typeof ParserFactory !== 'undefined' ? ParserFactory.getSupportedSites() : []
+        });
+        return;
+      }
+    }
+    
     // Проверяем, что мы на правильной странице
-    if (!isValidProductPage()) {
+    if (!currentParser.isValidProductPage()) {
       sendResponse({ 
-        error: 'Расширение работает только на страницах товаров Victoria\'s Secret',
+        error: `Расширение работает только на страницах товаров ${currentParser.siteName}`,
         isValid: false
       });
       return;
@@ -78,8 +119,8 @@ async function handleExtractData(sendResponse) {
       return;
     }
     
-    // Проверяем валидность данных (в первую очередь SKU)
-    const validation = validateProductData(productData);
+    // Проверяем валидность данных
+    const validation = currentParser.validateProductData(productData);
     
     // Если нет SKU - не отправляем данные на бэкенд
     if (!validation.isValid) {
@@ -98,7 +139,8 @@ async function handleExtractData(sendResponse) {
       data: productData,
       isValid: validation.isValid,
       warnings: validation.warnings,
-      needsRefresh: false
+      needsRefresh: false,
+      siteName: currentParser.siteName
     });
     
   } catch (error) {
@@ -113,29 +155,98 @@ async function handleExtractData(sendResponse) {
 }
 
 /**
- * Проверка, что мы на странице товара
+ * Основная функция извлечения данных продукта
  */
-function isValidProductPage() {
-  // Проверяем URL
-  const url = window.location.href;
-  console.log('Checking page validity, URL:', url);
-  
-  if (!url.includes('victoriassecret.com')) {
-    console.log('Not a Victoria\'s Secret page');
-    return false;
+async function extractProductData() {
+  if (!currentParser) {
+    console.error('No parser available for data extraction');
+    return null;
   }
   
-  // Проверяем наличие ключевых элементов
-  const hasProductInfo = document.querySelector('[data-testid="ProductInfo-shortDescription"]');
-  const hasProductPrice = document.querySelector('[data-testid="ProductPrice"]');
-  
-  console.log('ProductInfo element:', hasProductInfo);
-  console.log('ProductPrice element:', hasProductPrice);
-  
-  const isValid = hasProductInfo && hasProductPrice;
-  console.log('Page is valid product page:', isValid);
-  
-  return isValid;
+  try {
+    console.log(`Extracting product data using ${currentParser.siteName} parser...`);
+    
+    // Получаем JSON-LD данные (если парсер их поддерживает)
+    let jsonData = null;
+    if (typeof currentParser.waitForJsonLd === 'function') {
+      const jsonLdScript = await currentParser.waitForJsonLd();
+      if (jsonLdScript && typeof currentParser.parseJsonLd === 'function') {
+        jsonData = currentParser.parseJsonLd(jsonLdScript.textContent);
+        console.log('JSON-LD data loaded:', !!jsonData);
+      }
+    }
+    
+    // Базовые данные продукта
+    const productData = {
+      product_url: window.location.href,  // Полный URL с параметрами для хранения
+      name: currentParser.extractName(),
+      sku: currentParser.extractSku(jsonData),
+      price: currentParser.extractPrice(jsonData),
+      currency: currentParser.extractCurrency(jsonData),
+      availability: currentParser.extractAvailability(jsonData),
+      comment: ''
+    };
+
+    // Дополнительные поля (если поддерживаются парсером)
+    if (typeof currentParser.extractColor === 'function') {
+      productData.color = currentParser.extractColor();
+    }
+    
+    if (typeof currentParser.extractComposition === 'function') {
+      productData.composition = currentParser.extractComposition();
+    }
+    
+    if (typeof currentParser.extractItem === 'function') {
+      productData.item = currentParser.extractItem();
+    }
+
+    // Извлекаем изображения
+    const allImages = currentParser.extractImages();
+    if (allImages && allImages.length > 0) {
+      productData.main_image_url = allImages[0];
+      productData.all_image_urls = allImages;
+    }
+    
+    // Извлекаем размеры (это может занять время)
+    try {
+      // Временно отключаем отслеживание мутаций во время извлечения размеров
+      const wasTrackingActive = changeTrackingActive;
+      if (mutationObserver) {
+        console.log('Temporarily disabling mutation tracking for size extraction');
+        mutationObserver.disconnect();
+        changeTrackingActive = false;
+      }
+      
+      const sizesData = await currentParser.extractSizes();
+      if (sizesData) {
+        // Проверяем тип данных размеров
+        if (Array.isArray(sizesData)) {
+          // Простые размеры
+          productData.available_sizes = sizesData;
+        } else if (sizesData.combinations) {
+          // Комбинации размеров
+          productData.size_combinations = sizesData;
+        }
+      }
+      
+      // Восстанавливаем отслеживание
+      if (wasTrackingActive && mutationObserver) {
+        console.log('Re-enabling mutation tracking after size extraction');
+        setTimeout(() => {
+          setupJsonLdTracking();
+        }, 1000); // Небольшая задержка для стабилизации страницы
+      }
+    } catch (error) {
+      console.error('Error extracting sizes:', error);
+    }
+    
+    console.log('Product data extracted:', productData);
+    return productData;
+    
+  } catch (error) {
+    console.error('Error in extractProductData:', error);
+    return null;
+  }
 }
 
 /**
@@ -145,8 +256,14 @@ async function checkIfPageNeedsRefresh() {
   try {
     console.log('Checking if page needs refresh...');
     
+    // Если нет парсера или он не поддерживает JSON-LD, считаем данные актуальными
+    if (!currentParser || typeof currentParser.waitForJsonLd !== 'function') {
+      console.log('Parser does not support JSON-LD tracking');
+      return false;
+    }
+    
     // Ждем появления JSON-LD скрипта
-    const jsonLdScript = await waitForJsonLd();
+    const jsonLdScript = await currentParser.waitForJsonLd();
     
     if (!jsonLdScript) {
       return true; // Требуется обновление
@@ -172,7 +289,7 @@ async function checkIfPageNeedsRefresh() {
       
       // Дополнительная проверка - сравниваем SKU из JSON-LD с отображаемым на странице
       const pageData = extractBasicPageData();
-      const jsonData = parseJsonLd(currentJsonLd);
+      const jsonData = currentParser.parseJsonLd(currentJsonLd);
       
       if (jsonData && pageData && jsonData.sku && pageData.sku) {
         if (jsonData.sku !== pageData.sku) {
@@ -195,665 +312,20 @@ async function checkIfPageNeedsRefresh() {
 }
 
 /**
- * Ожидание появления JSON-LD скрипта
- */
-async function waitForJsonLd(timeout = 10000) {
-  const startTime = Date.now();
-  
-  while (Date.now() - startTime < timeout) {
-    const jsonLdScript = document.querySelector('script[type="application/ld+json"][id="structured-data-pdp"]');
-    if (jsonLdScript && jsonLdScript.textContent.trim()) {
-      return jsonLdScript;
-    }
-    
-    // Ждем 100мс перед следующей попыткой
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  
-  return null;
-}
-
-/**
  * Извлечение базовых данных со страницы (для сравнения)
  */
 function extractBasicPageData() {
+  if (!currentParser) return null;
+  
   try {
-    const nameElement = document.querySelector('[data-testid="ProductInfo-shortDescription"]');
-    const itemElement = document.querySelector('[data-testid="ProductInfo-genericId"]');
-    
     return {
-      name: nameElement?.textContent?.trim() || null,
-      sku: itemElement?.textContent?.trim() || null
+      name: currentParser.extractName(),
+      sku: currentParser.extractItem ? currentParser.extractItem() : null
     };
   } catch (error) {
     console.error('Error extracting basic page data:', error);
     return null;
   }
-}
-
-/**
- * Основная функция извлечения данных продукта
- */
-async function extractProductData() {
-  try {
-    console.log('Extracting product data...');
-    
-    // Ждем JSON-LD
-    const jsonLdScript = await waitForJsonLd();
-    let jsonData = null;
-    
-    if (jsonLdScript) {
-      jsonData = parseJsonLd(jsonLdScript.textContent);
-    }
-    
-    // Базовые данные
-    const productData = {
-      product_url: window.location.href,  // Полный URL с параметрами для хранения
-      name: extractName(),
-      sku: extractSku(jsonData),
-      price: extractPrice(jsonData),
-      currency: extractCurrency(jsonData),
-      availability: extractAvailability(jsonData),
-      color: extractColor(),
-      composition: extractComposition(),
-      item: extractItem(),
-      comment: ''
-    };
-    
-    // Извлекаем изображения
-    const allImages = extractImages();
-    if (allImages.length > 0) {
-      productData.main_image_url = allImages[0];
-      productData.all_image_urls = allImages;
-    }
-    
-    // Извлекаем размеры (это может занять время)
-    try {
-      // Временно отключаем отслеживание мутаций во время извлечения размеров
-      const wasTrackingActive = changeTrackingActive;
-      if (mutationObserver) {
-        console.log('Temporarily disabling mutation tracking for size extraction');
-        mutationObserver.disconnect();
-        changeTrackingActive = false;
-      }
-      
-      const sizesData = await extractSizes();
-      if (sizesData) {
-        // Проверяем тип данных размеров
-        if (Array.isArray(sizesData)) {
-          // Простые размеры
-          productData.available_sizes = sizesData;
-        } else if (sizesData.combinations) {
-          // Комбинации размеров
-          productData.size_combinations = sizesData;
-        }
-      }
-      
-      // Восстанавливаем отслеживание
-      if (wasTrackingActive && mutationObserver) {
-        console.log('Re-enabling mutation tracking after size extraction');
-        setTimeout(() => {
-          setupJsonLdTracking();
-        }, 1000); // Небольшая задержка чтобы дать странице стабилизироваться
-      }
-    } catch (error) {
-      console.error('Error extracting sizes:', error);
-    }
-    
-    console.log('Product data extracted:', productData);
-    return productData;
-    
-  } catch (error) {
-    console.error('Error in extractProductData:', error);
-    return null;
-  }
-}
-
-/**
- * Парсинг JSON-LD данных
- */
-function parseJsonLd(jsonLdText) {
-  try {
-    const data = JSON.parse(jsonLdText);
-    return data;
-  } catch (error) {
-    console.error('Error parsing JSON-LD:', error);
-    return null;
-  }
-}
-
-/**
- * Сантизация URL продукта - удаляет параметры, которые не влияют на идентификацию продукта
- */
-function sanitizeProductUrl(url) {
-  try {
-    const urlObj = new URL(url);
-    
-    // Сохраняем только базовую часть URL без параметров
-    // Параметры choice, utm_*, session_id и подобные не влияют на идентификацию продукта
-    const cleanUrl = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`;
-    
-    console.log(`URL sanitized: ${url} -> ${cleanUrl}`);
-    return cleanUrl;
-  } catch (error) {
-    console.error('Error sanitizing URL:', error);
-    return url; // Возвращаем оригинальный URL если не удалось обработать
-  }
-}
-
-/**
- * Извлечение названия
- */
-function extractName() {
-  const element = document.querySelector('[data-testid="ProductInfo-shortDescription"]');
-  return element?.textContent?.trim() || null;
-}
-
-/**
- * Извлечение SKU
- */
-function extractSku(jsonData) {
-  if (jsonData && jsonData.sku) {
-    return jsonData.sku;
-  }
-  return null;
-}
-
-/**
- * Извлечение цены
- */
-function extractPrice(jsonData) {
-  if (jsonData && jsonData.offers && jsonData.offers.price) {
-    return parseFloat(jsonData.offers.price);
-  }
-  
-  // Альтернативный способ - из элемента на странице
-  const priceElement = document.querySelector('[data-testid="ProductPrice"]');
-  if (priceElement) {
-    const priceText = priceElement.textContent.trim();
-    const priceMatch = priceText.match(/[\d,]+\.?\d*/);
-    if (priceMatch) {
-      return parseFloat(priceMatch[0].replace(',', ''));
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Извлечение валюты
- */
-function extractCurrency(jsonData) {
-  if (jsonData && jsonData.offers && jsonData.offers.priceCurrency) {
-    return jsonData.offers.priceCurrency;
-  }
-  return 'USD'; // По умолчанию для Victoria's Secret
-}
-
-/**
- * Извлечение доступности
- */
-function extractAvailability(jsonData) {
-  if (jsonData && jsonData.offers && jsonData.offers.availability) {
-    const availabilityUrl = jsonData.offers.availability;
-    
-    // Извлекаем тип из URL schema.org
-    if (availabilityUrl.includes('schema.org/')) {
-      const type = availabilityUrl.split('schema.org/').pop();
-      console.log(`Extracted availability type: ${type} from ${availabilityUrl}`);
-      return type;
-    }
-    
-    // Если не URL schema.org, возвращаем как есть
-    return availabilityUrl;
-  }
-  
-  // Если доступность не найдена, считаем продукт доступным
-  return 'InStock';
-}
-
-/**
- * Извлечение цвета
- */
-function extractColor() {
-  const element = document.querySelector('[data-testid="SelectedChoiceLabel"]');
-  if (element) {
-    return element.textContent.replace('|', '').trim();
-  }
-  return null;
-}
-
-/**
- * Извлечение состава
- */
-function extractComposition() {
-  const element = document.querySelector('[data-testid="ProductComposition"]');
-  return element?.textContent?.trim() || null;
-}
-
-/**
- * Извлечение артикула
- */
-function extractItem() {
-  const element = document.querySelector('[data-testid="ProductInfo-genericId"]');
-  return element?.textContent?.trim() || null;
-}
-
-/**
- * Извлечение изображений
- */
-function extractImages() {
-  const container = document.querySelector('[data-testid="PrimaryProductImage"]');
-  if (!container) return [];
-  
-  const images = container.querySelectorAll('img');
-  const imageUrls = [];
-  
-  images.forEach(img => {
-    if (img.src && img.src.startsWith('http')) {
-      // Конвертируем относительные URL в абсолютные
-      const absoluteUrl = new URL(img.src, window.location.href).href;
-      if (!imageUrls.includes(absoluteUrl)) {
-        imageUrls.push(absoluteUrl);
-      }
-    }
-  });
-  
-  return imageUrls;
-}
-
-/**
- * Извлечение размеров продукта
- */
-async function extractSizes() {
-  try {
-    console.log('Starting size extraction...');
-    
-    // Ограничиваем поиск основным блоком продукта
-    const primaryProduct = document.querySelector('[data-testid="PrimaryProduct"]');
-    
-    if (!primaryProduct) {
-      console.log('No PrimaryProduct container found');
-      return [];
-    }
-    
-    console.log('Found PrimaryProduct container, searching within it...');
-    
-    // Проверяем статические размеры (простой текст)
-    const staticSizeContainer = primaryProduct.querySelector('[data-testid="Size"]');
-    
-    // Находим первый блок BoxSelector-size1 в primaryProduct
-    const sizeContainer1 = primaryProduct.querySelector('[data-testid="BoxSelector-size1"]');
-    
-    if (staticSizeContainer && !sizeContainer1) {
-      console.log('Found static size container, extracting text size...');
-      const staticSize = extractStaticSize(staticSizeContainer);
-      if (staticSize) {
-        console.log('Static size extracted:', staticSize);
-        return [staticSize];
-      }
-    }
-    
-    // Проверяем комбинированные размеры (BoxSelector-comboSize)
-    const comboSizeContainer = primaryProduct.querySelector('[data-testid="BoxSelector-comboSize"]');
-    
-    if (comboSizeContainer) {
-      console.log('Found BoxSelector-comboSize container, extracting combo sizes...');
-      const comboSizes = extractComboSizes(comboSizeContainer);
-      if (comboSizes.length > 0) {
-        console.log('Combo sizes extracted:', comboSizes);
-        return comboSizes;
-      }
-    }
-
-    if (!sizeContainer1) {
-      console.log('No BoxSelector-size1 found within PrimaryProduct');
-      return [];
-    }
-    
-    // Ищем BoxSelector-size2 на том же уровне DOM
-    const sizeContainer2 = findRelatedSizeContainer(sizeContainer1);
-    
-    console.log(`Found size containers: size1=${!!sizeContainer1}, size2=${!!sizeContainer2}`);
-    
-    // Проверяем связность - size2 должен быть на том же уровне DOM
-    const areContainersRelated = !!sizeContainer2;
-    
-    // Проверяем валидность контейнеров
-    let hasValidSize1 = false;
-    let hasValidSize2 = false;
-    let size1Options = [];
-    let size2Options = [];
-    
-    if (sizeContainer1) {
-      size1Options = Array.from(sizeContainer1.querySelectorAll('[role="radio"]'));
-      const enabledSize1Options = size1Options.filter(opt => opt.getAttribute('aria-disabled') !== 'true');
-      hasValidSize1 = enabledSize1Options.length > 0;
-      size1Options = enabledSize1Options;
-    }
-    
-    if (sizeContainer2 && areContainersRelated) {
-      size2Options = Array.from(sizeContainer2.querySelectorAll('[role="radio"]'));
-      const enabledSize2Options = size2Options.filter(opt => opt.getAttribute('aria-disabled') !== 'true');
-      hasValidSize2 = enabledSize2Options.length > 0;
-      size2Options = enabledSize2Options;
-    }
-    
-    console.log(`Size detection: Size1 valid: ${hasValidSize1} (${size1Options.length} options), Size2 valid: ${hasValidSize2} (${size2Options.length} options)`);
-    
-    // Определяем тип продукта
-    const isRealCombination = hasValidSize1 && hasValidSize2 && areContainersRelated;
-    
-    console.log(`Is real combination product: ${isRealCombination}`);
-    
-    if (isRealCombination) {
-      // Двухразмерный продукт - извлекаем комбинации
-      console.log('True dual size selectors detected, extracting combinations...');
-      const combinationResult = await extractSizeCombinations(sizeContainer1, sizeContainer2);
-      if (combinationResult.success) {
-        console.log('Size combinations extracted:', combinationResult.data);
-        return combinationResult.data;
-      } else {
-        console.error('Failed to extract size combinations:', combinationResult.error);
-        return null;
-      }
-    } else if (hasValidSize1) {
-      // Одноразмерный продукт (используем size1)
-      console.log('Single size selector detected (using size1), extracting simple sizes...');
-      const availableSizes = size1Options.map(btn => btn.textContent.trim()).filter(size => size);
-      console.log('Simple sizes extracted:', availableSizes);
-      return availableSizes;
-    } else {
-      console.log('No valid size options found');
-      return [];
-    }
-    
-  } catch (error) {
-    console.error('Error in extractSizes:', error);
-    return [];
-  }
-}
-
-/**
- * Извлечение комбинаций размеров для двухразмерных продуктов
- */
-async function extractSizeCombinations(sizeContainer1, sizeContainer2) {
-  try {
-    console.log('Starting size combination extraction...');
-    
-    // Получаем типы размеров
-    const size1Type = getSizeTypeLabel(sizeContainer1);
-    const size2Type = getSizeTypeLabel(sizeContainer2);
-    
-    console.log(`Size types detected: ${size1Type} and ${size2Type}`);
-    
-    // Получаем все опции size1
-    const size1Options = Array.from(sizeContainer1.querySelectorAll('[role="radio"]'));
-    const combinations = {};
-    
-    console.log(`Found ${size1Options.length} size1 options to iterate through`);
-    
-    // Сохраняем оригинальные выборы для восстановления
-    const originallySelected1 = sizeContainer1.querySelector('[role="radio"][aria-checked="true"]');
-    const originallySelected2 = sizeContainer2.querySelector('[role="radio"][aria-checked="true"]');
-    
-    // Итерируемся по каждой опции size1
-    for (let i = 0; i < size1Options.length; i++) {
-      const size1Option = size1Options[i];
-      const size1Value = size1Option.getAttribute('data-value');
-      
-      // Пропускаем disabled опции
-      if (size1Option.getAttribute('aria-disabled') === 'true') {
-        console.log(`Skipping disabled size1 option: ${size1Value}`);
-        continue;
-      }
-      
-      console.log(`Clicking size1 option: ${size1Value}`);
-      
-      // Кликаем по опции size1
-      size1Option.click();
-      
-      // Ждем обновления страницы
-      await wait(200);
-      
-      // Получаем доступные опции size2 после выбора size1
-      const availableSize2Options = Array.from(sizeContainer2.querySelectorAll('[role="radio"][aria-disabled="false"]'));
-      const size2Values = availableSize2Options.map(opt => opt.getAttribute('data-value'));
-      
-      console.log(`Size1 ${size1Value} -> Available size2 options:`, size2Values);
-      
-      if (size2Values.length > 0) {
-        combinations[size1Value] = size2Values;
-      }
-    }
-    
-    // Восстанавливаем оригинальные выборы
-    try {
-      if (originallySelected1) {
-        originallySelected1.click();
-        await wait(100);
-      }
-      if (originallySelected2) {
-        originallySelected2.click();
-        await wait(100);
-      }
-    } catch (e) {
-      }
-    
-    console.log('Final combinations extracted:', combinations);
-    
-    return {
-      success: true,
-      data: {
-        size1_type: size1Type,
-        size2_type: size2Type,
-        combinations: combinations
-      }
-    };
-    
-  } catch (error) {
-    console.error('Error extracting size combinations:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-/**
- * Извлечение статических размеров из data-testid="Size"
- */
-function extractStaticSize(staticSizeContainer) {
-  try {
-    console.log('Extracting static size...');
-    
-    // Ищем все span элементы внутри контейнера
-    const spans = staticSizeContainer.querySelectorAll('span');
-    
-    // Проходим по всем span'ам и ищем тот, который содержит размер (не "Size")
-    for (const span of spans) {
-      const text = span.textContent.trim();
-      
-      // Пропускаем пустые и служебные тексты
-      if (!text || text === 'Size' || text === 'Размер') {
-        continue;
-      }
-      
-      // Возвращаем первый найденный размер
-      console.log(`Found static size: ${text}`);
-      return text;
-    }
-    
-    console.log('No static size found in container');
-    return null;
-    
-  } catch (error) {
-    console.error('Error extracting static size:', error);
-    return null;
-  }
-}
-
-/**
- * Извлечение комбинированных размеров из BoxSelector-comboSize
- */
-function extractComboSizes(comboSizeContainer) {
-  try {
-    console.log('Extracting combo sizes...');
-    
-    // Получаем все опции размеров
-    const sizeOptions = Array.from(comboSizeContainer.querySelectorAll('[role="radio"]'));
-    
-    // Фильтруем только доступные (не disabled) размеры
-    const availableOptions = sizeOptions.filter(opt => opt.getAttribute('aria-disabled') !== 'true');
-    
-    // Извлекаем значения размеров
-    const comboSizes = availableOptions.map(option => {
-      // Пробуем получить значение из data-value
-      const dataValue = option.getAttribute('data-value');
-      if (dataValue) {
-        return dataValue.trim();
-      }
-      
-      // Если data-value нет, берем из aria-label
-      const ariaLabel = option.getAttribute('aria-label');
-      if (ariaLabel) {
-        return ariaLabel.trim();
-      }
-      
-      // Если и aria-label нет, берем текстовое содержимое
-      const textContent = option.textContent;
-      if (textContent) {
-        return textContent.trim();
-      }
-      
-      return null;
-    }).filter(size => size && size.length > 0);
-    
-    console.log(`Found ${comboSizes.length} combo sizes:`, comboSizes);
-    return comboSizes;
-    
-  } catch (error) {
-    console.error('Error extracting combo sizes:', error);
-    return [];
-  }
-}
-
-/**
- * Поиск связанного контейнера size2 на том же уровне DOM
- */
-function findRelatedSizeContainer(sizeContainer1) {
-  try {
-    // Ищем общий родительский элемент для size селекторов
-    const parentElement = sizeContainer1.closest('.sc-s4utl4-0, .size-selection, .product-variants, .variant-selector, [class*="size"], [class*="variant"]');
-    
-    if (!parentElement) {
-      console.log('No parent element found for size1 container');
-      return null;
-    }
-    
-    // Ищем BoxSelector-size2 внутри того же родительского элемента
-    const sizeContainer2 = parentElement.querySelector('[data-testid="BoxSelector-size2"]');
-    
-    if (sizeContainer2) {
-      console.log('Found related size2 container in the same parent element');
-      return sizeContainer2;
-    }
-    
-    console.log('No related size2 container found in the same parent element');
-    return null;
-  } catch (error) {
-    console.error('Error finding related size container:', error);
-    return null;
-  }
-}
-
-/**
- * Получение типа размера из контейнера
- */
-function getSizeTypeLabel(sizeContainer) {
-  try {
-    // Ищем label в родительском контейнере
-    const parent = sizeContainer.closest('.sc-s4utl4-0');
-    if (parent) {
-      const labelElement = parent.querySelector('[data-testid]');
-      if (labelElement) {
-        return labelElement.getAttribute('data-testid');
-      }
-    }
-    
-    // Резерв: используем aria-label от radiogroup
-    const ariaLabel = sizeContainer.getAttribute('aria-label');
-    if (ariaLabel) {
-      return ariaLabel;
-    }
-    
-    // Резерв: используем data-testid
-    const testId = sizeContainer.getAttribute('data-testid');
-    if (testId) {
-      return testId.replace('BoxSelector-', '');
-    }
-    
-    return 'Unknown';
-  } catch (e) {
-    return 'Unknown';
-  }
-}
-
-/**
- * Функция ожидания
- */
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Валидация данных продукта
- */
-function validateProductData(data) {
-  const warnings = [];
-  const requiredFields = ['sku'];  // SKU - единственное обязательное поле для идентификации
-  
-  let isValid = true;
-  
-  // Проверяем обязательные поля
-  requiredFields.forEach(field => {
-    if (!data[field]) {
-      warnings.push(`Отсутствует обязательное поле: ${field}`);
-      isValid = false;
-    }
-  });
-  
-  // Проверяем, что SKU не пустой
-  if (data.sku && data.sku.trim() === '') {
-    warnings.push('SKU не может быть пустым');
-    isValid = false;
-  }
-  
-  // Предупреждения для важных полей (не влияют на isValid, но рекомендуются)
-  if (!data.name) {
-    warnings.push('Название продукта не найдено');
-  }
-  
-  if (!data.price) {
-    warnings.push('Цена продукта не найдена');
-  }
-  
-  if (!data.currency) {
-    warnings.push('Валюта не найдена');
-  }
-  
-  if (!data.all_image_urls || data.all_image_urls.length === 0) {
-    warnings.push('Изображения не найдены');
-  }
-  
-  if (!data.available_sizes && !data.size_combinations) {
-    warnings.push('Размеры не извлечены');
-  }
-  
-  return {
-    isValid: isValid, // Только SKU влияет на валидность - остальное предупреждения
-    warnings
-  };
 }
 
 /**
@@ -880,6 +352,12 @@ if (document.readyState === 'loading') {
 function initialize() {
   console.log('VIParser content script initialized');
   
+  // Инициализируем парсер
+  if (!initializeParser()) {
+    console.log('Site not supported, extension will remain inactive');
+    return;
+  }
+  
   // Сброс флага изменения продукта при инициализации
   resetProductChangeFlag();
   
@@ -897,14 +375,16 @@ async function waitForPageElements() {
   const maxAttempts = 20; // 10 секунд максимум
   
   while (attempts < maxAttempts) {
-    isPageValid = isValidProductPage();
-    
-    if (isPageValid) {
-      console.log('Valid product page detected after', attempts * 500, 'ms');
+    if (currentParser) {
+      isPageValid = currentParser.isValidProductPage();
       
-      // Настройка отслеживания изменений
-      setupChangeTracking();
-      return;
+      if (isPageValid) {
+        console.log('Valid product page detected after', attempts * 500, 'ms');
+        
+        // Настройка отслеживания изменений
+        setupChangeTracking();
+        return;
+      }
     }
     
     attempts++;
@@ -914,6 +394,7 @@ async function waitForPageElements() {
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   
+  console.log('Page elements failed to load within timeout');
 }
 
 // Слушатель события обновления страницы
@@ -942,15 +423,12 @@ function setupChangeTracking() {
   
   // Ждем полной загрузки страницы
   if (document.readyState === 'complete') {
-    // Страница уже загружена
     console.log('Page already loaded, starting change tracking immediately');
     startChangeTracking();
   } else {
-    // Ждем события load
     console.log('Waiting for page load event...');
     window.addEventListener('load', () => {
       console.log('Page load event fired, starting change tracking...');
-      // Небольшая дополнительная задержка для асинхронных скриптов
       setTimeout(startChangeTracking, 1000);
     });
   }
@@ -962,11 +440,12 @@ function setupChangeTracking() {
 function startChangeTracking() {
   console.log('Starting change tracking after page load...');
   
-  // Записываем время начала отслеживания
   changeTrackingStartTime = Date.now();
   
-  // 1. Отслеживание изменений JSON-LD
-  setupJsonLdTracking();
+  // 1. Отслеживание изменений JSON-LD (если поддерживается)
+  if (currentParser && typeof currentParser.waitForJsonLd === 'function') {
+    setupJsonLdTracking();
+  }
   
   // 2. Отслеживание изменений URL
   setupUrlTracking();
@@ -979,7 +458,19 @@ function startChangeTracking() {
  * Настройка отслеживания изменений JSON-LD через MutationObserver
  */
 function setupJsonLdTracking() {
-  const jsonLdElement = document.querySelector('#structured-data-pdp');
+  // Для сайтов без JSON-LD не настраиваем отслеживание
+  if (!currentParser || typeof currentParser.waitForJsonLd !== 'function') {
+    console.log('Current parser does not support JSON-LD tracking');
+    return;
+  }
+  
+  // Ищем JSON-LD элемент (для VS это специфичный селектор)
+  let jsonLdSelector = 'script[type="application/ld+json"]';
+  if (currentParser.config && currentParser.config.selectors && currentParser.config.selectors.jsonLdScript) {
+    jsonLdSelector = currentParser.config.selectors.jsonLdScript;
+  }
+  
+  const jsonLdElement = document.querySelector(jsonLdSelector);
   
   if (!jsonLdElement) {
     setTimeout(setupJsonLdTracking, 2000);
@@ -993,7 +484,6 @@ function setupJsonLdTracking() {
     mutationObserver.disconnect();
   }
   
-  // Находим родительский элемент (head или body)
   const parentElement = jsonLdElement.parentNode || document.head;
   console.log('Observing parent element:', parentElement.tagName);
   
@@ -1006,23 +496,15 @@ function setupJsonLdTracking() {
         // Проверяем добавленные узлы
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE && 
-              node.id === 'structured-data-pdp') {
+              node.matches && node.matches(jsonLdSelector)) {
             console.log('JSON-LD element replaced, marking product as changed');
             handleProductChange('JSON-LD element replaced');
-          }
-        });
-        
-        // Проверяем удаленные узлы
-        mutation.removedNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE && 
-              node.id === 'structured-data-pdp') {
-            console.log('JSON-LD element removed');
           }
         });
       }
       
       // Также отслеживаем изменения внутри текущего элемента
-      if (mutation.target.id === 'structured-data-pdp' && 
+      if (mutation.target.matches && mutation.target.matches(jsonLdSelector) && 
           (mutation.type === 'characterData' || mutation.type === 'childList')) {
         console.log('JSON-LD content changed, marking product as changed');
         handleProductChange('JSON-LD content changed');
@@ -1032,8 +514,8 @@ function setupJsonLdTracking() {
   
   // Настраиваем observer для отслеживания замены элемента
   mutationObserver.observe(parentElement, {
-    childList: true,        // отслеживать добавление/удаление дочерних элементов
-    subtree: true          // отслеживать изменения во всех потомках
+    childList: true,
+    subtree: true
   });
   
   console.log('MutationObserver for JSON-LD activated');

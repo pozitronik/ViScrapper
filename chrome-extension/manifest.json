@@ -17,7 +17,13 @@
   "content_scripts": [
     {
       "matches": ["https://www.victoriassecret.com/*"],
-      "js": ["content.js"],
+      "js": [
+        "parsers/BaseParser.js",
+        "parsers/VictoriasSecretParser.js", 
+        "parsers/ParserFactory.js",
+        "parsers/index.js",
+        "content.js"
+      ],
       "run_at": "document_end"
     }
   ],
