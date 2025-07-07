@@ -173,33 +173,93 @@ class VictoriasSecretParser extends BaseParser {
       
       // Проверяем статические размеры (простой текст)
       const staticSizeContainer = primaryProduct.querySelector(this.config.selectors.staticSize);
+      console.log('Static size container found:', !!staticSizeContainer);
+      if (staticSizeContainer) {
+        console.log('Static size container HTML:', staticSizeContainer.outerHTML);
+      }
       
-      // Находим первый блок BoxSelector-size1 в primaryProduct
-      const sizeContainer1 = primaryProduct.querySelector(this.config.selectors.boxSelectorSize1);
+      // Находим BoxSelector-size1 в общем primaryProduct
+      let sizeContainer1 = primaryProduct.querySelector(this.config.selectors.boxSelectorSize1);
+      console.log('BoxSelector-size1 found in PrimaryProduct:', !!sizeContainer1);
       
-      if (staticSizeContainer && !sizeContainer1) {
-        console.log('Found static size container, extracting text size...');
-        const staticSize = this.extractStaticSize(staticSizeContainer);
-        if (staticSize) {
-          console.log('Static size extracted:', staticSize);
-          return [staticSize];
+      // ВАЖНО: Проверяем, есть ли BoxSelector-size1 в том же родительском контейнере, что и Size
+      let isDynamicSizeNearStatic = false;
+      if (staticSizeContainer && sizeContainer1) {
+        // Ищем общий родительский элемент для Size и BoxSelector-size1
+        const staticParent = staticSizeContainer.parentElement;
+        const dynamicParent = sizeContainer1.parentElement;
+        
+        // Проверяем, находятся ли они в одном родителе или близко друг к другу
+        isDynamicSizeNearStatic = staticParent === dynamicParent || 
+                                  staticParent.contains(sizeContainer1) || 
+                                  dynamicParent.contains(staticSizeContainer);
+        
+        console.log('Static and dynamic containers are related:', isDynamicSizeNearStatic);
+        if (isDynamicSizeNearStatic) {
+          console.log('Static parent:', staticParent?.className);
+          console.log('Dynamic parent:', dynamicParent?.className);
         }
+      }
+      
+      // ОТЛАДКА: Детальная проверка условий
+      console.log('=== SIZE CONTAINER ANALYSIS ===');
+      console.log('staticSizeContainer exists:', !!staticSizeContainer);
+      console.log('sizeContainer1 exists:', !!sizeContainer1);
+      console.log('isDynamicSizeNearStatic:', isDynamicSizeNearStatic);
+      
+      // ИСПРАВЛЕННАЯ ЛОГИКА: используем статический размер только если нет динамических селекторов поблизости
+      if (staticSizeContainer && (!sizeContainer1 || !isDynamicSizeNearStatic)) {
+        console.log('✅ CONDITION MET: Found static size container without nearby dynamic selectors, extracting text size...');
+        const staticSize = this.extractStaticSize(staticSizeContainer);
+        console.log('Static size extraction result:', staticSize);
+        if (staticSize) {
+          console.log('Static size extracted successfully:', staticSize);
+          return [staticSize];
+        } else {
+          console.log('❌ Static size extraction failed');
+        }
+      } else if (staticSizeContainer && sizeContainer1 && isDynamicSizeNearStatic) {
+        console.log('⚠️ Found static size container BUT there are dynamic selectors nearby - using dynamic logic');
+      } else if (!staticSizeContainer && sizeContainer1) {
+        console.log('ℹ️ No static size container, but found dynamic selectors');
+      } else if (!staticSizeContainer && !sizeContainer1) {
+        console.log('❌ No size containers found at all');
       }
       
       // Проверяем комбинированные размеры (BoxSelector-comboSize)
       const comboSizeContainer = primaryProduct.querySelector(this.config.selectors.boxSelectorCombo);
+      console.log('BoxSelector-comboSize found:', !!comboSizeContainer);
       
       if (comboSizeContainer) {
         console.log('Found BoxSelector-comboSize container, extracting combo sizes...');
         const comboSizes = this.extractComboSizes(comboSizeContainer);
+        console.log('Combo sizes result:', comboSizes);
         if (comboSizes.length > 0) {
-          console.log('Combo sizes extracted:', comboSizes);
+          console.log('Combo sizes extracted successfully:', comboSizes);
           return comboSizes;
+        } else {
+          console.log('Combo sizes extraction returned empty array');
         }
       }
 
       if (!sizeContainer1) {
         console.log('No BoxSelector-size1 found within PrimaryProduct');
+        
+        // ОТЛАДКА: Если нет динамических селекторов, но есть статический контейнер
+        if (staticSizeContainer) {
+          console.log('=== DEBUGGING: Have static container but no dynamic selectors ===');
+          console.log('Trying to extract static size manually...');
+          const manualStaticSize = this.extractStaticSize(staticSizeContainer);
+          console.log('Manual static size result:', manualStaticSize);
+          
+          if (manualStaticSize) {
+            console.log('Manual extraction successful, returning:', [manualStaticSize]);
+            return [manualStaticSize];
+          } else {
+            console.log('Manual extraction also failed');
+          }
+        }
+        
         return [];
       }
       
@@ -256,7 +316,23 @@ class VictoriasSecretParser extends BaseParser {
         console.log('Simple sizes extracted:', availableSizes);
         return availableSizes;
       } else {
-        console.log('No valid size options found');
+        console.log('No valid size options found in dynamic selectors');
+        
+        // FALLBACK: Если динамические селекторы не сработали, попробуем статический размер
+        if (staticSizeContainer) {
+          console.log('=== FALLBACK: Trying static size extraction ===');
+          const fallbackStaticSize = this.extractStaticSize(staticSizeContainer);
+          console.log('Fallback static size result:', fallbackStaticSize);
+          
+          if (fallbackStaticSize) {
+            console.log('Fallback successful, returning static size:', [fallbackStaticSize]);
+            return [fallbackStaticSize];
+          } else {
+            console.log('Fallback also failed');
+          }
+        }
+        
+        console.log('All extraction methods failed');
         return [];
       }
       
@@ -271,51 +347,88 @@ class VictoriasSecretParser extends BaseParser {
    */
   extractStaticSize(staticSizeContainer) {
     try {
-      console.log('Extracting static size...');
+      console.log('=== EXTRACTING STATIC SIZE ===');
+      console.log('Container HTML:', staticSizeContainer.outerHTML);
+      
+      // Получаем полный текст контейнера для анализа
+      const fullText = staticSizeContainer.textContent.trim();
+      console.log(`Full container text: "${fullText}"`);
       
       // Сначала пробуем найти все span элементы
       const spans = staticSizeContainer.querySelectorAll('span');
       console.log(`Found ${spans.length} span elements in static size container`);
       
-      for (const span of spans) {
+      // Собираем все тексты из spans для анализа
+      const spanTexts = [];
+      for (let i = 0; i < spans.length; i++) {
+        const span = spans[i];
         const text = span.textContent.trim();
-        console.log(`Checking span text: "${text}"`);
+        spanTexts.push(text);
+        console.log(`Span ${i}: "${text}"`);
+      }
+      
+      console.log('All span texts:', spanTexts);
+      
+      // Стратегия 1: Ищем span, который содержит размер (не "Size")
+      for (let i = 0; i < spans.length; i++) {
+        const span = spans[i];
+        const text = span.textContent.trim();
         
         // Пропускаем пустые и служебные тексты
         if (!text || text === 'Size' || text === 'Размер' || text === 'Size ') {
-          console.log(`Skipping span with text: "${text}"`);
+          console.log(`Strategy 1: Skipping span ${i} with text: "${text}"`);
           continue;
         }
         
-        // Проверяем, что это не просто слово "Size" в начале
+        // Если это не начинается с "Size", то вероятно это размер
+        if (!text.toLowerCase().startsWith('size')) {
+          console.log(`Strategy 1: Found potential size in span ${i}: "${text}"`);
+          return text;
+        }
+        
+        // Проверяем, что это паттерн "Size Something"
         if (text.toLowerCase().startsWith('size ') && text.length > 5) {
-          // Извлекаем размер после "Size "
           const sizeValue = text.substring(5).trim();
           if (sizeValue) {
-            console.log(`Found static size after "Size ": ${sizeValue}`);
+            console.log(`Strategy 1: Found size after "Size " in span ${i}: "${sizeValue}"`);
             return sizeValue;
           }
         }
-        
-        // Если это не начинается с "Size ", то вероятно это и есть размер
-        if (!text.toLowerCase().startsWith('size')) {
-          console.log(`Found static size: ${text}`);
-          return text;
-        }
       }
       
-      // Если spans не дали результата, попробуем получить весь текст контейнера
-      const fullText = staticSizeContainer.textContent.trim();
-      console.log(`Full container text: "${fullText}"`);
+      // Стратегия 2: Анализируем полный текст с регулярными выражениями
+      console.log('Strategy 1 failed, trying strategy 2: regex on full text');
       
       // Ищем паттерн "Size [размер]"
       const sizeMatch = fullText.match(/Size\s+(.+)/i);
       if (sizeMatch && sizeMatch[1]) {
         const extractedSize = sizeMatch[1].trim();
-        console.log(`Extracted size from full text: ${extractedSize}`);
+        console.log(`Strategy 2: Extracted size from full text: "${extractedSize}"`);
         return extractedSize;
       }
       
+      // Стратегия 3: Если есть два span'а, второй может быть размером
+      if (spans.length === 2) {
+        const firstText = spans[0].textContent.trim();
+        const secondText = spans[1].textContent.trim();
+        
+        if ((firstText === 'Size' || firstText === 'Size ') && secondText && secondText !== 'Size') {
+          console.log(`Strategy 3: Found size in second span: "${secondText}"`);
+          return secondText;
+        }
+      }
+      
+      // Стратегия 4: Ищем любой span с содержимым, не равным "Size"
+      console.log('Strategy 3 failed, trying strategy 4: any non-Size span');
+      for (let i = 0; i < spans.length; i++) {
+        const text = spans[i].textContent.trim();
+        if (text && text !== 'Size' && text !== 'Size ' && text !== 'Размер') {
+          console.log(`Strategy 4: Found non-Size text in span ${i}: "${text}"`);
+          return text;
+        }
+      }
+      
+      console.log('=== ALL STRATEGIES FAILED ===');
       console.log('No static size found in container');
       return null;
       
