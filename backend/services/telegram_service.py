@@ -28,10 +28,25 @@ class TelegramService:
         if not self.bot_token:
             logger.warning("Telegram bot token not provided. Service will be disabled.")
             self.enabled = False
+            self._client = None
         else:
             self.enabled = True
             self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
-            logger.info("Telegram service initialized successfully")
+            
+            # Create persistent HTTP client with connection pooling
+            limits = httpx.Limits(
+                max_connections=20,      # Maximum number of connections
+                max_keepalive_connections=5,  # Keep-alive connections
+                keepalive_expiry=30.0    # Keep connections alive for 30 seconds
+            )
+            
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(60.0),  # 60 second timeout
+                limits=limits,
+                follow_redirects=True
+            )
+            
+            logger.info("Telegram service initialized successfully with connection pooling")
 
     async def _handle_rate_limit_retry(self, response: httpx.Response, operation: str, max_retries: int = 3) -> Optional[Dict[str, Any]]:
         """
@@ -134,70 +149,69 @@ class TelegramService:
         try:
             retry_count = 0
             while retry_count <= max_retries:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    logger.debug(f"Making POST request to: {self.base_url}/sendMessage")
-                    response = await client.post(
-                        f"{self.base_url}/sendMessage",
-                        data=data
-                    )
+                logger.debug(f"Making POST request to: {self.base_url}/sendMessage")
+                response = await self._client.post(
+                    f"{self.base_url}/sendMessage",
+                    data=data
+                )
 
-                    logger.debug(f"Response status: {response.status_code}")
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        logger.debug(f"Response JSON: {result}")
-                        if isinstance(result, dict) and result.get("ok"):
-                            logger.info(f"Message sent successfully to {chat_id}")
-                            if retry_count > 0:
-                                logger.info(f"Success after {retry_count} retries due to rate limiting")
-                            return result
-                        else:
-                            error_code = result.get("error_code", "unknown")
-                            error_description = result.get("description", "Unknown error")
-                            logger.error(f"Telegram API error for chat {chat_id}: Code {error_code}, Description: {error_description}, Full response: {result}")
-                            raise ExternalServiceException(
-                                service="telegram",
-                                message=f"Telegram API error: {error_description}",
-                                details={
-                                    "telegram_response": result, 
-                                    "chat_id": chat_id, 
-                                    "operation": "send_message",
-                                    "error_code": error_code,
-                                    "bot_token_present": bool(self.bot_token),
-                                    "request_data": {k: v for k, v in data.items() if k != "text"}  # Exclude text for privacy
-                                }
-                            )
+                logger.debug(f"Response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    logger.debug(f"Response JSON: {result}")
+                    if isinstance(result, dict) and result.get("ok"):
+                        logger.info(f"Message sent successfully to {chat_id}")
+                        if retry_count > 0:
+                            logger.info(f"Success after {retry_count} retries due to rate limiting")
+                        return result
                     else:
-                        # Check if this is a rate limit error (429)
-                        if response.status_code == 429 and retry_count < max_retries:
-                            retry_result = await self._handle_rate_limit_retry(response, "send_message")
-                            if retry_result and retry_result.get("retry"):
-                                retry_count += 1
-                                logger.info(f"Rate limit retry {retry_count}/{max_retries} for message to {chat_id}")
-                                continue
-                        
-                        response_text = response.text
-                        logger.error(f"HTTP error {response.status_code} for chat {chat_id}: {response_text}")
-                        
-                        # Try to parse JSON error response
-                        try:
-                            error_json = response.json()
-                            logger.error(f"Parsed error response: {error_json}")
-                        except Exception:
-                            logger.error("Could not parse error response as JSON")
-                        
+                        error_code = result.get("error_code", "unknown")
+                        error_description = result.get("description", "Unknown error")
+                        logger.error(f"Telegram API error for chat {chat_id}: Code {error_code}, Description: {error_description}, Full response: {result}")
                         raise ExternalServiceException(
                             service="telegram",
-                            message=f"HTTP error {response.status_code}",
+                            message=f"Telegram API error: {error_description}",
                             details={
-                                "status_code": response.status_code, 
-                                "response": response_text, 
+                                "telegram_response": result, 
+                                "chat_id": chat_id, 
                                 "operation": "send_message",
-                                "chat_id": chat_id,
+                                "error_code": error_code,
                                 "bot_token_present": bool(self.bot_token),
-                                "retry_count": retry_count
+                                "request_data": {k: v for k, v in data.items() if k != "text"}  # Exclude text for privacy
                             }
                         )
+                else:
+                    # Check if this is a rate limit error (429)
+                    if response.status_code == 429 and retry_count < max_retries:
+                        retry_result = await self._handle_rate_limit_retry(response, "send_message")
+                        if retry_result and retry_result.get("retry"):
+                            retry_count += 1
+                            logger.info(f"Rate limit retry {retry_count}/{max_retries} for message to {chat_id}")
+                            continue
+                    
+                    response_text = response.text
+                    logger.error(f"HTTP error {response.status_code} for chat {chat_id}: {response_text}")
+                    
+                    # Try to parse JSON error response
+                    try:
+                        error_json = response.json()
+                        logger.error(f"Parsed error response: {error_json}")
+                    except Exception:
+                        logger.error("Could not parse error response as JSON")
+                    
+                    raise ExternalServiceException(
+                        service="telegram",
+                        message=f"HTTP error {response.status_code}",
+                        details={
+                            "status_code": response.status_code, 
+                            "response": response_text, 
+                            "operation": "send_message",
+                            "chat_id": chat_id,
+                            "bot_token_present": bool(self.bot_token),
+                            "retry_count": retry_count
+                        }
+                    )
                         
             # If we get here, we've exhausted all retries
             logger.error(f"Exhausted all {max_retries} retries for message to {chat_id}")
@@ -284,49 +298,48 @@ class TelegramService:
                 files = {"photo": photo_file}
 
                 while retry_count <= max_retries:
-                    async with httpx.AsyncClient(timeout=60.0) as client:
-                        response = await client.post(
-                            f"{self.base_url}/sendPhoto",
-                            data=data,
-                            files=files
-                        )
+                    response = await self._client.post(
+                        f"{self.base_url}/sendPhoto",
+                        data=data,
+                        files=files
+                    )
 
-                        if response.status_code == 200:
-                            result = response.json()
-                            if isinstance(result, dict) and result.get("ok"):
-                                logger.info(f"Photo sent successfully to {chat_id}")
-                                if retry_count > 0:
-                                    logger.info(f"Success after {retry_count} retries due to rate limiting")
-                                return result
-                            else:
-                                logger.error(f"Telegram API error: {result}")
-                                raise ExternalServiceException(
-                                    service="telegram",
-                                    message=f"Telegram API error: {result.get('description', 'Unknown error')}",
-                                    details={"telegram_response": result, "chat_id": chat_id, "operation": "send_photo"}
-                                )
+                    if response.status_code == 200:
+                        result = response.json()
+                        if isinstance(result, dict) and result.get("ok"):
+                            logger.info(f"Photo sent successfully to {chat_id}")
+                            if retry_count > 0:
+                                logger.info(f"Success after {retry_count} retries due to rate limiting")
+                            return result
                         else:
-                            # Check if this is a rate limit error (429)
-                            if response.status_code == 429 and retry_count < max_retries:
-                                retry_result = await self._handle_rate_limit_retry(response, "send_photo")
-                                if retry_result and retry_result.get("retry"):
-                                    retry_count += 1
-                                    logger.info(f"Rate limit retry {retry_count}/{max_retries} for photo to {chat_id}")
-                                    # Reset file pointer to beginning for retry
-                                    photo_file.seek(0)
-                                    continue
-                            
-                            logger.error(f"HTTP error {response.status_code}: {response.text}")
+                            logger.error(f"Telegram API error: {result}")
                             raise ExternalServiceException(
                                 service="telegram",
-                                message=f"HTTP error {response.status_code}",
-                                details={
-                                    "status_code": response.status_code, 
-                                    "response": response.text, 
-                                    "operation": "send_photo",
-                                    "retry_count": retry_count
-                                }
+                                message=f"Telegram API error: {result.get('description', 'Unknown error')}",
+                                details={"telegram_response": result, "chat_id": chat_id, "operation": "send_photo"}
                             )
+                    else:
+                        # Check if this is a rate limit error (429)
+                        if response.status_code == 429 and retry_count < max_retries:
+                            retry_result = await self._handle_rate_limit_retry(response, "send_photo")
+                            if retry_result and retry_result.get("retry"):
+                                retry_count += 1
+                                logger.info(f"Rate limit retry {retry_count}/{max_retries} for photo to {chat_id}")
+                                # Reset file pointer to beginning for retry
+                                photo_file.seek(0)
+                                continue
+                        
+                        logger.error(f"HTTP error {response.status_code}: {response.text}")
+                        raise ExternalServiceException(
+                            service="telegram",
+                            message=f"HTTP error {response.status_code}",
+                            details={
+                                "status_code": response.status_code, 
+                                "response": response.text, 
+                                "operation": "send_photo",
+                                "retry_count": retry_count
+                            }
+                        )
                             
                 # If we get here, we've exhausted all retries
                 logger.error(f"Exhausted all {max_retries} retries for photo to {chat_id}")
@@ -439,70 +452,69 @@ class TelegramService:
                 files[f"photo{i}"] = open(path, "rb")
 
             while retry_count <= max_retries:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(
-                        f"{self.base_url}/sendMediaGroup",
-                        data=data,
-                        files=files
-                    )
+                response = await self._client.post(
+                    f"{self.base_url}/sendMediaGroup",
+                    data=data,
+                    files=files
+                )
 
-                    if response.status_code == 200:
-                        result = response.json()
-                        if isinstance(result, dict) and result.get("ok"):
-                            logger.info(f"Media group sent successfully to {chat_id}")
-                            if retry_count > 0:
-                                logger.info(f"Success after {retry_count} retries due to rate limiting")
-                            return result
-                        else:
-                            error_code = result.get("error_code", "unknown")
-                            error_description = result.get("description", "Unknown error")
-                            logger.error(f"Telegram API error for media group to {chat_id}: Code {error_code}, Description: {error_description}, Full response: {result}")
-                            raise ExternalServiceException(
-                                service="telegram",
-                                message=f"Telegram API error: {error_description}",
-                                details={
-                                    "telegram_response": result, 
-                                    "chat_id": chat_id, 
-                                    "operation": "send_media_group",
-                                    "error_code": error_code,
-                                    "media_count": len(media_paths),
-                                    "media_json": media_json
-                                }
-                            )
+                if response.status_code == 200:
+                    result = response.json()
+                    if isinstance(result, dict) and result.get("ok"):
+                        logger.info(f"Media group sent successfully to {chat_id}")
+                        if retry_count > 0:
+                            logger.info(f"Success after {retry_count} retries due to rate limiting")
+                        return result
                     else:
-                        # Check if this is a rate limit error (429)
-                        if response.status_code == 429 and retry_count < max_retries:
-                            retry_result = await self._handle_rate_limit_retry(response, "send_media_group")
-                            if retry_result and retry_result.get("retry"):
-                                retry_count += 1
-                                logger.info(f"Rate limit retry {retry_count}/{max_retries} for media group to {chat_id}")
-                                # Reset file pointers to beginning for retry
-                                for file_obj in files.values():
-                                    file_obj.seek(0)
-                                continue
-                        
-                        response_text = response.text
-                        logger.error(f"HTTP error {response.status_code} for media group to {chat_id}: {response_text}")
-                        
-                        # Try to parse JSON error response
-                        try:
-                            error_json = response.json()
-                            logger.error(f"Parsed media group error response: {error_json}")
-                        except Exception:
-                            logger.error("Could not parse media group error response as JSON")
-                        
+                        error_code = result.get("error_code", "unknown")
+                        error_description = result.get("description", "Unknown error")
+                        logger.error(f"Telegram API error for media group to {chat_id}: Code {error_code}, Description: {error_description}, Full response: {result}")
                         raise ExternalServiceException(
                             service="telegram",
-                            message=f"HTTP error {response.status_code}",
+                            message=f"Telegram API error: {error_description}",
                             details={
-                                "status_code": response.status_code, 
-                                "response": response_text, 
+                                "telegram_response": result, 
+                                "chat_id": chat_id, 
                                 "operation": "send_media_group",
-                                "chat_id": chat_id,
+                                "error_code": error_code,
                                 "media_count": len(media_paths),
-                                "retry_count": retry_count
+                                "media_json": media_json
                             }
                         )
+                else:
+                    # Check if this is a rate limit error (429)
+                    if response.status_code == 429 and retry_count < max_retries:
+                        retry_result = await self._handle_rate_limit_retry(response, "send_media_group")
+                        if retry_result and retry_result.get("retry"):
+                            retry_count += 1
+                            logger.info(f"Rate limit retry {retry_count}/{max_retries} for media group to {chat_id}")
+                            # Reset file pointers to beginning for retry
+                            for file_obj in files.values():
+                                file_obj.seek(0)
+                            continue
+                    
+                    response_text = response.text
+                    logger.error(f"HTTP error {response.status_code} for media group to {chat_id}: {response_text}")
+                    
+                    # Try to parse JSON error response
+                    try:
+                        error_json = response.json()
+                        logger.error(f"Parsed media group error response: {error_json}")
+                    except Exception:
+                        logger.error("Could not parse media group error response as JSON")
+                    
+                    raise ExternalServiceException(
+                        service="telegram",
+                        message=f"HTTP error {response.status_code}",
+                        details={
+                            "status_code": response.status_code, 
+                            "response": response_text, 
+                            "operation": "send_media_group",
+                            "chat_id": chat_id,
+                            "media_count": len(media_paths),
+                            "retry_count": retry_count
+                        }
+                    )
                         
                 # If we get here, we've exhausted all retries
                 logger.error(f"Exhausted all {max_retries} retries for media group to {chat_id}")
@@ -559,58 +571,57 @@ class TelegramService:
         logger.debug(f"Chat ID type: {type(chat_id)}, value: {chat_id}")
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                logger.debug(f"Making POST request to: {self.base_url}/getChat")
-                response = await client.post(
-                    f"{self.base_url}/getChat",
-                    data={"chat_id": chat_id}
-                )
+            logger.debug(f"Making POST request to: {self.base_url}/getChat")
+            response = await self._client.post(
+                f"{self.base_url}/getChat",
+                data={"chat_id": chat_id}
+            )
 
-                logger.debug(f"Response status for getChat: {response.status_code}")
+            logger.debug(f"Response status for getChat: {response.status_code}")
 
-                if response.status_code == 200:
-                    result = response.json()
-                    logger.debug(f"getChat response JSON: {result}")
-                    if isinstance(result, dict) and result.get("ok"):
-                        logger.info(f"Chat info retrieved for {chat_id}: {result.get('result', {}).get('title', 'N/A')}")
-                        return result
-                    else:
-                        error_code = result.get("error_code", "unknown")
-                        error_description = result.get("description", "Unknown error")
-                        logger.error(f"Telegram API error for getChat {chat_id}: Code {error_code}, Description: {error_description}, Full response: {result}")
-                        raise ExternalServiceException(
-                            service="telegram",
-                            message=f"Telegram API error: {error_description}",
-                            details={
-                                "telegram_response": result, 
-                                "chat_id": chat_id, 
-                                "operation": "get_chat_info",
-                                "error_code": error_code,
-                                "bot_token_present": bool(self.bot_token)
-                            }
-                        )
+            if response.status_code == 200:
+                result = response.json()
+                logger.debug(f"getChat response JSON: {result}")
+                if isinstance(result, dict) and result.get("ok"):
+                    logger.info(f"Chat info retrieved for {chat_id}: {result.get('result', {}).get('title', 'N/A')}")
+                    return result
                 else:
-                    response_text = response.text
-                    logger.error(f"HTTP error {response.status_code} for getChat {chat_id}: {response_text}")
-                    
-                    # Try to parse JSON error response
-                    try:
-                        error_json = response.json()
-                        logger.error(f"Parsed getChat error response: {error_json}")
-                    except Exception:
-                        logger.error("Could not parse getChat error response as JSON")
-                    
+                    error_code = result.get("error_code", "unknown")
+                    error_description = result.get("description", "Unknown error")
+                    logger.error(f"Telegram API error for getChat {chat_id}: Code {error_code}, Description: {error_description}, Full response: {result}")
                     raise ExternalServiceException(
                         service="telegram",
-                        message=f"HTTP error {response.status_code}",
+                        message=f"Telegram API error: {error_description}",
                         details={
-                            "status_code": response.status_code, 
-                            "response": response_text, 
+                            "telegram_response": result, 
+                            "chat_id": chat_id, 
                             "operation": "get_chat_info",
-                            "chat_id": chat_id,
+                            "error_code": error_code,
                             "bot_token_present": bool(self.bot_token)
                         }
                     )
+            else:
+                response_text = response.text
+                logger.error(f"HTTP error {response.status_code} for getChat {chat_id}: {response_text}")
+                
+                # Try to parse JSON error response
+                try:
+                    error_json = response.json()
+                    logger.error(f"Parsed getChat error response: {error_json}")
+                except Exception:
+                    logger.error("Could not parse getChat error response as JSON")
+                
+                raise ExternalServiceException(
+                    service="telegram",
+                    message=f"HTTP error {response.status_code}",
+                    details={
+                        "status_code": response.status_code, 
+                        "response": response_text, 
+                        "operation": "get_chat_info",
+                        "chat_id": chat_id,
+                        "bot_token_present": bool(self.bot_token)
+                    }
+                )
 
         except httpx.RequestError as e:
             logger.error(f"Request error getting chat info from Telegram: {e}")
@@ -689,6 +700,20 @@ class TelegramService:
     def is_enabled(self) -> bool:
         """Check if Telegram service is enabled"""
         return self.enabled
+
+    async def close(self) -> None:
+        """Close the HTTP client and free resources"""
+        if self._client:
+            await self._client.aclose()
+            logger.info("Telegram service HTTP client closed")
+
+    async def __aenter__(self):
+        """Async context manager entry"""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        await self.close()
 
 
 # Global instance

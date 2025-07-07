@@ -32,6 +32,7 @@ from services.backup_service import backup_service
 
 # Setup telegram post service for auto-posting
 from services.telegram_post_service import telegram_post_service
+from services.telegram_service import telegram_service
 
 # Initialize database with migrations instead of create_all
 from utils.migrations import initialize_database_with_migrations
@@ -74,6 +75,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if backup_service:
         logger.info("Stopping backup service...")
         await backup_service.stop_scheduled_backups()
+
+    # Close Telegram service connections
+    if telegram_service and telegram_service.is_enabled():
+        logger.info("Closing Telegram service connections...")
+        await telegram_service.close()
 
     logger.info("VIParser application shut down successfully")
 
