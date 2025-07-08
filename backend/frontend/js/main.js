@@ -26,7 +26,8 @@ class VIParserApp {
             this.onProductCreated.bind(this),
             this.onProductUpdated.bind(this), 
             this.onProductDeleted.bind(this),
-            this.onScrapingStatus.bind(this)
+            this.onScrapingStatus.bind(this),
+            this.onBulkPostEvent.bind(this)
         );
         
         // Bind methods
@@ -1059,7 +1060,7 @@ class VIParserApp {
 
         } catch (error) {
             console.error('Error opening bulk post modal:', error);
-            showNotification('Failed to load bulk post information', 'error');
+            this.showNotification('Failed to load bulk post information', 'error');
         }
     }
 
@@ -1107,7 +1108,8 @@ class VIParserApp {
             throw new Error('Failed to fetch channels');
         }
 
-        return data.data.filter(channel => channel.auto_post);
+        // Return all active channels for bulk posting (user can choose)
+        return data.data;
     }
 
     /**
@@ -1118,6 +1120,9 @@ class VIParserApp {
         const unpostedCountEl = document.getElementById('modal-unposted-count');
         const channelCountEl = document.getElementById('modal-channel-count');
 
+        // Store channels for later use in startBulkPost
+        this.availableChannels = channels;
+
         // Update modal content
         const unpostedCount = document.getElementById('unposted-count').textContent;
         if (unpostedCountEl) {
@@ -1126,7 +1131,7 @@ class VIParserApp {
 
         if (channelCountEl) {
             if (channels.length === 0) {
-                channelCountEl.textContent = 'No auto-post channels configured';
+                channelCountEl.textContent = 'No active channels configured';
                 channelCountEl.style.color = '#dc3545';
             } else {
                 const channelNames = channels.map(c => c.name).join(', ');
@@ -1234,9 +1239,34 @@ class VIParserApp {
             progressSection.classList.remove('hidden');
         }
 
+        // Initialize timer
+        this.startTimer();
+        
+        // Get unposted products first to create message items
+        const unpostedResponse = await fetch('/api/v1/telegram/unposted-count');
+        const unpostedData = await unpostedResponse.json();
+        const totalProducts = unpostedData.success ? unpostedData.data.unposted_count : 0;
+        
+        // Store total products for WebSocket handlers
+        this.totalProducts = totalProducts;
+
         try {
-            // Start the bulk posting
-            const response = await fetch('/api/v1/telegram/bulk-post-unposted', {
+            // Get available channels (stored from modal opening)
+            const channels = this.availableChannels || [];
+            
+            if (channels.length === 0) {
+                throw new Error('No channels available for posting');
+            }
+            
+            const channelIds = channels.map(c => c.id);
+            
+            // Build query string with channel IDs
+            const queryParams = new URLSearchParams();
+            channelIds.forEach(id => queryParams.append('channel_ids', id));
+            
+            // WebSocket events will handle the progress updates
+            // Just start the bulk posting process
+            const response = await fetch(`/api/v1/telegram/bulk-post-unposted?${queryParams}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1246,20 +1276,24 @@ class VIParserApp {
             const data = await response.json();
 
             if (data.success) {
+                // Show results (WebSocket already handled final status updates)
                 this.showBulkPostResults(data.data);
-                
-                // Refresh products and unposted count
-                await this.loadProducts();
-                await this.updateUnpostedCount();
-                
-                showNotification(`Bulk posting completed: ${data.data.posted_count} posted, ${data.data.failed_count} failed`, 'success');
             } else {
+                // Stop timer on error
+                this.stopTimer();
                 throw new Error(data.message || 'Bulk posting failed');
             }
 
         } catch (error) {
             console.error('Bulk posting error:', error);
-            showNotification(`Bulk posting failed: ${error.message}`, 'error');
+            
+            // Stop timer on error
+            this.stopTimer();
+            
+            // Update progress status
+            this.updateProgressStatus(0, totalProducts, 'Error occurred during posting');
+            
+            this.showNotification(`Bulk posting failed: ${error.message}`, 'error');
             
             // Reset modal on error
             this.resetBulkPostModal();
@@ -1362,6 +1396,240 @@ class VIParserApp {
             detailsContainer.appendChild(resultItem);
         });
     }
+
+    /**
+     * Start the timer for bulk posting
+     */
+    startTimer() {
+        this.startTime = Date.now();
+        this.timerInterval = setInterval(() => {
+            const elapsed = Date.now() - this.startTime;
+            const minutes = Math.floor(elapsed / 60000);
+            const seconds = Math.floor((elapsed % 60000) / 1000);
+            const timerElement = document.getElementById('bulk-timer');
+            if (timerElement) {
+                timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }, 1000);
+    }
+
+    /**
+     * Stop the timer
+     */
+    stopTimer() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+    }
+
+    /**
+     * Initialize progress display with message items
+     */
+    initializeProgress(totalProducts) {
+        const statusElement = document.getElementById('progress-status');
+        const countsElement = document.getElementById('progress-counts');
+        const messageList = document.getElementById('message-list');
+
+        if (statusElement) {
+            statusElement.textContent = 'Preparing to post...';
+        }
+        
+        if (countsElement) {
+            countsElement.textContent = `(0/${totalProducts})`;
+        }
+
+        if (messageList) {
+            messageList.innerHTML = '';
+            
+            // Create placeholders for each product
+            for (let i = 1; i <= totalProducts; i++) {
+                const messageItem = document.createElement('div');
+                messageItem.className = 'message-item';
+                messageItem.id = `message-item-${i}`;
+                
+                messageItem.innerHTML = `
+                    <div class="message-status" id="status-${i}">⏳</div>
+                    <div class="message-details">
+                        <div class="message-product" id="product-name-${i}">Product ${i}</div>
+                        <div class="message-info">
+                            <span class="message-channels" id="channels-${i}">Waiting...</span>
+                        </div>
+                    </div>
+                    <div class="message-time" id="time-${i}">--:--</div>
+                `;
+                
+                messageList.appendChild(messageItem);
+            }
+        }
+    }
+
+    /**
+     * Update status of a specific message
+     */
+    updateMessageStatus(index, status, productName = '', channels = '', error = '') {
+        const messageItem = document.getElementById(`message-item-${index}`);
+        const statusElement = document.getElementById(`status-${index}`);
+        const productNameElement = document.getElementById(`product-name-${index}`);
+        const channelsElement = document.getElementById(`channels-${index}`);
+        const timeElement = document.getElementById(`time-${index}`);
+
+        if (!messageItem || !statusElement) return;
+
+        // Update product name if provided
+        if (productName && productNameElement) {
+            productNameElement.textContent = productName;
+        }
+
+        // Update time
+        if (timeElement) {
+            const now = new Date();
+            timeElement.textContent = now.toLocaleTimeString().substring(0, 5);
+        }
+
+        // Remove old status classes
+        messageItem.className = 'message-item';
+        statusElement.className = 'message-status';
+
+        switch (status) {
+            case 'sending':
+                messageItem.classList.add('sending');
+                statusElement.classList.add('sending');
+                statusElement.textContent = '⏳';
+                if (channelsElement) {
+                    channelsElement.textContent = channels || 'Sending...';
+                }
+                break;
+            case 'sent':
+                messageItem.classList.add('sent');
+                statusElement.classList.add('sent');
+                statusElement.textContent = '✅';
+                if (channelsElement) {
+                    channelsElement.textContent = channels || 'Posted successfully';
+                }
+                break;
+            case 'waiting':
+                messageItem.classList.add('waiting');
+                statusElement.classList.add('waiting');
+                statusElement.textContent = '⏸️';
+                if (channelsElement) {
+                    channelsElement.textContent = 'Rate limit - waiting...';
+                }
+                break;
+            case 'error':
+                messageItem.classList.add('error');
+                statusElement.classList.add('error');
+                statusElement.textContent = '❌';
+                if (channelsElement) {
+                    channelsElement.textContent = error || 'Failed to send';
+                }
+                break;
+        }
+    }
+
+    /**
+     * Update overall progress status
+     */
+    updateProgressStatus(completed, total, status = '') {
+        const statusElement = document.getElementById('progress-status');
+        const countsElement = document.getElementById('progress-counts');
+
+        if (statusElement && status) {
+            statusElement.textContent = status;
+        }
+        
+        if (countsElement) {
+            countsElement.textContent = `(${completed}/${total})`;
+        }
+    }
+
+    /**
+     * Handle bulk post WebSocket events
+     */
+    onBulkPostEvent(message) {
+        console.log('Bulk post event received:', message);
+        
+        switch (message.type) {
+            case 'bulk_post_started':
+                this.handleBulkPostStarted(message);
+                break;
+            case 'bulk_post_product_start':
+                this.handleBulkPostProductStart(message);
+                break;
+            case 'bulk_post_product_success':
+                this.handleBulkPostProductSuccess(message);
+                break;
+            case 'bulk_post_product_error':
+                this.handleBulkPostProductError(message);
+                break;
+            case 'bulk_post_completed':
+                this.handleBulkPostCompleted(message);
+                break;
+        }
+    }
+
+    /**
+     * Handle bulk post started event
+     */
+    handleBulkPostStarted(message) {
+        const { total_products, channels } = message;
+        
+        // Initialize progress display
+        this.initializeProgress(total_products);
+        this.updateProgressStatus(0, total_products, 'Bulk posting started...');
+        
+        console.log(`Bulk posting started: ${total_products} products to ${channels.length} channels`);
+    }
+
+    /**
+     * Handle product start event
+     */
+    handleBulkPostProductStart(message) {
+        const { product_index, product_name, channels } = message;
+        const channelNames = channels.join(', ');
+        
+        this.updateMessageStatus(product_index, 'sending', product_name, `Posting to ${channelNames}`);
+        this.updateProgressStatus(product_index - 1, this.totalProducts, `Posting ${product_name}...`);
+    }
+
+    /**
+     * Handle product success event
+     */
+    handleBulkPostProductSuccess(message) {
+        const { product_index, product_name, posts_created, channels_posted } = message;
+        
+        this.updateMessageStatus(product_index, 'sent', product_name, `Posted successfully (${posts_created} posts)`);
+        this.updateProgressStatus(product_index, this.totalProducts, `${product_name} posted successfully`);
+    }
+
+    /**
+     * Handle product error event
+     */
+    handleBulkPostProductError(message) {
+        const { product_index, product_name, error } = message;
+        
+        this.updateMessageStatus(product_index, 'error', product_name, '', error);
+        this.updateProgressStatus(product_index, this.totalProducts, `${product_name} failed`);
+    }
+
+    /**
+     * Handle bulk post completed event
+     */
+    handleBulkPostCompleted(message) {
+        const { total_products, posted_count, failed_count } = message;
+        
+        // Stop timer
+        this.stopTimer();
+        
+        this.updateProgressStatus(posted_count, total_products, 'Bulk posting completed!');
+        
+        // Show notification
+        this.showNotification(`Bulk posting completed: ${posted_count} posted, ${failed_count} failed`, 'success');
+        
+        // Refresh products and unposted count
+        this.loadProducts();
+        this.updateUnpostedCount();
+    }
 }
 
 // Application initialization
@@ -1374,7 +1642,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         await app.init();
     } catch (error) {
         console.error('Failed to initialize application:', error);
-        showError(`Application initialization failed: ${error.message}`);
+        // Show error via console since app might not be fully initialized
+        alert(`Application initialization failed: ${error.message}`);
     }
 });
 

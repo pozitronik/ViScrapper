@@ -1,7 +1,7 @@
 // WebSocket client for real-time updates
 
 class WebSocketClient {
-    constructor(onProductCreated, onProductUpdated, onProductDeleted, onScrapingStatus) {
+    constructor(onProductCreated, onProductUpdated, onProductDeleted, onScrapingStatus, onBulkPostEvent) {
         this.ws = null;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
@@ -13,6 +13,7 @@ class WebSocketClient {
         this.onProductUpdated = onProductUpdated;
         this.onProductDeleted = onProductDeleted;
         this.onScrapingStatus = onScrapingStatus;
+        this.onBulkPostEvent = onBulkPostEvent;
         
         // Bind methods
         this.connect = this.connect.bind(this);
@@ -130,6 +131,19 @@ class WebSocketClient {
                         this.onScrapingStatus(message.data.status, message.data.details);
                     } else {
                         console.warn('No onScrapingStatus handler');
+                    }
+                    break;
+                    
+                case 'bulk_post_started':
+                case 'bulk_post_product_start':
+                case 'bulk_post_product_success':
+                case 'bulk_post_product_error':
+                case 'bulk_post_completed':
+                    console.log(`Handling ${message.type} event`, message);
+                    if (this.onBulkPostEvent) {
+                        this.onBulkPostEvent(message);
+                    } else {
+                        console.warn('No onBulkPostEvent handler');
                     }
                     break;
                     

@@ -887,7 +887,7 @@
     </div>
 
     <!-- Bulk Telegram Post Modal -->
-    <div id="bulk-post-modal" class="modal hidden">
+    <div id="bulk-post-modal" class="modal telegram-modal hidden">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>📲 Bulk Post to Telegram</h3>
@@ -901,12 +901,18 @@
                 </div>
                 
                 <div id="bulk-post-progress" class="progress-section hidden">
-                    <div class="progress-bar">
-                        <div id="bulk-progress-fill" class="progress-fill"></div>
+                    <div class="progress-header">
+                        <div class="progress-timer">
+                            <span>⏱️ Elapsed time: </span>
+                            <span id="bulk-timer">00:00</span>
+                        </div>
+                        <div class="progress-summary">
+                            <span id="progress-status">Preparing...</span>
+                            <span id="progress-counts">(0/0)</span>
+                        </div>
                     </div>
-                    <div class="progress-text">
-                        <span id="bulk-progress-text">Preparing...</span>
-                        <span id="bulk-progress-percent">0%</span>
+                    <div id="message-list" class="message-list">
+                        <!-- Message items will be dynamically added here -->
                     </div>
                 </div>
                 
