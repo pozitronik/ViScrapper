@@ -216,7 +216,7 @@ class ColumnConfigManager {
         
         if (!thead) return;
 
-        // Create a style element for dynamic CSS
+        // Create a style element for column visibility
         let styleElement = document.getElementById('column-config-styles');
         if (!styleElement) {
             styleElement = document.createElement('style');
@@ -224,19 +224,18 @@ class ColumnConfigManager {
             document.head.appendChild(styleElement);
         }
 
-        // Generate CSS rules for column order and visibility
+        // Generate CSS rules for column visibility
         let css = '';
         
         // First, hide all columns
         css += `#products-table th, #products-table td { display: none; }\n`;
         
-        // Then show and order visible columns
-        this.currentColumns.forEach((column, index) => {
+        // Then show visible columns
+        this.currentColumns.forEach((column) => {
             if (column.visible) {
                 const selector = column.id === 'select' ? '.select-column' : `[data-column="${column.id}"]`;
                 css += `#products-table th${selector}, #products-table td${selector} { 
                     display: table-cell; 
-                    order: ${index}; 
                 }\n`;
             }
         });
@@ -244,7 +243,59 @@ class ColumnConfigManager {
         // Apply the generated CSS
         styleElement.textContent = css;
 
+        // Reorder columns by actually moving DOM elements
+        this.reorderTableColumns(thead, tbody);
+
         console.log('Applied column configuration to table');
+    }
+
+    /**
+     * Physically reorder table columns by moving DOM elements
+     */
+    reorderTableColumns(thead, tbody) {
+        // Get current order of visible columns
+        const visibleColumns = this.currentColumns.filter(col => col.visible);
+        
+        // Reorder header cells
+        const headerCells = Array.from(thead.children);
+        const newHeaderOrder = [];
+        
+        visibleColumns.forEach(column => {
+            const selector = column.id === 'select' ? '.select-column' : `[data-column="${column.id}"]`;
+            const cell = headerCells.find(cell => 
+                cell.matches(selector) || 
+                (column.id === 'select' && cell.classList.contains('select-column'))
+            );
+            if (cell) {
+                newHeaderOrder.push(cell);
+            }
+        });
+
+        // Remove all header cells and re-append in new order
+        headerCells.forEach(cell => cell.remove());
+        newHeaderOrder.forEach(cell => thead.appendChild(cell));
+
+        // Reorder body cells for each row
+        const bodyRows = Array.from(tbody.children);
+        bodyRows.forEach(row => {
+            const bodyCells = Array.from(row.children);
+            const newBodyOrder = [];
+            
+            visibleColumns.forEach(column => {
+                const selector = column.id === 'select' ? '.select-column' : `[data-column="${column.id}"]`;
+                const cell = bodyCells.find(cell => 
+                    cell.matches(selector) || 
+                    (column.id === 'select' && cell.classList.contains('select-column'))
+                );
+                if (cell) {
+                    newBodyOrder.push(cell);
+                }
+            });
+
+            // Remove all body cells and re-append in new order
+            bodyCells.forEach(cell => cell.remove());
+            newBodyOrder.forEach(cell => row.appendChild(cell));
+        });
     }
 
     /**
