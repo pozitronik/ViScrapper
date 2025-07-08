@@ -69,6 +69,9 @@ class VIParserApp {
         // Load initial data
         await this.loadProducts();
         
+        // Update unposted products count for Telegram bulk post button
+        await this.updateUnpostedCount();
+        
         // Check for product highlighting from URL
         this.handleProductHighlighting();
         
@@ -130,6 +133,15 @@ class VIParserApp {
         if (pageSizeSelect) {
             pageSizeSelect.addEventListener('change', this.handlePageSizeChange);
         }
+
+        // Bulk post telegram button
+        const bulkPostBtn = document.getElementById('bulk-post-telegram');
+        if (bulkPostBtn) {
+            bulkPostBtn.addEventListener('click', this.handleBulkPostTelegram.bind(this));
+        }
+
+        // Bulk post modal handlers
+        this.setupBulkPostModalHandlers();
 
         // Table sorting
         this.setupTableSorting();
@@ -992,6 +1004,363 @@ class VIParserApp {
             searchInput.value = this.currentSearch;
             this.toggleClearButton(this.currentSearch);
         }
+    }
+
+    /**
+     * Setup bulk post modal event handlers
+     */
+    setupBulkPostModalHandlers() {
+        // Modal controls
+        const modal = document.getElementById('bulk-post-modal');
+        const closeBtn = document.getElementById('bulk-post-close');
+        const cancelBtn = document.getElementById('bulk-post-cancel');
+        const startBtn = document.getElementById('bulk-post-start');
+        const doneBtn = document.getElementById('bulk-post-done');
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.closeBulkPostModal());
+        }
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => this.closeBulkPostModal());
+        }
+
+        if (startBtn) {
+            startBtn.addEventListener('click', () => this.startBulkPost());
+        }
+
+        if (doneBtn) {
+            doneBtn.addEventListener('click', () => this.closeBulkPostModal());
+        }
+
+        // Close modal when clicking outside
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    this.closeBulkPostModal();
+                }
+            });
+        }
+    }
+
+    /**
+     * Handle bulk post telegram button click
+     */
+    async handleBulkPostTelegram() {
+        try {
+            // Get unposted products count
+            await this.updateUnpostedCount();
+
+            // Get channel information
+            const channelsResponse = await this.fetchChannels();
+            
+            // Open modal
+            this.openBulkPostModal(channelsResponse);
+
+        } catch (error) {
+            console.error('Error opening bulk post modal:', error);
+            showNotification('Failed to load bulk post information', 'error');
+        }
+    }
+
+    /**
+     * Update unposted products count
+     */
+    async updateUnpostedCount() {
+        try {
+            const response = await fetch('/api/v1/telegram/unposted-count');
+            const data = await response.json();
+            
+            const count = data.success ? data.data.unposted_count : 0;
+            const countElement = document.getElementById('unposted-count');
+            const bulkPostBtn = document.getElementById('bulk-post-telegram');
+            
+            if (countElement) {
+                countElement.textContent = count;
+            }
+            
+            // Disable button if no unposted products
+            if (bulkPostBtn) {
+                bulkPostBtn.disabled = count === 0;
+                if (count === 0) {
+                    bulkPostBtn.title = 'No unposted products available';
+                } else {
+                    bulkPostBtn.title = `Post ${count} unposted products to Telegram`;
+                }
+            }
+
+            return count;
+        } catch (error) {
+            console.error('Error updating unposted count:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Fetch channels information
+     */
+    async fetchChannels() {
+        const response = await fetch('/api/v1/telegram/channels?active_only=true');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error('Failed to fetch channels');
+        }
+
+        return data.data.filter(channel => channel.auto_post);
+    }
+
+    /**
+     * Open bulk post modal
+     */
+    openBulkPostModal(channels) {
+        const modal = document.getElementById('bulk-post-modal');
+        const unpostedCountEl = document.getElementById('modal-unposted-count');
+        const channelCountEl = document.getElementById('modal-channel-count');
+
+        // Update modal content
+        const unpostedCount = document.getElementById('unposted-count').textContent;
+        if (unpostedCountEl) {
+            unpostedCountEl.textContent = unpostedCount;
+        }
+
+        if (channelCountEl) {
+            if (channels.length === 0) {
+                channelCountEl.textContent = 'No auto-post channels configured';
+                channelCountEl.style.color = '#dc3545';
+            } else {
+                const channelNames = channels.map(c => c.name).join(', ');
+                channelCountEl.textContent = `${channels.length} channels (${channelNames})`;
+                channelCountEl.style.color = '#28a745';
+            }
+        }
+
+        // Reset modal state
+        this.resetBulkPostModal();
+
+        // Show modal
+        if (modal) {
+            modal.classList.remove('hidden');
+        }
+
+        // Disable start button if no channels
+        const startBtn = document.getElementById('bulk-post-start');
+        if (startBtn) {
+            startBtn.disabled = channels.length === 0;
+        }
+    }
+
+    /**
+     * Close bulk post modal
+     */
+    closeBulkPostModal() {
+        const modal = document.getElementById('bulk-post-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+        this.resetBulkPostModal();
+    }
+
+    /**
+     * Reset bulk post modal to initial state
+     */
+    resetBulkPostModal() {
+        // Hide progress and results sections
+        const progressSection = document.getElementById('bulk-post-progress');
+        const resultsSection = document.getElementById('bulk-post-results');
+        
+        if (progressSection) {
+            progressSection.classList.add('hidden');
+        }
+        
+        if (resultsSection) {
+            resultsSection.classList.add('hidden');
+        }
+
+        // Reset progress
+        const progressFill = document.getElementById('bulk-progress-fill');
+        const progressText = document.getElementById('bulk-progress-text');
+        const progressPercent = document.getElementById('bulk-progress-percent');
+
+        if (progressFill) {
+            progressFill.style.width = '0%';
+        }
+        
+        if (progressText) {
+            progressText.textContent = 'Preparing...';
+        }
+        
+        if (progressPercent) {
+            progressPercent.textContent = '0%';
+        }
+
+        // Show/hide buttons
+        const startBtn = document.getElementById('bulk-post-start');
+        const cancelBtn = document.getElementById('bulk-post-cancel');
+        const doneBtn = document.getElementById('bulk-post-done');
+
+        if (startBtn) {
+            startBtn.classList.remove('hidden');
+            startBtn.disabled = false;
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.classList.remove('hidden');
+        }
+        
+        if (doneBtn) {
+            doneBtn.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Start bulk posting process
+     */
+    async startBulkPost() {
+        const startBtn = document.getElementById('bulk-post-start');
+        const cancelBtn = document.getElementById('bulk-post-cancel');
+        const progressSection = document.getElementById('bulk-post-progress');
+
+        // Hide start button and show progress
+        if (startBtn) {
+            startBtn.classList.add('hidden');
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.style.display = 'none';
+        }
+        
+        if (progressSection) {
+            progressSection.classList.remove('hidden');
+        }
+
+        try {
+            // Start the bulk posting
+            const response = await fetch('/api/v1/telegram/bulk-post-unposted', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showBulkPostResults(data.data);
+                
+                // Refresh products and unposted count
+                await this.loadProducts();
+                await this.updateUnpostedCount();
+                
+                showNotification(`Bulk posting completed: ${data.data.posted_count} posted, ${data.data.failed_count} failed`, 'success');
+            } else {
+                throw new Error(data.message || 'Bulk posting failed');
+            }
+
+        } catch (error) {
+            console.error('Bulk posting error:', error);
+            showNotification(`Bulk posting failed: ${error.message}`, 'error');
+            
+            // Reset modal on error
+            this.resetBulkPostModal();
+        }
+    }
+
+    /**
+     * Show bulk post results
+     */
+    showBulkPostResults(results) {
+        const progressSection = document.getElementById('bulk-post-progress');
+        const resultsSection = document.getElementById('bulk-post-results');
+        const progressFill = document.getElementById('bulk-progress-fill');
+        const progressText = document.getElementById('bulk-progress-text');
+        const progressPercent = document.getElementById('bulk-progress-percent');
+
+        // Complete progress bar
+        if (progressFill) {
+            progressFill.style.width = '100%';
+        }
+        
+        if (progressText) {
+            progressText.textContent = 'Completed';
+        }
+        
+        if (progressPercent) {
+            progressPercent.textContent = '100%';
+        }
+
+        // Show results after a brief delay
+        setTimeout(() => {
+            if (progressSection) {
+                progressSection.classList.add('hidden');
+            }
+            
+            if (resultsSection) {
+                resultsSection.classList.remove('hidden');
+            }
+
+            // Update result numbers
+            const successEl = document.getElementById('result-success');
+            const failedEl = document.getElementById('result-failed');
+
+            if (successEl) {
+                successEl.textContent = results.posted_count || 0;
+            }
+            
+            if (failedEl) {
+                failedEl.textContent = results.failed_count || 0;
+            }
+
+            // Show detailed results
+            this.showDetailedResults(results.results || []);
+
+            // Show done button
+            const doneBtn = document.getElementById('bulk-post-done');
+            if (doneBtn) {
+                doneBtn.classList.remove('hidden');
+            }
+
+        }, 1000);
+    }
+
+    /**
+     * Show detailed results in the modal
+     */
+    showDetailedResults(results) {
+        const detailsContainer = document.getElementById('bulk-post-details');
+        if (!detailsContainer) return;
+
+        detailsContainer.innerHTML = '';
+
+        if (results.length === 0) {
+            detailsContainer.innerHTML = '<p>No results to display</p>';
+            return;
+        }
+
+        results.forEach(result => {
+            const resultItem = document.createElement('div');
+            resultItem.className = `result-item ${result.success ? 'success' : 'error'}`;
+
+            const name = document.createElement('div');
+            name.className = 'result-item-name';
+            name.textContent = result.product_name || `Product #${result.product_id}`;
+
+            const status = document.createElement('div');
+            status.className = 'result-item-status';
+            
+            if (result.success) {
+                status.textContent = `✓ Posted (${result.posts_created || 0})`;
+            } else {
+                status.textContent = `✗ Failed`;
+                if (result.error) {
+                    status.title = result.error;
+                }
+            }
+
+            resultItem.appendChild(name);
+            resultItem.appendChild(status);
+            detailsContainer.appendChild(resultItem);
+        });
     }
 }
 

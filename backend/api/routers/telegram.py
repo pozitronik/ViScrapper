@@ -3,7 +3,7 @@ API router for Telegram functionality
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from database.session import get_db
 from schemas.telegram import (
@@ -17,6 +17,7 @@ from crud.telegram import (
     get_channels, get_channel_by_id, create_channel, update_channel, soft_delete_channel,
     get_channel_count, get_posts, get_post_by_id, get_telegram_stats
 )
+from crud.product import get_products_not_posted_to_telegram
 from services.telegram_post_service import telegram_post_service
 from services.telegram_service import telegram_service
 from utils.logger import get_logger
@@ -417,3 +418,144 @@ async def get_telegram_service_status() -> APIResponse[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error getting telegram service status: {e}")
         raise HTTPException(status_code=500, detail="Failed to get service status")
+
+
+@router.post("/bulk-post-unposted", response_model=APIResponse[Dict[str, Any]])
+async def bulk_post_unposted_products(
+        channel_ids: Optional[List[int]] = Query(None, description="Channel IDs to post to. If not provided, uses auto-post channels"),
+        limit: Optional[int] = Query(None, ge=1, le=1000, description="Maximum number of products to post"),
+        db: Session = Depends(get_db)
+) -> APIResponse[Dict[str, Any]]:
+    """
+    Post all unposted products to Telegram channels in bulk
+    
+    Args:
+        channel_ids: List of channel IDs to post to. If not provided, uses channels with auto_post=True
+        limit: Maximum number of products to post (default: no limit)
+        
+    Returns:
+        Results of bulk posting operation including success/failure counts
+    """
+    if not telegram_service.is_enabled():
+        raise HTTPException(status_code=400, detail="Telegram service is disabled")
+
+    try:
+        # Get unposted products
+        unposted_products = get_products_not_posted_to_telegram(db, limit=limit)
+        
+        if not unposted_products:
+            return APIResponse(
+                success=True,
+                message="No unposted products found",
+                data={
+                    "total_products": 0,
+                    "posted_count": 0,
+                    "failed_count": 0,
+                    "skipped_count": 0,
+                    "results": []
+                }
+            )
+
+        # Determine channels to use
+        if channel_ids:
+            # Use provided channel IDs
+            channels = []
+            for channel_id in channel_ids:
+                channel = get_channel_by_id(db, channel_id)
+                if channel and channel.is_active:
+                    channels.append(channel)
+        else:
+            # Use auto-post channels
+            from models.product import TelegramChannel
+            channels = db.query(TelegramChannel).filter(
+                TelegramChannel.auto_post == True,
+                TelegramChannel.is_active == True,
+                TelegramChannel.deleted_at.is_(None)
+            ).all()
+
+        if not channels:
+            raise HTTPException(
+                status_code=400, 
+                detail="No active channels found for posting"
+            )
+
+        channel_ids_to_use = [channel.id for channel in channels]
+        
+        logger.info(f"Starting bulk post of {len(unposted_products)} products to {len(channels)} channels")
+
+        # Post each product
+        results = []
+        posted_count = 0
+        failed_count = 0
+        
+        for product in unposted_products:
+            try:
+                result = await telegram_post_service.send_post(
+                    db=db,
+                    product_id=product.id,
+                    channel_ids=channel_ids_to_use
+                )
+                
+                results.append({
+                    "product_id": product.id,
+                    "product_name": product.name,
+                    "success": True,
+                    "posts_created": len(result.get("posts_created", [])),
+                    "errors": result.get("errors", [])
+                })
+                
+                posted_count += result.get("success_count", 0)
+                failed_count += result.get("failed_count", 0)
+                
+            except Exception as e:
+                error_msg = str(e)
+                results.append({
+                    "product_id": product.id,
+                    "product_name": product.name,
+                    "success": False,
+                    "error": error_msg
+                })
+                failed_count += len(channels)
+                logger.error(f"Failed to post product {product.id} ({product.name}): {e}")
+
+        # Prepare response
+        response_data = {
+            "total_products": len(unposted_products),
+            "posted_count": posted_count,
+            "failed_count": failed_count,
+            "channels_used": len(channels),
+            "channel_names": [channel.name for channel in channels],
+            "results": results
+        }
+
+        success_message = f"Bulk posting completed: {posted_count} successful, {failed_count} failed"
+        
+        return APIResponse(
+            success=True,
+            message=success_message,
+            data=response_data
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in bulk post unposted products: {e}")
+        raise HTTPException(status_code=500, detail=f"Bulk posting failed: {str(e)}")
+
+
+@router.get("/unposted-count", response_model=APIResponse[Dict[str, int]])
+async def get_unposted_products_count(
+        db: Session = Depends(get_db)
+) -> APIResponse[Dict[str, int]]:
+    """Get count of products that haven't been posted to Telegram yet"""
+    try:
+        count = len(get_products_not_posted_to_telegram(db))
+        
+        return APIResponse(
+            success=True,
+            message=f"Found {count} unposted products",
+            data={"unposted_count": count}
+        )
+    except Exception as e:
+        logger.error(f"Error getting unposted products count: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get unposted products count")

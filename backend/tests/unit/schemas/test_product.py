@@ -611,7 +611,7 @@ class TestProduct:
         
         assert product.sell_price == 30.0  # 20.00 * 1.5
 
-    @patch.dict(os.environ, {"PRICE_MULTIPLIER": "2.0"})
+    @patch.dict(os.environ, {'PRICE_MULTIPLIER': '2.0', 'PRICE_ROUNDING_THRESHOLD': '0.0'})
     def test_product_sell_price_rounding(self):
         """Test Product sell_price rounding."""
         product = Product(

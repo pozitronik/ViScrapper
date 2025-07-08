@@ -59,6 +59,9 @@
                     <button id="refresh-btn" class="btn btn-secondary" title="Refresh data">
                         <span class="refresh-icon">↻</span> Refresh
                     </button>
+                    <button id="bulk-post-telegram" class="btn btn-primary telegram-bulk-btn" title="Post all unposted products to Telegram">
+                        <span class="telegram-icon">📲</span> Bulk Post (<span id="unposted-count">0</span>)
+                    </button>
                     <button id="manage-channels" class="btn btn-outline" title="Manage Telegram channels">
                         📢 Channels
                     </button>
@@ -879,6 +882,60 @@
                         💾 Save Configuration
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Telegram Post Modal -->
+    <div id="bulk-post-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📲 Bulk Post to Telegram</h3>
+                <button class="modal-close" id="bulk-post-close">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div id="bulk-post-info" class="bulk-post-info">
+                    <p><strong>Products to post:</strong> <span id="modal-unposted-count">0</span></p>
+                    <p><strong>Target channels:</strong> <span id="modal-channel-count">Loading...</span></p>
+                </div>
+                
+                <div id="bulk-post-progress" class="progress-section hidden">
+                    <div class="progress-bar">
+                        <div id="bulk-progress-fill" class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="bulk-progress-text">Preparing...</span>
+                        <span id="bulk-progress-percent">0%</span>
+                    </div>
+                </div>
+                
+                <div id="bulk-post-results" class="results-section hidden">
+                    <div class="results-summary">
+                        <div class="result-stat success">
+                            <span class="result-number" id="result-success">0</span>
+                            <span class="result-label">Posted</span>
+                        </div>
+                        <div class="result-stat error">
+                            <span class="result-number" id="result-failed">0</span>
+                            <span class="result-label">Failed</span>
+                        </div>
+                    </div>
+                    
+                    <div id="bulk-post-details" class="results-details">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button id="bulk-post-cancel" class="btn btn-outline">Cancel</button>
+                <button id="bulk-post-start" class="btn btn-primary">
+                    📲 Start Posting
+                </button>
+                <button id="bulk-post-done" class="btn btn-primary hidden">
+                    Done
+                </button>
             </div>
         </div>
     </div>

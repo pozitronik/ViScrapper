@@ -866,3 +866,44 @@ def delete_product_image(db: Session, product_id: int, image_id: int) -> Optiona
             table="images",
             original_exception=e
         )
+
+
+def get_products_not_posted_to_telegram(db: Session, limit: Optional[int] = None, include_deleted: bool = False) -> List[Product]:
+    """
+    Get products that haven't been posted to Telegram yet.
+    
+    Args:
+        db: Database session
+        limit: Maximum number of products to return
+        include_deleted: Whether to include soft-deleted products
+        
+    Returns:
+        List of Product instances that haven't been posted to Telegram
+    """
+    logger.debug(f"Searching for products not posted to Telegram (limit: {limit})")
+    
+    try:
+        query = db.query(Product).filter(Product.telegram_posted_at.is_(None))
+        
+        if not include_deleted:
+            query = query.filter(Product.deleted_at.is_(None))
+        
+        # Order by creation date, oldest first
+        query = query.order_by(Product.created_at.asc())
+        
+        if limit:
+            query = query.limit(limit)
+            
+        products = query.all()
+        
+        logger.info(f"Found {len(products)} products not posted to Telegram")
+        return products
+        
+    except Exception as e:
+        logger.error(f"Error getting products not posted to Telegram: {e}")
+        raise DatabaseException(
+            message="Failed to get products not posted to Telegram",
+            operation="get_products_not_posted_to_telegram",
+            table="products",
+            original_exception=e
+        )

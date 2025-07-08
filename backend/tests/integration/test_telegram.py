@@ -2,6 +2,7 @@
 Tests for Telegram functionality
 """
 import pytest
+from datetime import datetime
 from typing import Optional
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
@@ -551,3 +552,280 @@ class TestTelegramAPI:
         assert data["success"] is True
         assert "service_enabled" in data["data"]
         assert "bot_token_configured" in data["data"]
+
+
+class TestTelegramBulkPostIntegration:
+    """Integration tests for bulk posting functionality"""
+    
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        """Set up test database for each test"""
+        # Create isolated test database
+        self.test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        Base.metadata.create_all(bind=self.test_engine)
+        
+        # Create session
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.test_engine)
+        self.test_db = TestingSessionLocal()
+        
+        # Override database dependency
+        def override_get_db():
+            yield self.test_db
+            
+        app.dependency_overrides[get_db] = override_get_db
+        self.client = TestClient(app)
+        
+        yield
+        
+        # Cleanup
+        self.test_db.close()
+        Base.metadata.drop_all(bind=self.test_engine)
+        app.dependency_overrides.clear()
+    
+    def create_test_products(self, count: int = 3, posted_count: int = 1):
+        """Create test products with some posted and some unposted"""
+        products = []
+        
+        for i in range(count):
+            product = Product(
+                name=f"Test Product {i+1}",
+                product_url=f"https://example.com/product{i+1}",
+                sku=f"SKU{i+1}",
+                price=99.99,
+                currency="USD",
+                availability="In Stock",
+                color="Red",
+                composition="Cotton",
+                item="Dress",
+                comment="Test product",
+                telegram_posted_at=None if i >= posted_count else datetime.utcnow()
+            )
+            self.test_db.add(product)
+            products.append(product)
+        
+        self.test_db.commit()
+        return products
+    
+    def create_test_channel(self, auto_post: bool = True, is_active: bool = True):
+        """Create a test telegram channel"""
+        channel_data = TelegramChannelCreate(
+            name="Test Channel",
+            chat_id="@testchannel",
+            auto_post=auto_post,
+            is_active=is_active,
+            send_photos=True,
+            disable_notification=False,
+            disable_web_page_preview=True
+        )
+        
+        channel = create_channel(self.test_db, channel_data)
+        self.test_db.commit()
+        return channel
+    
+    @patch('api.routers.telegram.telegram_service')
+    @patch('api.routers.telegram.telegram_post_service')
+    def test_get_unposted_count_integration(self, mock_post_service, mock_telegram_service):
+        """Test getting unposted products count via API"""
+        # Create test products - 2 unposted, 1 posted
+        self.create_test_products(count=3, posted_count=1)
+        
+        response = self.client.get("/api/v1/telegram/unposted-count")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["unposted_count"] == 2
+        assert "2 unposted products" in data["message"]
+    
+    def test_get_unposted_count_empty(self):
+        """Test getting unposted count when all products are posted"""
+        # Create products that are all posted
+        self.create_test_products(count=2, posted_count=2)
+        
+        response = self.client.get("/api/v1/telegram/unposted-count")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["unposted_count"] == 0
+        assert "0 unposted products" in data["message"]
+    
+    @patch('api.routers.telegram.telegram_service')
+    @patch('api.routers.telegram.telegram_post_service')
+    def test_bulk_post_integration_success(self, mock_post_service, mock_telegram_service):
+        """Test complete bulk posting workflow"""
+        # Setup mocks
+        mock_telegram_service.is_enabled.return_value = True
+        mock_post_service.send_post = AsyncMock(return_value={
+            "posts_created": [MagicMock()],
+            "success_count": 1,
+            "failed_count": 0,
+            "errors": []
+        })
+        
+        # Create test data
+        products = self.create_test_products(count=3, posted_count=1)  # 2 unposted
+        channel = self.create_test_channel()
+        
+        # Execute bulk post
+        response = self.client.post(f"/api/v1/telegram/bulk-post-unposted?channel_ids={channel.id}")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["total_products"] == 2
+        assert data["data"]["posted_count"] == 2  # Both products posted successfully
+        assert data["data"]["failed_count"] == 0
+        assert data["data"]["channels_used"] == 1
+        assert len(data["data"]["results"]) == 2
+        
+        # Verify each result
+        for result in data["data"]["results"]:
+            assert result["success"] is True
+            assert result["posts_created"] == 1
+            assert result["errors"] == []
+    
+    @patch('api.routers.telegram.telegram_service')
+    def test_bulk_post_no_unposted_products(self, mock_telegram_service):
+        """Test bulk posting when no unposted products exist"""
+        mock_telegram_service.is_enabled.return_value = True
+        
+        # All products are posted
+        self.create_test_products(count=2, posted_count=2)
+        
+        response = self.client.post("/api/v1/telegram/bulk-post-unposted")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["total_products"] == 0
+        assert data["message"] == "No unposted products found"
+    
+    @patch('api.routers.telegram.telegram_service')
+    def test_bulk_post_no_active_channels(self, mock_telegram_service):
+        """Test bulk posting when no auto-post channels exist"""
+        mock_telegram_service.is_enabled.return_value = True
+        
+        # Create products and inactive channel
+        self.create_test_products(count=2, posted_count=0)
+        self.create_test_channel(auto_post=False)  # Not auto-post
+        
+        response = self.client.post("/api/v1/telegram/bulk-post-unposted")
+        assert response.status_code == 400
+        assert "No active channels found" in response.json()["error"]["message"]
+    
+    @patch('api.routers.telegram.telegram_service')
+    def test_bulk_post_service_disabled(self, mock_telegram_service):
+        """Test bulk posting when telegram service is disabled"""
+        mock_telegram_service.is_enabled.return_value = False
+        
+        response = self.client.post("/api/v1/telegram/bulk-post-unposted")
+        assert response.status_code == 400
+        assert "Telegram service is disabled" in response.json()["error"]["message"]
+    
+    @patch('api.routers.telegram.telegram_service')
+    @patch('api.routers.telegram.telegram_post_service')
+    def test_bulk_post_with_failures(self, mock_post_service, mock_telegram_service):
+        """Test bulk posting with some failures"""
+        mock_telegram_service.is_enabled.return_value = True
+        
+        # Mock post service to fail for product 2
+        def mock_send_post(*args, **kwargs):
+            product_id = kwargs.get('product_id', 0)
+            if product_id == 2:  # Fail for second product
+                raise Exception("Network error")
+            return {
+                "posts_created": [MagicMock()],
+                "success_count": 1,
+                "failed_count": 0,
+                "errors": []
+            }
+        
+        mock_post_service.send_post = AsyncMock(side_effect=mock_send_post)
+        
+        # Create test data
+        products = self.create_test_products(count=3, posted_count=1)  # 2 unposted
+        channel = self.create_test_channel()
+        
+        # Execute bulk post
+        response = self.client.post(f"/api/v1/telegram/bulk-post-unposted?channel_ids={channel.id}")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["total_products"] == 2
+        assert data["data"]["posted_count"] == 1  # One success
+        assert data["data"]["failed_count"] == 1   # One failure
+        
+        # Check results details
+        results = data["data"]["results"]
+        success_results = [r for r in results if r["success"]]
+        failed_results = [r for r in results if not r["success"]]
+        
+        assert len(success_results) == 1
+        assert len(failed_results) == 1
+        assert "Network error" in failed_results[0]["error"]
+    
+    @patch('api.routers.telegram.telegram_service')
+    @patch('api.routers.telegram.telegram_post_service')
+    def test_bulk_post_with_limit(self, mock_post_service, mock_telegram_service):
+        """Test bulk posting with limit parameter"""
+        mock_telegram_service.is_enabled.return_value = True
+        mock_post_service.send_post = AsyncMock(return_value={
+            "posts_created": [MagicMock()],
+            "success_count": 1,
+            "failed_count": 0,
+            "errors": []
+        })
+        
+        # Create 5 unposted products
+        self.create_test_products(count=5, posted_count=0)
+        channel = self.create_test_channel()
+        
+        # Execute bulk post with limit of 2
+        response = self.client.post(f"/api/v1/telegram/bulk-post-unposted?channel_ids={channel.id}&limit=2")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["total_products"] == 2  # Limited to 2
+        assert data["data"]["posted_count"] == 2
+        assert data["data"]["failed_count"] == 0
+    
+    def test_database_query_ordering(self):
+        """Test that unposted products are returned in creation order"""
+        from crud.product import get_products_not_posted_to_telegram
+        import time
+        
+        # Create products with slight delays to ensure different creation times
+        product1 = Product(
+            name="First Product",
+            product_url="https://example.com/first",
+            sku="SKU1",
+            price=99.99
+        )
+        self.test_db.add(product1)
+        self.test_db.commit()
+        
+        time.sleep(0.001)  # Small delay
+        
+        product2 = Product(
+            name="Second Product", 
+            product_url="https://example.com/second",
+            sku="SKU2",
+            price=99.99
+        )
+        self.test_db.add(product2)
+        self.test_db.commit()
+        
+        # Get unposted products
+        unposted = get_products_not_posted_to_telegram(self.test_db)
+        
+        # Should be ordered by creation time (oldest first)
+        assert len(unposted) == 2
+        assert unposted[0].name == "First Product"
+        assert unposted[1].name == "Second Product"

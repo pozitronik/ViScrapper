@@ -29,7 +29,8 @@ from crud.product import (
     create_size_combinations_new,
     create_simple_sizes,
     filter_duplicate_images_by_hash,
-    delete_product_image
+    delete_product_image,
+    get_products_not_posted_to_telegram
 )
 from models.product import Product, Image, Size
 from schemas.product import ProductCreate, ProductUpdate
@@ -1158,3 +1159,166 @@ class TestDeleteProductImage:
             
             # Check that rollback was called
             mock_db.rollback.assert_called_once()
+
+
+class TestGetProductsNotPostedToTelegram:
+    """Test suite for get_products_not_posted_to_telegram function."""
+
+    def test_get_products_not_posted_success(self):
+        """Test successful retrieval of products not posted to Telegram."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_order_by = Mock()
+        
+        # Mock products
+        mock_product1 = Mock(spec=Product)
+        mock_product1.id = 1
+        mock_product1.name = "Product 1"
+        mock_product1.telegram_posted_at = None
+        mock_product1.deleted_at = None
+        
+        mock_product2 = Mock(spec=Product)
+        mock_product2.id = 2
+        mock_product2.name = "Product 2"
+        mock_product2.telegram_posted_at = None
+        mock_product2.deleted_at = None
+        
+        expected_products = [mock_product1, mock_product2]
+        
+        # Setup query chain
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.filter.return_value = mock_filter
+        mock_filter.order_by.return_value = mock_order_by
+        mock_order_by.all.return_value = expected_products
+        
+        result = get_products_not_posted_to_telegram(mock_db)
+        
+        # Verify the correct query was built
+        mock_db.query.assert_called_once_with(Product)
+        # Should filter by telegram_posted_at is null and deleted_at is null
+        assert mock_query.filter.call_count == 1
+        assert mock_filter.filter.call_count == 1
+        mock_filter.order_by.assert_called_once()
+        mock_order_by.all.assert_called_once()
+        
+        assert result == expected_products
+        assert len(result) == 2
+
+    def test_get_products_not_posted_with_limit(self):
+        """Test retrieval with limit parameter."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_order_by = Mock()
+        mock_limit = Mock()
+        
+        mock_product = Mock(spec=Product)
+        mock_product.id = 1
+        mock_product.telegram_posted_at = None
+        
+        # Setup query chain
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.filter.return_value = mock_filter
+        mock_filter.order_by.return_value = mock_order_by
+        mock_order_by.limit.return_value = mock_limit
+        mock_limit.all.return_value = [mock_product]
+        
+        result = get_products_not_posted_to_telegram(mock_db, limit=5)
+        
+        # Verify limit was applied
+        mock_order_by.limit.assert_called_once_with(5)
+        mock_limit.all.assert_called_once()
+        assert len(result) == 1
+
+    def test_get_products_not_posted_include_deleted(self):
+        """Test retrieval including deleted products."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_order_by = Mock()
+        
+        # Setup query chain - when include_deleted=True, should not filter by deleted_at
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.order_by.return_value = mock_order_by
+        mock_order_by.all.return_value = []
+        
+        result = get_products_not_posted_to_telegram(mock_db, include_deleted=True)
+        
+        # Should only filter by telegram_posted_at, not deleted_at
+        mock_db.query.assert_called_once_with(Product)
+        mock_query.filter.assert_called_once()
+        # Should not call filter twice (no deleted_at filter)
+        mock_filter.filter.assert_not_called()
+        mock_filter.order_by.assert_called_once()
+
+    def test_get_products_not_posted_empty_result(self):
+        """Test when no unposted products exist."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_order_by = Mock()
+        
+        # Setup query chain to return empty list
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.filter.return_value = mock_filter
+        mock_filter.order_by.return_value = mock_order_by
+        mock_order_by.all.return_value = []
+        
+        result = get_products_not_posted_to_telegram(mock_db)
+        
+        assert result == []
+        assert len(result) == 0
+
+    def test_get_products_not_posted_database_error(self):
+        """Test error handling when database query fails."""
+        mock_db = Mock(spec=Session)
+        mock_db.query.side_effect = Exception("Database connection failed")
+        
+        with pytest.raises(DatabaseException) as exc_info:
+            get_products_not_posted_to_telegram(mock_db)
+        
+        assert "Failed to get products not posted to Telegram" in str(exc_info.value)
+
+    def test_get_products_not_posted_ordering(self):
+        """Test that products are ordered by creation date ascending."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_order_by = Mock()
+        
+        # Setup query chain
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.filter.return_value = mock_filter
+        mock_filter.order_by.return_value = mock_order_by
+        mock_order_by.all.return_value = []
+        
+        get_products_not_posted_to_telegram(mock_db)
+        
+        # Verify order_by was called (specific ordering is checked in integration tests)
+        mock_filter.order_by.assert_called_once()
+
+    def test_get_products_not_posted_limit_zero(self):
+        """Test with limit of 0 (should not apply limit since 0 is falsy)."""
+        mock_db = Mock(spec=Session)
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_order_by = Mock()
+        
+        # Setup query chain - no limit should be applied for limit=0
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_filter
+        mock_filter.filter.return_value = mock_filter
+        mock_filter.order_by.return_value = mock_order_by
+        mock_order_by.all.return_value = []
+        
+        result = get_products_not_posted_to_telegram(mock_db, limit=0)
+        
+        # Verify limit was NOT applied (since 0 is falsy)
+        mock_order_by.limit.assert_not_called()
+        assert result == []
