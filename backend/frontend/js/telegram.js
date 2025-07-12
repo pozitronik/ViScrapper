@@ -81,11 +81,11 @@ class TelegramModal {
             });
 
             if (addNewChannelBtn) {
-                addNewChannelBtn.addEventListener('click', () => this.openChannelModal());
+                addNewChannelBtn.addEventListener('click', async () => await this.openChannelModal());
             }
 
             if (createFirstChannelBtn) {
-                createFirstChannelBtn.addEventListener('click', () => this.openChannelModal());
+                createFirstChannelBtn.addEventListener('click', async () => await this.openChannelModal());
             }
 
             if (refreshChannelListBtn) {
@@ -124,7 +124,7 @@ class TelegramModal {
         const refreshPreview = document.getElementById('refresh-preview');
 
         if (addChannelBtn) {
-            addChannelBtn.addEventListener('click', () => this.openChannelModal());
+            addChannelBtn.addEventListener('click', async () => await this.openChannelModal());
         }
         if (refreshChannels) {
             refreshChannels.addEventListener('click', () => this.loadChannels());
@@ -907,10 +907,17 @@ class TelegramModal {
     }
 
     // Channel Management Methods
-    openChannelModal(channelData = null) {
+    async openChannelModal(channelData = null) {
         const modal = document.getElementById('channel-modal');
         const title = document.getElementById('channel-modal-title');
         const saveBtn = document.getElementById('channel-save');
+        
+        this.currentEditingChannel = channelData;
+        this.showElement(modal);
+        this.initChannelFormEvents();
+        
+        // Load templates first, then populate form
+        await this.loadTemplatesForChannel();
         
         if (channelData) {
             title.textContent = '✏️ Edit Channel';
@@ -921,11 +928,6 @@ class TelegramModal {
             saveBtn.textContent = '➕ Create Channel';
             this.resetChannelForm();
         }
-        
-        this.currentEditingChannel = channelData;
-        this.showElement(modal);
-        this.loadTemplatesForChannel();
-        this.initChannelFormEvents();
     }
 
     closeChannelModal() {
@@ -966,9 +968,19 @@ class TelegramModal {
         const form = document.getElementById('channel-form');
         if (form) {
             form.reset();
-            document.getElementById('channel-active').checked = true;
-            document.getElementById('channel-send-photos').checked = true;
-            document.getElementById('channel-disable-preview').checked = true;
+            
+            // Set proper default values for checkboxes according to schema defaults
+            const activeField = document.getElementById('channel-active');
+            const autoPostField = document.getElementById('channel-auto-post');
+            const sendPhotosField = document.getElementById('channel-send-photos');
+            const disableNotificationField = document.getElementById('channel-disable-notification');
+            const disablePreviewField = document.getElementById('channel-disable-preview');
+            
+            if (activeField) activeField.checked = true; // is_active default = true
+            if (autoPostField) autoPostField.checked = false; // auto_post default = false  
+            if (sendPhotosField) sendPhotosField.checked = true; // send_photos default = true
+            if (disableNotificationField) disableNotificationField.checked = false; // disable_notification default = false
+            if (disablePreviewField) disablePreviewField.checked = true; // disable_web_page_preview default = true
         }
         this.clearChannelFormValidation();
         this.updateChannelSaveButton();
@@ -976,16 +988,59 @@ class TelegramModal {
     }
 
     populateChannelForm(channel) {
-        document.getElementById('channel-name').value = channel.name || '';
-        document.getElementById('channel-chat-id').value = channel.chat_id || '';
-        document.getElementById('channel-description').value = channel.description || '';
-        document.getElementById('channel-template').value = channel.template_id || '';
+        // Text fields
+        const nameField = document.getElementById('channel-name');
+        const chatIdField = document.getElementById('channel-chat-id');
+        const descriptionField = document.getElementById('channel-description');
+        const templateField = document.getElementById('channel-template');
         
-        document.getElementById('channel-active').checked = channel.is_active !== false;
-        document.getElementById('channel-auto-post').checked = channel.auto_post === true;
-        document.getElementById('channel-send-photos').checked = channel.send_photos !== false;
-        document.getElementById('channel-disable-notification').checked = channel.disable_notification === true;
-        document.getElementById('channel-disable-preview').checked = channel.disable_web_page_preview !== false;
+        if (nameField) nameField.value = channel.name || '';
+        if (chatIdField) chatIdField.value = channel.chat_id || '';
+        if (descriptionField) descriptionField.value = channel.description || '';
+        if (templateField) {
+            const templateId = channel.template_id || '';
+            console.log('Setting template field value:', templateId, 'for channel:', channel.name);
+            templateField.value = templateId;
+            
+            // Verify the value was set
+            console.log('Template field value after setting:', templateField.value);
+            console.log('Available options:', Array.from(templateField.options).map(opt => ({value: opt.value, text: opt.text})));
+        }
+        
+        // Boolean fields - handle explicitly with proper boolean values
+        const activeField = document.getElementById('channel-active');
+        const autoPostField = document.getElementById('channel-auto-post');
+        const sendPhotosField = document.getElementById('channel-send-photos');
+        const disableNotificationField = document.getElementById('channel-disable-notification');
+        const disablePreviewField = document.getElementById('channel-disable-preview');
+        
+        if (activeField) {
+            activeField.checked = Boolean(channel.is_active);
+        }
+        if (autoPostField) {
+            autoPostField.checked = Boolean(channel.auto_post);
+        }
+        if (sendPhotosField) {
+            sendPhotosField.checked = Boolean(channel.send_photos);
+        }
+        if (disableNotificationField) {
+            disableNotificationField.checked = Boolean(channel.disable_notification);
+        }
+        if (disablePreviewField) {
+            disablePreviewField.checked = Boolean(channel.disable_web_page_preview);
+        }
+        
+        // Log for debugging
+        console.log('Populated channel form with data:', {
+            name: channel.name,
+            chat_id: channel.chat_id,
+            template_id: channel.template_id,
+            is_active: channel.is_active,
+            auto_post: channel.auto_post,
+            send_photos: channel.send_photos,
+            disable_notification: channel.disable_notification,
+            disable_web_page_preview: channel.disable_web_page_preview
+        });
         
         this.validateChannelForm();
     }
@@ -1005,6 +1060,9 @@ class TelegramModal {
                         `<option value="${template.id}">${this.escapeHtml(template.name)}</option>`
                     ).join('')}
                 `;
+                console.log('Loaded templates for channel select:', data.data.length, 'templates');
+            } else {
+                console.error('Failed to load templates: API returned success=false');
             }
         } catch (error) {
             console.error('Failed to load templates for channel:', error);
@@ -1135,17 +1193,21 @@ class TelegramModal {
         const formData = new FormData(form);
         const saveBtn = document.getElementById('channel-save');
         
+        // Collect data directly from form elements to ensure correct checkbox values
         const channelData = {
-            name: formData.get('name'),
-            chat_id: formData.get('chat_id'),
-            description: formData.get('description') || null,
-            template_id: formData.get('template_id') ? parseInt(formData.get('template_id')) : null,
-            is_active: formData.has('is_active'),
-            auto_post: formData.has('auto_post'),
-            send_photos: formData.has('send_photos'),
-            disable_notification: formData.has('disable_notification'),
-            disable_web_page_preview: formData.has('disable_web_page_preview')
+            name: document.getElementById('channel-name').value,
+            chat_id: document.getElementById('channel-chat-id').value,
+            description: document.getElementById('channel-description').value || null,
+            template_id: document.getElementById('channel-template').value ? parseInt(document.getElementById('channel-template').value) : null,
+            is_active: document.getElementById('channel-active').checked,
+            auto_post: document.getElementById('channel-auto-post').checked,
+            send_photos: document.getElementById('channel-send-photos').checked,
+            disable_notification: document.getElementById('channel-disable-notification').checked,
+            disable_web_page_preview: document.getElementById('channel-disable-preview').checked
         };
+
+        // Log the data being sent for debugging
+        console.log('Saving channel with data:', channelData);
 
         const isEdit = this.currentEditingChannel !== null;
         const url = isEdit 
@@ -1189,10 +1251,20 @@ class TelegramModal {
         }
     }
 
-    editChannel(channelId) {
-        const channel = this.channels.find(c => c.id === channelId);
-        if (channel) {
-            this.openChannelModal(channel);
+    async editChannel(channelId) {
+        try {
+            // Load fresh channel data from API instead of using cached data
+            const response = await fetch(`/api/v1/telegram/channels/${channelId}`);
+            const data = await response.json();
+            
+            if (data.success && data.data) {
+                await this.openChannelModal(data.data);
+            } else {
+                this.showNotification('Failed to load channel data', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading channel for editing:', error);
+            this.showNotification('Failed to load channel data', 'error');
         }
     }
 
