@@ -744,26 +744,48 @@ class TelegramModal {
         const container = document.getElementById('channel-management-list');
         if (!container) return;
 
-        container.innerHTML = channels.map(channel => `
+        container.innerHTML = channels.map(channel => {
+            // Get template name from cache or show ID
+            const templateName = this.getTemplateName(channel.template_id);
+            
+            return `
             <div class="channel-item" data-channel-id="${channel.id}">
                 <div class="channel-content">
-                    <div class="channel-name">${this.escapeHtml(channel.name)}</div>
-                    <div class="channel-info">
-                        <span class="channel-chat-id">${this.escapeHtml(channel.chat_id)}</span>
+                    <div class="channel-header">
+                        <div class="channel-name">${this.escapeHtml(channel.name)}</div>
                         <div class="channel-badges">
                             <span class="channel-badge ${channel.is_active ? 'active' : 'inactive'}">
-                                ${channel.is_active ? 'Active' : 'Inactive'}
+                                ${channel.is_active ? '✅ Active' : '❌ Inactive'}
                             </span>
                             <span class="channel-badge ${channel.auto_post ? 'auto-post' : 'manual'}">
                                 ${channel.auto_post ? '🤖 Auto' : '👤 Manual'}
                             </span>
                         </div>
                     </div>
+                    
+                    <div class="channel-info">
+                        <div class="channel-template">
+                            <span class="template-icon">📝</span>
+                            <span class="template-name">${templateName}</span>
+                        </div>
+                        <span class="channel-chat-id">${this.escapeHtml(channel.chat_id)}</span>
+                    </div>
+                    
                     ${channel.description ? `<div class="channel-description">${this.escapeHtml(channel.description)}</div>` : ''}
-                    <div class="channel-settings">
-                        ${channel.send_photos ? '📷 Photos' : '📝 Text only'} • 
-                        ${channel.disable_notification ? '🔕 Silent' : '🔔 With notifications'} • 
-                        ${channel.disable_web_page_preview ? '🔗 No previews' : '🔗 With previews'}
+                    
+                    <div class="channel-settings-grid">
+                        <div class="setting-item">
+                            <span class="setting-icon">${channel.send_photos ? '📷' : '📝'}</span>
+                            <span class="setting-text">${channel.send_photos ? 'Photos' : 'Text only'}</span>
+                        </div>
+                        <div class="setting-item">
+                            <span class="setting-icon">${channel.disable_notification ? '🔕' : '🔔'}</span>
+                            <span class="setting-text">${channel.disable_notification ? 'Silent' : 'Notifications'}</span>
+                        </div>
+                        <div class="setting-item">
+                            <span class="setting-icon">${channel.disable_web_page_preview ? '🚫' : '🔗'}</span>
+                            <span class="setting-text">${channel.disable_web_page_preview ? 'No previews' : 'Link previews'}</span>
+                        </div>
                     </div>
                 </div>
                 <div class="channel-actions">
@@ -775,7 +797,8 @@ class TelegramModal {
                     </button>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         // Bind action button events
         container.querySelectorAll('.channel-action-btn').forEach(btn => {
@@ -1589,6 +1612,18 @@ class TelegramModal {
                 </div>
             `;
         }
+    }
+
+    /**
+     * Get template name from cached templates or return fallback
+     */
+    getTemplateName(templateId) {
+        if (!templateId) {
+            return 'No default template';
+        }
+        
+        const template = this.templates.find(t => t.id === templateId);
+        return template ? template.name : `Template #${templateId}`;
     }
 }
 
