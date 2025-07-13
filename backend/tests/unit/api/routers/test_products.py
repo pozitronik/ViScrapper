@@ -55,6 +55,7 @@ def sample_product_data():
         "color": "Blue",
         "composition": "100% Cotton",
         "item": "T-Shirt",
+        "store": "Victoria's Secret",
         "comment": "A great test product",
         "all_image_urls": [],
         "available_sizes": ["S", "M", "L"]
@@ -71,6 +72,7 @@ def create_test_products(client, session):
             "sku": "PROD-001",
             "price": 10.0,
             "currency": "USD",
+            "store": "Calvin Klein",
             "all_image_urls": [],
             "available_sizes": ["S"]
         },
@@ -80,6 +82,7 @@ def create_test_products(client, session):
             "sku": "PROD-002",
             "price": 20.0,
             "currency": "EUR",
+            "store": "Victoria's Secret",
             "all_image_urls": [],
             "available_sizes": ["M", "L"]
         },
@@ -90,6 +93,7 @@ def create_test_products(client, session):
             "price": 30.0,
             "currency": "USD",
             "color": "Red",
+            "store": "Tommy Hilfiger",
             "all_image_urls": [],
             "available_sizes": []
         }
