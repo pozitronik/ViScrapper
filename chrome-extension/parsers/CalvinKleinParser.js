@@ -356,8 +356,12 @@ class CalvinKleinParser extends BaseParser {
       // Проверяем, какие изображения реально существуют
       const validImageUrls = await this.validateImageUrls(candidateUrls);
       
-      console.log(`CK extractImagesDirectly: Found ${validImageUrls.length} valid images:`, validImageUrls);
-      return validImageUrls;
+      // Улучшаем качество всех найденных изображений
+      const enhancedUrls = validImageUrls.map(url => this.enhanceImageQuality(url));
+      
+      console.log(`CK extractImagesDirectly: Found ${validImageUrls.length} valid images, enhanced quality`);
+      console.log('Enhanced URLs:', enhancedUrls);
+      return enhancedUrls;
       
     } catch (error) {
       console.warn('CK extractImagesDirectly: Error in direct extraction:', error);
@@ -531,13 +535,15 @@ class CalvinKleinParser extends BaseParser {
   cleanImageUrl(url) {
     try {
       // Calvin Klein использует scene7 CDN с параметрами размера
-      // Пример: https://calvinklein.scene7.com/is/image/CalvinKlein/D3429_001_main?wid=400&hei=400
-      // Очищаем до: https://calvinklein.scene7.com/is/image/CalvinKlein/D3429_001_main
+      // Вместо удаления параметров, улучшаем качество изображения
       const urlObj = new URL(url);
-      urlObj.search = ''; // Удаляем все query параметры
-      return urlObj.toString();
+      urlObj.search = ''; // Сначала очищаем старые параметры
+      const cleanUrl = urlObj.toString();
+      
+      // Применяем улучшение качества
+      return this.enhanceImageQuality(cleanUrl);
     } catch (error) {
-      console.warn('CK cleanImageUrl: Error cleaning URL:', url, error);
+      console.warn('CK cleanImageUrl: Error processing URL:', url, error);
       return url;
     }
   }

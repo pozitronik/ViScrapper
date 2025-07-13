@@ -101,11 +101,14 @@ class VictoriasSecretParser extends BaseParser {
       if (img.src && img.src.startsWith('http')) {
         const absoluteUrl = new URL(img.src, window.location.href).href;
         if (!imageUrls.includes(absoluteUrl)) {
-          imageUrls.push(absoluteUrl);
+          // Улучшаем качество изображения перед добавлением в массив
+          const enhancedUrl = this.enhanceImageQuality(absoluteUrl);
+          imageUrls.push(enhancedUrl);
         }
       }
     });
     
+    console.log(`📸 Extracted ${imageUrls.length} high-quality images`);
     return imageUrls;
   }
 

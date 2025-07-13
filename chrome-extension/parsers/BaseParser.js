@@ -179,6 +179,36 @@ class BaseParser {
       return null;
     }
   }
+
+  /**
+   * Улучшение качества изображения путем добавления параметров высокого качества
+   */
+  enhanceImageQuality(imageUrl) {
+    if (!imageUrl || typeof imageUrl !== 'string') {
+      return imageUrl;
+    }
+
+    try {
+      const url = new URL(imageUrl);
+      
+      // Добавляем параметры высокого качества
+      // Эти параметры работают с большинством CDN (Adobe Scene7, и другими)
+      url.searchParams.set('wid', '1728');              // Ширина в высоком разрешении
+      url.searchParams.set('qlt', '90,0');              // Качество 90%
+      url.searchParams.set('resMode', 'sharp2');        // Режим резкости
+      url.searchParams.set('op_usm', '0.9,1.0,8,0');    // Маска резкости
+      url.searchParams.set('iccEmbed', '0');             // Не встраивать ICC профиль
+      url.searchParams.set('fmt', 'pjpeg');              // Формат jpeg для лучшей совместимости
+
+      const enhancedUrl = url.toString();
+      console.log(`🖼️ Enhanced image quality: ${imageUrl} -> ${enhancedUrl}`);
+      return enhancedUrl;
+      
+    } catch (error) {
+      console.error('Error enhancing image quality:', error);
+      return imageUrl; // Возвращаем оригинальный URL при ошибке
+    }
+  }
 }
 
 // Экспортируем для использования в других файлах
