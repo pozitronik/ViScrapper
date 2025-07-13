@@ -96,15 +96,29 @@ class CalvinKleinParser extends BaseParser {
    * Извлечение цены из JSON-LD или элемента на странице
    */
   extractPrice(jsonData) {
-    console.log('CK extractPrice called with jsonData:', jsonData);
+    console.log('CK extractPrice: Starting price extraction...');
     
-    if (jsonData && jsonData.offers && jsonData.offers.price) {
-      const price = parseFloat(jsonData.offers.price);
-      console.log('CK extractPrice from JSON-LD:', price);
-      return price;
+    // Приоритет 1: Проверяем актуальную цену в sales блоке (для текущего выбранного цвета)
+    const salesPriceElement = document.querySelector('.sales .value[content]');
+    if (salesPriceElement) {
+      const salesContent = salesPriceElement.getAttribute('content');
+      if (salesContent) {
+        const salesPrice = parseFloat(salesContent);
+        console.log('CK extractPrice: Found sales price from DOM:', salesPrice);
+        return salesPrice;
+      }
     }
     
-    // Альтернативный способ - из первого элемента .value на странице в BuyBox
+    console.log('CK extractPrice: No sales price found, checking JSON-LD...');
+    
+    // Приоритет 2: JSON-LD цена (базовая цена продукта)
+    if (jsonData && jsonData.offers && jsonData.offers.price) {
+      const jsonPrice = parseFloat(jsonData.offers.price);
+      console.log('CK extractPrice: Found price from JSON-LD:', jsonPrice);
+      return jsonPrice;
+    }
+    
+    // Приоритет 3: Стандартный селектор цены в BuyBox
     const buyBox = document.querySelector(this.config.selectors.buyBox);
     if (buyBox) {
       const priceElement = buyBox.querySelector(this.config.selectors.priceValue);
@@ -113,14 +127,14 @@ class CalvinKleinParser extends BaseParser {
         const priceContent = priceElement.getAttribute('content');
         console.log('CK extractPrice: priceContent from element:', priceContent);
         if (priceContent) {
-          const price = parseFloat(priceContent);
-          console.log('CK extractPrice from element:', price);
-          return price;
+          const domPrice = parseFloat(priceContent);
+          console.log('CK extractPrice: Found price from DOM fallback:', domPrice);
+          return domPrice;
         }
       }
     }
     
-    console.log('CK extractPrice: No price found');
+    console.log('CK extractPrice: No price found in any source');
     return null;
   }
 
