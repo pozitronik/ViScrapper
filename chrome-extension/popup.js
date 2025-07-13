@@ -15,6 +15,9 @@ let appState = {
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('VIParser popup initialized');
   
+  // Определение сайта и применение брендинга
+  await setupSiteBranding();
+  
   // Инициализация элементов
   initializeElements();
   
@@ -30,6 +33,64 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Настройка обработчиков событий
   setupEventHandlers();
 });
+
+/**
+ * Определение текущего сайта и применение соответствующего брендинга
+ */
+async function setupSiteBranding() {
+  try {
+    // Получаем информацию о текущей активной вкладке
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab || !tab.url) {
+      console.warn('Could not get current tab URL for branding');
+      return;
+    }
+    
+    console.log('Setting up branding for URL:', tab.url);
+    
+    // Определяем сайт на основе URL
+    const siteInfo = detectSite(tab.url);
+    console.log('Detected site:', siteInfo);
+    
+    // Применяем соответствующий класс к body
+    document.body.className = `site-${siteInfo.id}`;
+    
+    // Обновляем заголовок
+    const titleElement = document.getElementById('appTitle');
+    if (titleElement) {
+      titleElement.textContent = `VIParser: ${siteInfo.name}`;
+    }
+    
+    console.log(`Applied branding for ${siteInfo.name}`);
+    
+  } catch (error) {
+    console.error('Error setting up site branding:', error);
+  }
+}
+
+/**
+ * Определение сайта на основе URL
+ */
+function detectSite(url) {
+  if (url.includes('victoriassecret.com')) {
+    return {
+      id: 'victoriassecret',
+      name: "Victoria's Secret"
+    };
+  } else if (url.includes('calvinklein.us')) {
+    return {
+      id: 'calvinklein', 
+      name: 'Calvin Klein'
+    };
+  } else {
+    // Дефолтный сайт
+    return {
+      id: 'victoriassecret',
+      name: 'VIParser'
+    };
+  }
+}
 
 /**
  * Настройка слушателя сообщений от content script

@@ -33,7 +33,37 @@ header {
 h1 {
   font-size: 18px;
   font-weight: 600;
-  color: #FF69B4;
+  color: #FF69B4; /* Default Victoria's Secret pink */
+  transition: color 0.3s ease;
+}
+
+/* Site-specific themes */
+body.site-victoriassecret h1 {
+  color: #FF69B4; /* Victoria's Secret pink */
+}
+
+body.site-calvinklein h1 {
+  color: #D2B48C; /* Calvin Klein beige */
+}
+
+body.site-victoriassecret .btn-primary {
+  background-color: #FF69B4;
+  border-color: #FF69B4;
+}
+
+body.site-calvinklein .btn-primary {
+  background-color: #D2B48C;
+  border-color: #D2B48C;
+}
+
+body.site-victoriassecret .btn-primary:hover {
+  background-color: #E05A9B;
+  border-color: #E05A9B;
+}
+
+body.site-calvinklein .btn-primary:hover {
+  background-color: #C4A47C;
+  border-color: #C4A47C;
 }
 
 .status-indicator {
