@@ -201,7 +201,8 @@ class BaseParser {
       url.searchParams.set('fmt', 'pjpeg');              // Формат jpeg для лучшей совместимости
 
       const enhancedUrl = url.toString();
-      console.log(`🖼️ Enhanced image quality: ${imageUrl} -> ${enhancedUrl}`);
+      // Only log if significant enhancement was applied (optional)
+      // console.log(`🖼️ Enhanced image quality: ${imageUrl} -> ${enhancedUrl}`);
       return enhancedUrl;
       
     } catch (error) {

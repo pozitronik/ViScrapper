@@ -359,8 +359,7 @@ class CalvinKleinParser extends BaseParser {
       // Улучшаем качество всех найденных изображений
       const enhancedUrls = validImageUrls.map(url => this.enhanceImageQuality(url));
       
-      console.log(`CK extractImagesDirectly: Found ${validImageUrls.length} valid images, enhanced quality`);
-      console.log('Enhanced URLs:', enhancedUrls);
+      console.log(`CK extractImagesDirectly: Found ${validImageUrls.length} valid images`);
       return enhancedUrls;
       
     } catch (error) {

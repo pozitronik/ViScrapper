@@ -108,7 +108,6 @@ class VictoriasSecretParser extends BaseParser {
       }
     });
     
-    console.log(`📸 Extracted ${imageUrls.length} high-quality images`);
     return imageUrls;
   }
 
