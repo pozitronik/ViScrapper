@@ -379,6 +379,7 @@ class TemplateManager {
             color: 'Blue',
             composition: 'Cotton 100%',
             item: 'Shirt',
+            store: 'Victoria\'s Secret',
             comment: 'Sample comment',
             product_url: 'https://example.com/product',
             size: 'S, M, L, XL',
@@ -583,6 +584,7 @@ class TemplateManager {
                 { key: 'color', description: 'Product color' },
                 { key: 'composition', description: 'Product composition' },
                 { key: 'item', description: 'Product item type' },
+                { key: 'store', description: 'Store or brand name' },
                 { key: 'comment', description: 'Product comment' },
                 { key: 'size', description: 'Size information (formatted for display)' },
                 { key: 'sizes', description: 'Available sizes (comma-separated)' },
@@ -623,6 +625,7 @@ class TemplateManager {
             color: 'Blue',
             composition: 'Cotton 100%',
             item: 'Shirt',
+            store: 'Victoria\'s Secret',
             comment: 'Sample comment',
             product_url: 'https://example.com/product',
             created_at: new Date().toISOString(),
@@ -700,7 +703,7 @@ class TemplateManager {
             
             // Fallback to basic validation
             const placeholderPattern = /\{([^}]+)\}/g;
-            const validPlaceholders = ['name', 'sku', 'price', 'sell_price', 'currency', 'availability', 'color', 'composition', 'item', 'comment', 'size', 'sizes', 'product_url', 'created_at'];
+            const validPlaceholders = ['name', 'sku', 'price', 'sell_price', 'currency', 'availability', 'color', 'composition', 'item', 'store', 'comment', 'size', 'sizes', 'product_url', 'created_at'];
             const matches = content.matchAll(placeholderPattern);
             
             for (const match of matches) {
