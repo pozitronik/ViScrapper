@@ -18,6 +18,9 @@ class CalvinKleinParser extends BaseParser {
         jsonLdScript: 'script[type="application/ld+json"]'
       }
     });
+    
+    // Отслеживание последнего выбранного цвета (только для логирования)
+    this.lastSelectedColor = null;
   }
 
   /**
@@ -128,13 +131,27 @@ class CalvinKleinParser extends BaseParser {
     console.log('CK extractImages: Starting image extraction...');
     const imageUrls = [];
     
-    // Сначала прокручиваем страницу для принудительной загрузки всех изображений
-    await this.forceImageLoadingByScroll();
-    
     // Ищем в ProductImage контейнере picture элементы в swiper слайдах
     const productImageContainer = document.querySelector(this.config.selectors.productImages);
     if (productImageContainer) {
       console.log('CK extractImages: Found ProductImage container');
+      
+      // Получаем текущий выбранный цвет (для логирования)
+      const currentColor = this.extractColor();
+      console.log(`CK extractImages: Current color: ${currentColor}, Last color: ${this.lastSelectedColor}`);
+      this.lastSelectedColor = currentColor;
+      
+      // Проверяем, нужна ли прокрутка (есть ли пустые srcset)
+      const needsScrolling = this.checkIfScrollingNeeded(productImageContainer);
+      console.log('CK extractImages: Scrolling needed:', needsScrolling);
+      
+      // Выполняем прокрутку каждый раз, если нужно (без отслеживания флагов)
+      if (needsScrolling) {
+        console.log('CK extractImages: Scrolling for lazy loading...');
+        await this.forceImageLoadingByScroll();
+      } else {
+        console.log('CK extractImages: Images already loaded, skipping scroll...');
+      }
       
       // Ищем все swiper слайды с изображениями - используем более общий селектор
       const swiperSlides = productImageContainer.querySelectorAll('.swiper-slide, .product-image.swiper-slide');
@@ -289,20 +306,21 @@ class CalvinKleinParser extends BaseParser {
   }
 
   /**
-   * Принудительная загрузка изображений через прокрутку страницы
+   * Принудительная загрузка изображений через агрессивную прокрутку страницы
    */
   async forceImageLoadingByScroll() {
-    console.log('CK forceImageLoadingByScroll: Starting page scroll to trigger lazy loading...');
+    console.log('CK forceImageLoadingByScroll: Starting aggressive page scroll to trigger lazy loading...');
     
     try {
-      // Сохраняем текущую позицию прокрутки
-      const originalScrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      const originalScrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      // Сначала подсчитываем сколько source элементов без srcset у нас есть
+      const productImageContainer = document.querySelector(this.config.selectors.productImages);
+      if (!productImageContainer) {
+        console.log('CK forceImageLoadingByScroll: No product image container found');
+        return;
+      }
       
-      console.log('CK forceImageLoadingByScroll: Original scroll position:', { 
-        top: originalScrollTop, 
-        left: originalScrollLeft 
-      });
+      const initialEmptySources = this.countEmptySourceElements(productImageContainer);
+      console.log('CK forceImageLoadingByScroll: Initial empty sources:', initialEmptySources);
       
       // Получаем полную высоту документа
       const documentHeight = Math.max(
@@ -315,70 +333,154 @@ class CalvinKleinParser extends BaseParser {
       
       console.log('CK forceImageLoadingByScroll: Document height:', documentHeight);
       
-      // Прокручиваем к низу страницы плавно по частям
-      const scrollSteps = 5;
-      const stepSize = documentHeight / scrollSteps;
-      
-      for (let i = 1; i <= scrollSteps; i++) {
-        const targetScroll = Math.min(stepSize * i, documentHeight);
-        console.log(`CK forceImageLoadingByScroll: Scrolling to position ${targetScroll} (step ${i}/${scrollSteps})`);
+      // Делаем несколько циклов прокрутки для более надежной загрузки
+      for (let cycle = 0; cycle < 3; cycle++) {
+        console.log(`CK forceImageLoadingByScroll: Scroll cycle ${cycle + 1}/3`);
         
+        // Прокручиваем к низу
+        console.log('CK forceImageLoadingByScroll: Scrolling to bottom...');
         window.scrollTo({
-          top: targetScroll,
-          left: originalScrollLeft,
+          top: documentHeight,
+          left: 0,
           behavior: 'instant'
         });
         
-        // Небольшая пауза между шагами прокрутки
-        await this.wait(200);
-      }
-      
-      // Дополнительная пауза в нижней части страницы
-      console.log('CK forceImageLoadingByScroll: Reached bottom, waiting for images to load...');
-      await this.wait(1000);
-      
-      // Прокручиваем обратно к верху по частям
-      for (let i = scrollSteps - 1; i >= 0; i--) {
-        const targetScroll = Math.max(stepSize * i, 0);
-        console.log(`CK forceImageLoadingByScroll: Scrolling back to position ${targetScroll} (step ${scrollSteps - i}/${scrollSteps})`);
+        // Ждем дольше в первом цикле, и вообще дольше
+        await this.wait(cycle === 0 ? 2000 : 1000);
         
+        // Прокручиваем к середине
+        console.log('CK forceImageLoadingByScroll: Scrolling to middle...');
         window.scrollTo({
-          top: targetScroll,
-          left: originalScrollLeft,
+          top: documentHeight / 2,
+          left: 0,
           behavior: 'instant'
         });
         
-        await this.wait(200);
+        await this.wait(800);
+        
+        // Возвращаемся к верху
+        console.log('CK forceImageLoadingByScroll: Scrolling back to top...');
+        window.scrollTo({
+          top: 0,
+          left: 0,
+          behavior: 'instant'
+        });
+        
+        await this.wait(600);
+        
+        // Проверяем прогресс после каждого цикла
+        const currentEmptyCount = this.countEmptySourceElements(productImageContainer);
+        console.log(`CK forceImageLoadingByScroll: After cycle ${cycle + 1}: ${currentEmptyCount} empty sources (was ${initialEmptySources})`);
+        
+        // Если достигли хорошего результата, можем остановиться раньше
+        if (currentEmptyCount <= Math.max(1, initialEmptySources * 0.2)) {
+          console.log('CK forceImageLoadingByScroll: Good progress achieved, stopping cycles early');
+          break;
+        }
       }
       
-      // Возвращаемся к исходной позиции
-      console.log('CK forceImageLoadingByScroll: Returning to original position...');
-      window.scrollTo({
-        top: originalScrollTop,
-        left: originalScrollLeft,
-        behavior: 'instant'
-      });
+      // Дополнительное ожидание после всех циклов прокрутки
+      console.log('CK forceImageLoadingByScroll: Additional wait after all scroll cycles...');
+      await this.wait(3000); // Ждем еще 3 секунды после прокрутки
       
-      // Финальная пауза для загрузки изображений
-      console.log('CK forceImageLoadingByScroll: Waiting for final image loading...');
-      await this.wait(1500);
+      // Финальное ожидание загрузки изображений
+      console.log('CK forceImageLoadingByScroll: Final wait for images to load...');
+      await this.waitForImageLoading(productImageContainer, initialEmptySources);
       
-      console.log('CK forceImageLoadingByScroll: Page scroll completed');
+      console.log('CK forceImageLoadingByScroll: Aggressive scroll completed');
       
     } catch (error) {
-      console.warn('CK forceImageLoadingByScroll: Error during page scroll:', error);
-      
-      // В случае ошибки все равно пытаемся вернуться к исходной позиции
-      try {
-        window.scrollTo({
-          top: originalScrollTop,
-          left: originalScrollLeft,
-          behavior: 'instant'
-        });
-      } catch (restoreError) {
-        console.warn('CK forceImageLoadingByScroll: Error restoring scroll position:', restoreError);
-      }
+      console.warn('CK forceImageLoadingByScroll: Error during aggressive scroll:', error);
     }
+  }
+
+  /**
+   * Проверка, нужна ли прокрутка для загрузки изображений
+   */
+  checkIfScrollingNeeded(container) {
+    const sources = container.querySelectorAll('.swiper-slide picture source');
+    let emptyCount = 0;
+    let totalCount = 0;
+    
+    sources.forEach(source => {
+      totalCount++;
+      const srcset = source.getAttribute('srcset');
+      if (!srcset || srcset.trim() === '') {
+        emptyCount++;
+      }
+    });
+    
+    console.log(`CK checkIfScrollingNeeded: ${emptyCount} empty sources out of ${totalCount} total`);
+    
+    // Если больше 50% source элементов пустые, нужна прокрутка
+    if (totalCount === 0) return false; // Нет source элементов вообще
+    return (emptyCount / totalCount) > 0.5;
+  }
+
+  /**
+   * Подсчет source элементов без srcset
+   */
+  countEmptySourceElements(container) {
+    const sources = container.querySelectorAll('.swiper-slide picture source');
+    let emptyCount = 0;
+    
+    sources.forEach(source => {
+      const srcset = source.getAttribute('srcset');
+      if (!srcset || srcset.trim() === '') {
+        emptyCount++;
+      }
+    });
+    
+    return emptyCount;
+  }
+
+  /**
+   * Ожидание загрузки изображений с мониторингом прогресса (100% требование)
+   */
+  async waitForImageLoading(container, initialEmptyCount) {
+    console.log('CK waitForImageLoading: Starting to monitor image loading (waiting for 100%)...');
+    
+    const maxWaitTime = 15000; // Увеличиваем до 15 секунд
+    const checkInterval = 500; // Проверяем каждые 500мс (дольше между проверками)
+    const startTime = Date.now();
+    let lastEmptyCount = initialEmptyCount;
+    let noProgressCount = 0;
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      const currentEmptyCount = this.countEmptySourceElements(container);
+      console.log(`CK waitForImageLoading: Empty sources: ${currentEmptyCount} (was ${initialEmptyCount})`);
+      
+      // Проверяем прогресс
+      if (currentEmptyCount < lastEmptyCount) {
+        console.log('CK waitForImageLoading: Progress detected, resetting no-progress counter...');
+        noProgressCount = 0;
+        lastEmptyCount = currentEmptyCount;
+      } else {
+        noProgressCount++;
+      }
+      
+      // Если все изображения загружены (0 пустых source элементов)
+      if (currentEmptyCount === 0) {
+        console.log('CK waitForImageLoading: All images loaded (100%)!');
+        await this.wait(1000); // Дополнительная пауза для стабилизации
+        break;
+      }
+      
+      // Если нет прогресса в течение 12 проверок (6 секунд)
+      if (noProgressCount >= 12) {
+        console.log('CK waitForImageLoading: No progress for too long, giving up...');
+        break;
+      }
+      
+      await this.wait(checkInterval);
+    }
+    
+    const finalEmptyCount = this.countEmptySourceElements(container);
+    const loadedCount = initialEmptyCount - finalEmptyCount;
+    const loadedPercentage = initialEmptyCount > 0 ? Math.round((loadedCount / initialEmptyCount) * 100) : 100;
+    
+    console.log(`CK waitForImageLoading: Finished. Loaded ${loadedCount}/${initialEmptyCount} images (${loadedPercentage}%)`);
+    console.log(`CK waitForImageLoading: Final empty sources: ${finalEmptyCount}`);
   }
 
   /**
@@ -395,7 +497,7 @@ class CalvinKleinParser extends BaseParser {
       await this.wait(1000); // Ждем загрузки изображений
     }
     
-    // Извлекаем изображения для выбранного цвета
+    // Извлекаем изображения для выбранного цвета (scrolling logic is inside extractImages)
     return await this.extractImages();
   }
 
