@@ -2380,3 +2380,55 @@ input:checked + .toggle-slider:before {
         max-width: none;
     }
 }
+
+/* Footer */
+.app-footer {
+    margin-top: 2rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+}
+
+.footer-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.copyright {
+    font-weight: 500;
+}
+
+.github-link {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: #6b7280;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.github-link:hover {
+    color: #374151;
+}
+
+.github-icon {
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+/* Responsive footer */
+@media (max-width: 640px) {
+    .footer-content {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    
+    .github-link {
+        font-size: 0.8125rem;
+    }
+}
