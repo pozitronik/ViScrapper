@@ -106,7 +106,7 @@ def compare_product_data(existing_product: Product, new_data: ProductCreate) -> 
     # Define fields to compare (excluding relationship fields)
     compare_fields = [
         'name', 'price', 'currency', 'availability',
-        'color', 'composition', 'item', 'comment'
+        'color', 'composition', 'item', 'store', 'comment'
     ]
 
     # Compare basic fields
@@ -221,6 +221,7 @@ def create_product(db: Session, product: ProductCreate, downloaded_images_metada
                 color=product.color,
                 composition=product.composition,
                 item=product.item,
+                store=product.store,
                 comment=product.comment,
             )
 

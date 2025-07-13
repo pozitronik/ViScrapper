@@ -49,6 +49,7 @@ class ProductBase(BaseModel):
     color: Optional[str] = None
     composition: Optional[str] = None
     item: Optional[str] = None
+    store: Optional[str] = "Unknown Store"
     comment: Optional[str] = None
 
 
@@ -70,6 +71,7 @@ class ProductUpdate(BaseModel):
     color: Optional[str] = None
     composition: Optional[str] = None
     item: Optional[str] = None
+    store: Optional[str] = None
     comment: Optional[str] = None
 
 
