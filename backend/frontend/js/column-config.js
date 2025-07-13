@@ -14,6 +14,7 @@ class ColumnConfigManager {
             { id: 'color', name: 'Color', visible: true, sortable: true },
             { id: 'composition', name: 'Composition', visible: false, sortable: true },
             { id: 'item', name: 'Item', visible: false, sortable: true },
+            { id: 'store', name: 'Store', visible: true, sortable: true },
             { id: 'sizes', name: 'Sizes', visible: true },
             { id: 'comment', name: 'Comment', visible: false, sortable: true },
             { id: 'created_at', name: 'Created', visible: true, sortable: true },

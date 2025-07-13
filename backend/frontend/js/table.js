@@ -122,6 +122,7 @@ class ProductTable {
         row.appendChild(this.createColorCell(product));
         row.appendChild(this.createCompositionCell(product));
         row.appendChild(this.createItemCell(product));
+        row.appendChild(this.createStoreCell(product));
         row.appendChild(this.createSizesCell(product));
         row.appendChild(this.createCommentCell(product));
         row.appendChild(this.createCreatedAtCell(product));
@@ -449,6 +450,23 @@ class ProductTable {
         
         // Make editable
         this.inlineEditor.makeEditable(cell, product.id, 'item', product.item);
+        
+        return cell;
+    }
+
+    /**
+     * Create store cell
+     */
+    createStoreCell(product) {
+        const store = product.store || 'Unknown Store';
+        const cell = createElement('td', {
+            dataset: { column: 'store' }
+        }, `
+            <span class="cell-store" title="${escapeHtml(store)}">${escapeHtml(store)}</span>
+        `);
+        
+        // Make editable
+        this.inlineEditor.makeEditable(cell, product.id, 'store', product.store);
         
         return cell;
     }

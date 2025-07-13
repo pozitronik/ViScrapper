@@ -75,6 +75,9 @@ def apply_filters(query: Any, filters: SearchFilters, include_deleted: bool = Fa
     if filters.color:
         query = query.filter(ProductModel.color.ilike(f"%{filters.color}%"))
 
+    if filters.store:
+        query = query.filter(ProductModel.store.ilike(f"%{filters.store}%"))
+
     if filters.has_images is not None:
         if filters.has_images:
             query = query.filter(ProductModel.images.any())

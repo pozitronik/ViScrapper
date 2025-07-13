@@ -19,6 +19,7 @@ class ProductFilters {
         this.priceMaxInput = document.getElementById('price-max');
         this.availabilitySelect = document.getElementById('availability-filter');
         this.colorInput = document.getElementById('color-filter');
+        this.storeInput = document.getElementById('store-filter');
         this.dateFromInput = document.getElementById('date-from');
         this.dateToInput = document.getElementById('date-to');
         this.imagesSelect = document.getElementById('images-filter');
@@ -80,6 +81,13 @@ class ProductFilters {
         if (this.colorInput) {
             this.colorInput.addEventListener('input', debounce(() => {
                 this.updateFilter('color', this.colorInput.value);
+            }, 500));
+        }
+
+        // Store filter
+        if (this.storeInput) {
+            this.storeInput.addEventListener('input', debounce(() => {
+                this.updateFilter('store', this.storeInput.value);
             }, 500));
         }
 
@@ -167,6 +175,7 @@ class ProductFilters {
         if (this.priceMaxInput) this.priceMaxInput.value = '';
         if (this.availabilitySelect) this.availabilitySelect.value = '';
         if (this.colorInput) this.colorInput.value = '';
+        if (this.storeInput) this.storeInput.value = '';
         if (this.dateFromInput) this.dateFromInput.value = '';
         if (this.dateToInput) this.dateToInput.value = '';
         if (this.imagesSelect) this.imagesSelect.value = '';
@@ -250,6 +259,8 @@ class ProductFilters {
                 return `Status: ${value}`;
             case 'color':
                 return `Color: ${value}`;
+            case 'store':
+                return `Store: ${value}`;
             case 'dateFrom':
                 return `From: ${new Date(value).toLocaleDateString()}`;
             case 'dateTo':
@@ -282,6 +293,9 @@ class ProductFilters {
                 break;
             case 'color':
                 if (this.colorInput) this.colorInput.value = '';
+                break;
+            case 'store':
+                if (this.storeInput) this.storeInput.value = '';
                 break;
             case 'dateFrom':
                 if (this.dateFromInput) this.dateFromInput.value = '';
@@ -352,6 +366,11 @@ class ProductFilters {
         // Color
         if (this.activeFilters.color) {
             apiFilters.color = this.activeFilters.color.trim();
+        }
+
+        // Store
+        if (this.activeFilters.store) {
+            apiFilters.store = this.activeFilters.store.trim();
         }
 
         // Date range
@@ -431,6 +450,10 @@ class ProductFilters {
                     if (this.colorInput) this.colorInput.value = value;
                     this.activeFilters.color = value;
                     break;
+                case 'store':
+                    if (this.storeInput) this.storeInput.value = value;
+                    this.activeFilters.store = value;
+                    break;
                 case 'created_after':
                     if (this.dateFromInput) this.dateFromInput.value = value;
                     this.activeFilters.dateFrom = value;
@@ -477,6 +500,9 @@ class ProductFilters {
                             break;
                         case 'color':
                             if (this.colorInput) this.colorInput.value = value;
+                            break;
+                        case 'store':
+                            if (this.storeInput) this.storeInput.value = value;
                             break;
                         case 'dateFrom':
                             if (this.dateFromInput) this.dateFromInput.value = value;
