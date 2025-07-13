@@ -2214,13 +2214,67 @@ input:checked + .toggle-slider:before {
 }
 
 /* Template Placeholder Styles */
+.placeholders-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.placeholders-header h5 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.placeholders-search {
+    width: 200px;
+}
+
+.placeholders-search .form-input {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.75rem;
+}
+
+.placeholders-container {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.placeholders-grid {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
 .placeholder-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem;
+    padding: 0.75rem;
     border-bottom: 1px solid #e5e7eb;
     font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.placeholder-item:last-child {
+    border-bottom: none;
+}
+
+.placeholder-item:hover {
+    background-color: #f8fafc;
+}
+
+.placeholder-item.clicked {
+    background-color: #dcfce7;
+    animation: flash-green 0.5s ease-in-out;
+}
+
+@keyframes flash-green {
+    0% { background-color: #22c55e; }
+    100% { background-color: #dcfce7; }
 }
 
 .placeholder-item code {
@@ -2230,18 +2284,25 @@ input:checked + .toggle-slider:before {
     font-family: 'SF Mono', Monaco, monospace;
     color: #667eea;
     font-weight: 500;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.placeholder-item code:hover {
+    background: #e5e7eb;
 }
 
 .placeholder-item span {
     color: #6b7280;
+    margin-left: 0.5rem;
+    line-height: 1.4;
 }
 
-.placeholders-grid {
-    max-height: 300px;
-    overflow-y: auto;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    margin-top: 0.5rem;
+.placeholders-empty {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+    font-style: italic;
 }
 
 /* Template Validation Results */

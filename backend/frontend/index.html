@@ -771,23 +771,33 @@
                             ></textarea>
                             
                             <div class="template-editor-tools">
-                                <button type="button" id="show-template-placeholders" class="btn btn-outline btn-sm">
+                                <button type="button" id="show-template-placeholders" class="btn btn-outline btn-sm" title="Toggle placeholders (Ctrl+/)">
                                     📋 Show Placeholders
                                 </button>
-                                <button type="button" id="preview-template" class="btn btn-outline btn-sm">
+                                <button type="button" id="preview-template" class="btn btn-outline btn-sm" title="Show preview (Ctrl+Enter)">
                                     👁️ Preview
                                 </button>
                                 <button type="button" id="validate-template" class="btn btn-outline btn-sm">
                                     ✅ Validate
+                                </button>
+                                <button type="button" id="show-keyboard-shortcuts" class="btn btn-outline btn-sm" title="Show keyboard shortcuts">
+                                    ⌨️ Help
                                 </button>
                             </div>
                         </div>
                     </div>
 
                     <div id="template-placeholders-help" class="placeholders-help hidden">
-                        <h5>Available Placeholders:</h5>
-                        <div class="placeholders-grid" id="template-placeholders-list">
-                            <!-- Placeholders will be loaded here -->
+                        <div class="placeholders-header">
+                            <h5>Available Placeholders:</h5>
+                            <div class="placeholders-search">
+                                <input type="text" id="placeholders-search-input" placeholder="Search placeholders..." class="form-input">
+                            </div>
+                        </div>
+                        <div class="placeholders-container">
+                            <div class="placeholders-grid" id="template-placeholders-list">
+                                <!-- Placeholders will be loaded here -->
+                            </div>
                         </div>
                     </div>
 
@@ -820,7 +830,7 @@
                 
                 <div class="modal-footer-actions">
                     <button id="template-editor-cancel" class="btn btn-outline">Cancel</button>
-                    <button id="template-save" class="btn btn-primary" disabled>
+                    <button id="template-save" class="btn btn-primary" disabled title="Save template (Ctrl+S)">
                         ➕ Create Template
                     </button>
                 </div>

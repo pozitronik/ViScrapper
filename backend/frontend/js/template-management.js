@@ -5,6 +5,7 @@ class TemplateManager {
         this.templates = [];
         this.currentTemplate = null;
         this.isLoading = false;
+        this.availablePlaceholders = null;
         
         // Bind methods
         this.init = this.init.bind(this);
@@ -130,6 +131,55 @@ class TemplateManager {
             if (validateBtn) {
                 validateBtn.addEventListener('click', this.validateTemplate.bind(this));
             }
+
+            // Keyboard shortcuts help button
+            const keyboardShortcutsBtn = editorModal.querySelector('#show-keyboard-shortcuts');
+            if (keyboardShortcutsBtn) {
+                keyboardShortcutsBtn.addEventListener('click', this.showKeyboardShortcuts.bind(this));
+            }
+
+            // Placeholders search functionality
+            const placeholdersSearchInput = editorModal.querySelector('#placeholders-search-input');
+            if (placeholdersSearchInput) {
+                placeholdersSearchInput.addEventListener('input', (e) => {
+                    this.filterPlaceholders(e.target.value);
+                });
+                
+                // Clear search on Escape
+                placeholdersSearchInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        e.target.value = '';
+                        this.filterPlaceholders('');
+                        contentInput?.focus();
+                    }
+                });
+            }
+
+            // Global keyboard shortcuts for template editor
+            editorModal.addEventListener('keydown', (e) => {
+                // Ctrl+S or Cmd+S to save
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    this.saveTemplate();
+                }
+                
+                // Escape to close modal
+                if (e.key === 'Escape' && e.target === editorModal) {
+                    this.closeTemplateEditor();
+                }
+                
+                // Ctrl+/ or Cmd+/ to toggle placeholders
+                if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+                    e.preventDefault();
+                    this.togglePlaceholders();
+                }
+                
+                // Ctrl+Enter or Cmd+Enter to show preview
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    this.showPreview();
+                }
+            });
 
             // Click outside to close
             editorModal.addEventListener('click', (e) => {
@@ -556,17 +606,10 @@ class TemplateManager {
             
             if (data && data.data && data.data.placeholders) {
                 // Convert object to array and sort
-                const placeholders = Object.entries(data.data.placeholders).map(([key, description]) => ({
+                this.availablePlaceholders = Object.entries(data.data.placeholders).map(([key, description]) => ({
                     key: key.replace(/[{}]/g, ''), // Remove braces for display
                     description
                 })).sort((a, b) => a.key.localeCompare(b.key));
-                
-                container.innerHTML = placeholders.map(placeholder => `
-                    <div class="placeholder-item">
-                        <code>{${placeholder.key}}</code>
-                        <span>${placeholder.description}</span>
-                    </div>
-                `).join('');
             } else {
                 throw new Error('Invalid response format');
             }
@@ -574,7 +617,7 @@ class TemplateManager {
             console.error('Failed to load placeholders:', error);
             
             // Fallback to basic placeholders
-            const fallbackPlaceholders = [
+            this.availablePlaceholders = [
                 { key: 'name', description: 'Product name' },
                 { key: 'sku', description: 'Product SKU' },
                 { key: 'price', description: 'Product price' },
@@ -591,14 +634,109 @@ class TemplateManager {
                 { key: 'product_url', description: 'Product URL' },
                 { key: 'created_at', description: 'Creation date' }
             ];
-            
-            container.innerHTML = fallbackPlaceholders.map(placeholder => `
-                <div class="placeholder-item">
-                    <code>{${placeholder.key}}</code>
-                    <span>${placeholder.description}</span>
-                </div>
-            `).join('');
         }
+        
+        // Render placeholders
+        this.renderPlaceholders();
+    }
+
+    /**
+     * Render placeholders in the container
+     */
+    renderPlaceholders(filteredPlaceholders = null) {
+        const container = document.getElementById('template-placeholders-list');
+        if (!container) return;
+        
+        const placeholdersToRender = filteredPlaceholders || this.availablePlaceholders || [];
+        
+        if (placeholdersToRender.length === 0) {
+            container.innerHTML = '<div class="placeholders-empty">No placeholders found</div>';
+            return;
+        }
+        
+        container.innerHTML = placeholdersToRender.map(placeholder => `
+            <div class="placeholder-item" data-placeholder="{${placeholder.key}}">
+                <code>{${placeholder.key}}</code>
+                <span>${placeholder.description}</span>
+            </div>
+        `).join('');
+        
+        // Add click event listeners to all placeholder items
+        container.querySelectorAll('.placeholder-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const placeholder = item.dataset.placeholder;
+                this.insertPlaceholderAtCursor(placeholder);
+                
+                // Visual feedback
+                item.classList.add('clicked');
+                setTimeout(() => {
+                    item.classList.remove('clicked');
+                }, 500);
+            });
+        });
+    }
+
+    /**
+     * Filter placeholders based on search query
+     */
+    filterPlaceholders(query) {
+        if (!this.availablePlaceholders) return;
+        
+        if (!query.trim()) {
+            this.renderPlaceholders();
+            return;
+        }
+        
+        const filteredPlaceholders = this.availablePlaceholders.filter(placeholder => 
+            placeholder.key.toLowerCase().includes(query.toLowerCase()) ||
+            placeholder.description.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        this.renderPlaceholders(filteredPlaceholders);
+    }
+
+    /**
+     * Insert placeholder at cursor position in template content textarea
+     */
+    insertPlaceholderAtCursor(placeholder) {
+        const contentInput = document.getElementById('template-content-input');
+        if (!contentInput) return;
+        
+        const startPos = contentInput.selectionStart;
+        const endPos = contentInput.selectionEnd;
+        const textBefore = contentInput.value.substring(0, startPos);
+        const textAfter = contentInput.value.substring(endPos);
+        
+        // Insert placeholder
+        contentInput.value = textBefore + placeholder + textAfter;
+        
+        // Set cursor position after the inserted placeholder
+        const newCursorPos = startPos + placeholder.length;
+        contentInput.setSelectionRange(newCursorPos, newCursorPos);
+        
+        // Focus back on the textarea
+        contentInput.focus();
+        
+        // Trigger validation and preview update
+        this.validateTemplateForm();
+        this.generatePreview();
+        
+        console.log('Inserted placeholder:', placeholder, 'at position:', startPos);
+    }
+
+    /**
+     * Show keyboard shortcuts help
+     */
+    showKeyboardShortcuts() {
+        const shortcuts = [
+            'Ctrl+S (Cmd+S) - Save template',
+            'Ctrl+/ (Cmd+/) - Toggle placeholders',
+            'Ctrl+Enter (Cmd+Enter) - Show preview',
+            'Escape - Clear search or close modal',
+            'Click placeholders to insert at cursor'
+        ];
+        
+        alert('Keyboard Shortcuts:\n\n' + shortcuts.join('\n'));
     }
 
     /**
