@@ -177,10 +177,31 @@ async function extractProductData() {
     }
     
     // Базовые данные продукта
+    const baseSku = currentParser.extractSku(jsonData);
+    let finalSku = baseSku;
+    
+    // Для Calvin Klein генерируем уникальный SKU с кодом цвета
+    if (currentParser.config && currentParser.config.domain === 'calvinklein.us') {
+      console.log('Calvin Klein detected - generating color-specific SKU...');
+      console.log('Base SKU:', baseSku);
+      
+      const colorCode = currentParser.extractColorCodeFromSelection ? currentParser.extractColorCodeFromSelection() : null;
+      console.log('Extracted color code:', colorCode);
+      
+      if (colorCode && currentParser.generateColorSpecificSku) {
+        finalSku = currentParser.generateColorSpecificSku(baseSku, colorCode);
+        console.log(`Generated color-specific SKU: ${finalSku} (was: ${baseSku})`);
+      } else {
+        console.log('Using base SKU as final SKU (no color code or method missing)');
+      }
+    } else {
+      console.log('Not Calvin Klein - using base SKU as final SKU');
+    }
+    
     const productData = {
       product_url: window.location.href,  // Полный URL с параметрами для хранения
       name: currentParser.extractName(),
-      sku: currentParser.extractSku(jsonData),
+      sku: finalSku,
       price: currentParser.extractPrice(jsonData),
       currency: currentParser.extractCurrency(jsonData),
       availability: currentParser.extractAvailability(jsonData),

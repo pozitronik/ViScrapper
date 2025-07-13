@@ -71,7 +71,7 @@ class CalvinKleinParser extends BaseParser {
   }
 
   /**
-   * Извлечение SKU из JSON-LD
+   * Извлечение базового SKU из JSON-LD
    */
   extractSku(jsonData) {
     console.log('CK extractSku called with jsonData:', jsonData);
@@ -90,6 +90,27 @@ class CalvinKleinParser extends BaseParser {
     
     console.log('CK extractSku: No SKU found');
     return null;
+  }
+
+  /**
+   * Генерация уникального SKU для конкретного цвета
+   */
+  generateColorSpecificSku(baseSku, colorCode) {
+    if (!baseSku) {
+      console.warn('CK generateColorSpecificSku: No base SKU provided');
+      return null;
+    }
+
+    if (!colorCode) {
+      console.log('CK generateColorSpecificSku: No color code, returning base SKU');
+      return baseSku;
+    }
+
+    // Формат: D3429-001-5KC (базовый SKU + цветовой код)
+    const colorSpecificSku = `${baseSku}-${colorCode}`;
+    console.log(`CK generateColorSpecificSku: Generated ${colorSpecificSku} from base ${baseSku} and color ${colorCode}`);
+    
+    return colorSpecificSku;
   }
 
   /**
@@ -409,41 +430,86 @@ class CalvinKleinParser extends BaseParser {
     console.log('CK extractColorCodeFromSelection: Looking for color code...');
     
     try {
-      // Ищем выбранный цвет по aria-checked="true"
+      // Метод 1: Ищем выбранный цвет по aria-checked="true"
       const checkedColorSpan = document.querySelector('#colorscolorCode span[aria-checked="true"]');
       if (checkedColorSpan) {
+        console.log('CK extractColorCodeFromSelection: Found aria-checked span:', checkedColorSpan);
+        
+        // Пробуем извлечь из style (background-image)
         const style = checkedColorSpan.getAttribute('style');
         if (style && style.includes('scene7.com')) {
-          // Извлекаем код цвета из URL: D3429_5KC_pattern -> 5KC
-          const match = style.match(/D3429_([^_]+)_pattern/);
+          console.log('CK extractColorCodeFromSelection: Found style with scene7:', style);
+          
+          // Более универсальный regex для извлечения кода цвета
+          const match = style.match(/\/([A-Z0-9]+_[A-Z0-9]+)_pattern/);
           if (match) {
-            const colorCode = match[1];
-            console.log(`CK extractColorCodeFromSelection: Found color code from aria-checked: ${colorCode}`);
+            const fullCode = match[1]; // QF7900_100
+            const colorCode = fullCode.split('_').pop(); // 100
+            console.log(`CK extractColorCodeFromSelection: Found color code from aria-checked style: ${colorCode}`);
             return colorCode;
+          }
+        }
+        
+        // Пробуем извлечь из связанного input через label
+        const labelFor = checkedColorSpan.closest('label');
+        if (labelFor) {
+          const forAttr = labelFor.getAttribute('for');
+          if (forAttr) {
+            console.log('CK extractColorCodeFromSelection: Found label for:', forAttr);
+            
+            // Извлекаем код из ID: QF7900-UB1_colorCodeitem-100 -> 100
+            const match = forAttr.match(/_colorCodeitem-([A-Z0-9]+)$/);
+            if (match) {
+              const colorCode = match[1];
+              console.log(`CK extractColorCodeFromSelection: Found color code from label for: ${colorCode}`);
+              return colorCode;
+            }
           }
         }
       }
       
-      // Fallback: ищем checked input
+      // Метод 2: Ищем checked input
       const checkedInput = document.querySelector('#colorscolorCode input:checked');
       if (checkedInput) {
+        console.log('CK extractColorCodeFromSelection: Found checked input:', checkedInput);
+        
+        const id = checkedInput.getAttribute('id');
+        if (id) {
+          console.log('CK extractColorCodeFromSelection: Input ID:', id);
+          
+          // Извлекаем код из ID: QF7900-UB1_colorCodeitem-100 -> 100
+          const match = id.match(/_colorCodeitem-([A-Z0-9]+)$/);
+          if (match) {
+            const colorCode = match[1];
+            console.log(`CK extractColorCodeFromSelection: Found color code from input ID: ${colorCode}`);
+            return colorCode;
+          }
+        }
+        
         const value = checkedInput.getAttribute('data-attr-value');
         if (value) {
+          console.log('CK extractColorCodeFromSelection: Input data-attr-value:', value);
+          
           // data-attr-value может содержать полный код цвета
-          const colorCode = value.split('-').pop(); // D3429-5KC -> 5KC
-          console.log(`CK extractColorCodeFromSelection: Found color code from checked input: ${colorCode}`);
+          const colorCode = value.split('-').pop(); // QF7900-100 -> 100
+          console.log(`CK extractColorCodeFromSelection: Found color code from data-attr-value: ${colorCode}`);
           return colorCode;
         }
       }
       
-      // Дополнительный fallback: ищем активный элемент по табиндексу 0
+      // Метод 3: Ищем активный элемент по табиндексу 0
       const activeColorSpan = document.querySelector('#colorscolorCode span[tabindex="0"]');
       if (activeColorSpan) {
+        console.log('CK extractColorCodeFromSelection: Found active tabindex span:', activeColorSpan);
+        
         const style = activeColorSpan.getAttribute('style');
         if (style && style.includes('scene7.com')) {
-          const match = style.match(/D3429_([^_]+)_pattern/);
+          console.log('CK extractColorCodeFromSelection: Active span style:', style);
+          
+          const match = style.match(/\/([A-Z0-9]+_[A-Z0-9]+)_pattern/);
           if (match) {
-            const colorCode = match[1];
+            const fullCode = match[1]; // QF7900_100
+            const colorCode = fullCode.split('_').pop(); // 100
             console.log(`CK extractColorCodeFromSelection: Found color code from active tabindex: ${colorCode}`);
             return colorCode;
           }
