@@ -327,6 +327,7 @@ class TestProductBase:
             color="Blue",
             composition="100% Cotton",
             item="T-Shirt",
+            store="Victoria's Secret",
             comment="Great product"
         )
         
@@ -339,6 +340,7 @@ class TestProductBase:
         assert product.color == "Blue"
         assert product.composition == "100% Cotton"
         assert product.item == "T-Shirt"
+        assert product.store == "Victoria's Secret"
         assert product.comment == "Great product"
 
     def test_product_base_url_validation(self):

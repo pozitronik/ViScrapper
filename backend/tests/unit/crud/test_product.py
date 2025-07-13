@@ -263,6 +263,7 @@ class TestCompareProductData:
         existing_product.color = "red"
         existing_product.composition = "cotton"
         existing_product.item = "shirt"
+        existing_product.store = "Victoria's Secret"
         existing_product.comment = "nice"
         existing_product.images = []
         existing_product.sizes = []
@@ -275,6 +276,7 @@ class TestCompareProductData:
         new_data.color = "red"
         new_data.composition = "cotton"
         new_data.item = "shirt"
+        new_data.store = "Victoria's Secret"
         new_data.comment = "nice"
         new_data.all_image_urls = []
         new_data.available_sizes = []
@@ -298,6 +300,7 @@ class TestCompareProductData:
         existing_product.color = "red"
         existing_product.composition = "cotton"
         existing_product.item = "shirt"
+        existing_product.store = "Victoria's Secret"
         existing_product.comment = "old comment"
         existing_product.images = []
         existing_product.sizes = []
@@ -310,6 +313,7 @@ class TestCompareProductData:
         new_data.color = "blue"
         new_data.composition = "polyester"
         new_data.item = "jacket"
+        new_data.store = "Calvin Klein"
         new_data.comment = "new comment"
         new_data.all_image_urls = []
         new_data.available_sizes = []
@@ -317,7 +321,7 @@ class TestCompareProductData:
         result = compare_product_data(existing_product, new_data)
         
         assert result['has_changes'] is True
-        assert len(result['field_changes']) == 8
+        assert len(result['field_changes']) == 9
         assert result['field_changes']['name']['old'] == "Old Product"
         assert result['field_changes']['name']['new'] == "New Product"
         assert result['field_changes']['price']['old'] == 100.0
@@ -333,6 +337,7 @@ class TestCompareProductData:
         existing_product.color = "red"
         existing_product.composition = "cotton"
         existing_product.item = "shirt"
+        existing_product.store = "Victoria's Secret"
         existing_product.comment = "comment"
         existing_product.images = []
         existing_product.sizes = []
@@ -345,6 +350,7 @@ class TestCompareProductData:
         new_data.color = "red"
         new_data.composition = "cotton"
         new_data.item = "shirt"
+        new_data.store = "Victoria's Secret"
         new_data.comment = "comment"
         new_data.all_image_urls = []
         new_data.available_sizes = []
@@ -375,6 +381,7 @@ class TestCompareProductData:
         existing_product.color = "red"
         existing_product.composition = "cotton"
         existing_product.item = "shirt"
+        existing_product.store = "Victoria's Secret"
         existing_product.comment = "comment"
         existing_product.images = [existing_image1, existing_image2]
         existing_product.sizes = []
@@ -387,6 +394,7 @@ class TestCompareProductData:
         new_data.color = "red"
         new_data.composition = "cotton"
         new_data.item = "shirt"
+        new_data.store = "Victoria's Secret"
         new_data.comment = "comment"
         new_data.all_image_urls = ["http://example.com/image2.jpg", "http://example.com/image3.jpg"]
         new_data.available_sizes = []
@@ -416,6 +424,7 @@ class TestCompareProductData:
         existing_product.color = "red"
         existing_product.composition = "cotton"
         existing_product.item = "shirt"
+        existing_product.store = "Victoria's Secret"
         existing_product.comment = "comment"
         existing_product.images = []
         existing_product.sizes = [existing_size1, existing_size2]
@@ -428,6 +437,7 @@ class TestCompareProductData:
         new_data.color = "red"
         new_data.composition = "cotton"
         new_data.item = "shirt"
+        new_data.store = "Victoria's Secret"
         new_data.comment = "comment"
         new_data.all_image_urls = []
         new_data.available_sizes = ["M", "L", "XL"]
@@ -460,6 +470,7 @@ class TestCompareProductData:
         existing_product.color = "red"
         existing_product.composition = "cotton"
         existing_product.item = "shirt"
+        existing_product.store = "Victoria's Secret"
         existing_product.comment = "comment"
         existing_product.images = [existing_image1, deleted_image]
         existing_product.sizes = []
@@ -472,6 +483,7 @@ class TestCompareProductData:
         new_data.color = "red"
         new_data.composition = "cotton"
         new_data.item = "shirt"
+        new_data.store = "Victoria's Secret"
         new_data.comment = "comment"
         new_data.all_image_urls = ["http://example.com/image1.jpg"]
         new_data.available_sizes = []
@@ -502,6 +514,7 @@ class TestCompareProductData:
         existing_product.color = "red"
         existing_product.composition = "cotton"
         existing_product.item = "shirt"
+        existing_product.store = "Victoria's Secret"
         existing_product.comment = "comment"
         existing_product.images = []
         existing_product.sizes = [existing_size1, deleted_size]
@@ -514,6 +527,7 @@ class TestCompareProductData:
         new_data.color = "red"
         new_data.composition = "cotton"
         new_data.item = "shirt"
+        new_data.store = "Victoria's Secret"
         new_data.comment = "comment"
         new_data.all_image_urls = []
         new_data.available_sizes = ["S"]
@@ -536,6 +550,7 @@ class TestCompareProductData:
         existing_product.color = "red"
         existing_product.composition = "cotton"
         existing_product.item = "shirt"
+        existing_product.store = "Victoria's Secret"
         existing_product.comment = "comment"
         existing_product.images = []
         existing_product.sizes = []
@@ -548,6 +563,7 @@ class TestCompareProductData:
         new_data.color = "red"
         new_data.composition = "cotton"
         new_data.item = "shirt"
+        new_data.store = "Victoria's Secret"
         new_data.comment = "comment"
         new_data.all_image_urls = []
         new_data.available_sizes = []
