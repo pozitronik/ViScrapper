@@ -205,6 +205,7 @@ async function extractProductData() {
       price: currentParser.extractPrice(jsonData),
       currency: currentParser.extractCurrency(jsonData),
       availability: currentParser.extractAvailability(jsonData),
+      store: currentParser.config.siteName,  // Store name from parser configuration
       comment: ''
     };
 
