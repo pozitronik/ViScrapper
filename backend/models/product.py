@@ -22,6 +22,7 @@ class Product(Base):
     color = Column(String)
     composition = Column(String)
     item = Column(String)
+    store = Column(String(100), nullable=False, server_default='Unknown Store', comment='Store or brand name (e.g., "Victoria\'s Secret", "Calvin Klein")', index=True)
     comment = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     telegram_posted_at = Column(DateTime(timezone=True), nullable=True)
