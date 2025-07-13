@@ -773,19 +773,16 @@ class TelegramModal {
                     
                     ${channel.description ? `<div class="channel-description">${this.escapeHtml(channel.description)}</div>` : ''}
                     
-                    <div class="channel-settings-grid">
-                        <div class="setting-item">
-                            <span class="setting-icon">${channel.send_photos ? '📷' : '📝'}</span>
-                            <span class="setting-text">${channel.send_photos ? 'Photos' : 'Text only'}</span>
-                        </div>
-                        <div class="setting-item">
-                            <span class="setting-icon">${channel.disable_notification ? '🔕' : '🔔'}</span>
-                            <span class="setting-text">${channel.disable_notification ? 'Silent' : 'Notifications'}</span>
-                        </div>
-                        <div class="setting-item">
-                            <span class="setting-icon">${channel.disable_web_page_preview ? '🚫' : '🔗'}</span>
-                            <span class="setting-text">${channel.disable_web_page_preview ? 'No previews' : 'Link previews'}</span>
-                        </div>
+                    <div class="channel-settings-line">
+                        <span class="setting-badge ${channel.send_photos ? 'enabled' : 'disabled'}">
+                            ${channel.send_photos ? '📷 Photos' : '📝 Text only'}
+                        </span>
+                        <span class="setting-badge ${!channel.disable_notification ? 'enabled' : 'disabled'}">
+                            ${channel.disable_notification ? '🔕 Silent' : '🔔 Notifications'}
+                        </span>
+                        <span class="setting-badge ${!channel.disable_web_page_preview ? 'enabled' : 'disabled'}">
+                            ${channel.disable_web_page_preview ? '🚫 No previews' : '🔗 Previews'}
+                        </span>
                     </div>
                 </div>
                 <div class="channel-actions">

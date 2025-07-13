@@ -1297,35 +1297,33 @@ input:checked + .toggle-slider:before {
     line-height: 1.4;
 }
 
-/* Compact Settings Grid */
-.channel-settings-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.375rem;
-    margin-top: 0.75rem;
-}
-
-.setting-item {
+/* Compact Settings Line */
+.channel-settings-line {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
     gap: 0.375rem;
-    font-size: 0.8125rem;
-    color: #4b5563;
-    padding: 0.25rem 0;
+    margin-top: 0.5rem;
 }
 
-.setting-icon {
-    font-size: 0.875rem;
-    width: 1rem;
-    text-align: center;
-    flex-shrink: 0;
-}
-
-.setting-text {
+.setting-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 12px;
+    font-weight: 500;
     line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.setting-badge.enabled {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.setting-badge.disabled {
+    background: #f3f4f6;
+    color: #6b7280;
 }
 
 /* Channel Management List Improvements */
