@@ -125,13 +125,22 @@ class CalvinKleinParser extends BaseParser {
   }
 
   /**
-   * Извлечение изображений из ProductImage контейнера (из picture элементов)
+   * Извлечение изображений используя прямое построение URL из данных страницы
    */
   async extractImages() {
-    console.log('CK extractImages: Starting image extraction...');
+    console.log('CK extractImages: Starting direct image URL extraction...');
+    
+    // Сначала пробуем извлечь изображения напрямую из данных страницы
+    const directImages = await this.extractImagesDirectly();
+    if (directImages && directImages.length > 0) {
+      console.log(`CK extractImages: Found ${directImages.length} images via direct extraction`);
+      return directImages;
+    }
+    
+    console.log('CK extractImages: Direct extraction failed, falling back to DOM extraction...');
     const imageUrls = [];
     
-    // Ищем в ProductImage контейнере picture элементы в swiper слайдах
+    // Fallback к старому методу извлечения из DOM
     const productImageContainer = document.querySelector(this.config.selectors.productImages);
     if (productImageContainer) {
       console.log('CK extractImages: Found ProductImage container');
@@ -264,6 +273,177 @@ class CalvinKleinParser extends BaseParser {
     return imageUrls;
   }
 
+
+  /**
+   * Прямое извлечение изображений путем построения URL из данных страницы
+   */
+  async extractImagesDirectly() {
+    console.log('CK extractImagesDirectly: Starting direct image extraction...');
+    
+    try {
+      // Получаем базовую информацию
+      const jsonData = this.getJsonLdData();
+      const baseSku = this.extractSku(jsonData);
+      const currentColor = this.extractColor();
+      
+      if (!baseSku) {
+        console.log('CK extractImagesDirectly: No base SKU found');
+        return [];
+      }
+      
+      console.log(`CK extractImagesDirectly: Base SKU: ${baseSku}, Current color: ${currentColor}`);
+      
+      // Извлекаем код цвета из выбранного элемента
+      const colorCode = this.extractColorCodeFromSelection();
+      
+      if (!colorCode) {
+        console.log('CK extractImagesDirectly: No color code found, using JSON-LD images');
+        // Fallback к изображениям из JSON-LD (обычно для дефолтного цвета)
+        if (jsonData && jsonData.image && Array.isArray(jsonData.image)) {
+          return jsonData.image.map(url => this.cleanImageUrl(url));
+        }
+        return [];
+      }
+      
+      console.log(`CK extractImagesDirectly: Using color code: ${colorCode}`);
+      
+      // Строим URLs изображений для данного цвета
+      const baseImageUrl = 'https://calvinklein.scene7.com/is/image/CalvinKlein';
+      const baseName = baseSku.split('-')[0]; // D3429-001 -> D3429
+      const imageTypes = ['main', 'alternate1', 'alternate2', 'alternate3', 'alternate4', 'alternate5'];
+      
+      const candidateUrls = imageTypes.map(type => {
+        return `${baseImageUrl}/${baseName}_${colorCode}_${type}`;
+      });
+      
+      console.log(`CK extractImagesDirectly: Generated ${candidateUrls.length} candidate URLs, validating...`);
+      
+      // Проверяем, какие изображения реально существуют
+      const validImageUrls = await this.validateImageUrls(candidateUrls);
+      
+      console.log(`CK extractImagesDirectly: Found ${validImageUrls.length} valid images:`, validImageUrls);
+      return validImageUrls;
+      
+    } catch (error) {
+      console.warn('CK extractImagesDirectly: Error in direct extraction:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Проверка существования изображений путем быстрой проверки HEAD запросов
+   */
+  async validateImageUrls(urls) {
+    console.log(`CK validateImageUrls: Validating ${urls.length} image URLs...`);
+    
+    const validUrls = [];
+    const maxConcurrent = 4; // Ограничиваем количество одновременных запросов
+    
+    // Проверяем изображения партиями
+    for (let i = 0; i < urls.length; i += maxConcurrent) {
+      const batch = urls.slice(i, i + maxConcurrent);
+      const batchPromises = batch.map(url => this.checkImageExists(url));
+      
+      try {
+        const results = await Promise.all(batchPromises);
+        
+        results.forEach((exists, index) => {
+          const url = batch[index];
+          if (exists) {
+            validUrls.push(url);
+            console.log(`CK validateImageUrls: ✓ Valid: ${url}`);
+          } else {
+            console.log(`CK validateImageUrls: ✗ Invalid: ${url}`);
+          }
+        });
+      } catch (error) {
+        console.warn('CK validateImageUrls: Error in batch validation:', error);
+        // В случае ошибки, добавляем все URL из батча (fallback)
+        batch.forEach(url => {
+          if (!validUrls.includes(url)) {
+            validUrls.push(url);
+          }
+        });
+      }
+    }
+    
+    console.log(`CK validateImageUrls: Validation complete. ${validUrls.length}/${urls.length} images valid`);
+    return validUrls;
+  }
+
+  /**
+   * Проверка существования одного изображения
+   */
+  async checkImageExists(url) {
+    try {
+      const response = await fetch(url, { 
+        method: 'HEAD',
+        cache: 'no-cache'
+      });
+      
+      return response.ok && response.status === 200;
+    } catch (error) {
+      console.warn(`CK checkImageExists: Error checking ${url}:`, error);
+      return false; // Считаем несуществующим в случае ошибки
+    }
+  }
+
+  /**
+   * Извлечение кода цвета из выбранного цветового элемента
+   */
+  extractColorCodeFromSelection() {
+    console.log('CK extractColorCodeFromSelection: Looking for color code...');
+    
+    try {
+      // Ищем выбранный цвет по aria-checked="true"
+      const checkedColorSpan = document.querySelector('#colorscolorCode span[aria-checked="true"]');
+      if (checkedColorSpan) {
+        const style = checkedColorSpan.getAttribute('style');
+        if (style && style.includes('scene7.com')) {
+          // Извлекаем код цвета из URL: D3429_5KC_pattern -> 5KC
+          const match = style.match(/D3429_([^_]+)_pattern/);
+          if (match) {
+            const colorCode = match[1];
+            console.log(`CK extractColorCodeFromSelection: Found color code from aria-checked: ${colorCode}`);
+            return colorCode;
+          }
+        }
+      }
+      
+      // Fallback: ищем checked input
+      const checkedInput = document.querySelector('#colorscolorCode input:checked');
+      if (checkedInput) {
+        const value = checkedInput.getAttribute('data-attr-value');
+        if (value) {
+          // data-attr-value может содержать полный код цвета
+          const colorCode = value.split('-').pop(); // D3429-5KC -> 5KC
+          console.log(`CK extractColorCodeFromSelection: Found color code from checked input: ${colorCode}`);
+          return colorCode;
+        }
+      }
+      
+      // Дополнительный fallback: ищем активный элемент по табиндексу 0
+      const activeColorSpan = document.querySelector('#colorscolorCode span[tabindex="0"]');
+      if (activeColorSpan) {
+        const style = activeColorSpan.getAttribute('style');
+        if (style && style.includes('scene7.com')) {
+          const match = style.match(/D3429_([^_]+)_pattern/);
+          if (match) {
+            const colorCode = match[1];
+            console.log(`CK extractColorCodeFromSelection: Found color code from active tabindex: ${colorCode}`);
+            return colorCode;
+          }
+        }
+      }
+      
+      console.log('CK extractColorCodeFromSelection: No color code found');
+      return null;
+      
+    } catch (error) {
+      console.warn('CK extractColorCodeFromSelection: Error extracting color code:', error);
+      return null;
+    }
+  }
 
   /**
    * Очистка URL изображения от параметров размера
