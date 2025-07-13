@@ -42,8 +42,12 @@ async function handleGetTabData(sendResponse) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (!tab.url.includes('victoriassecret.com')) {
-      sendResponse({ error: 'Расширение работает только на сайте Victoria\'s Secret' });
+    // Проверяем, поддерживается ли сайт
+    const supportedSites = ['victoriassecret.com', 'calvinklein.us'];
+    const isSupportedSite = supportedSites.some(site => tab.url.includes(site));
+    
+    if (!isSupportedSite) {
+      sendResponse({ error: 'Расширение работает только на поддерживаемых сайтах: ' + supportedSites.join(', ') });
       return;
     }
     

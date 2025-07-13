@@ -6,6 +6,7 @@ class ParserFactory {
   // Карта поддерживаемых сайтов и их парсеров
   static parsers = new Map([
     ['victoriassecret.com', () => new VictoriasSecretParser()],
+    ['calvinklein.us', () => new CalvinKleinParser()],
     // Добавлять новые парсеры здесь:
     // ['anothersite.com', () => new AnotherSiteParser()],
   ]);

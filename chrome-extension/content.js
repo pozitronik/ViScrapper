@@ -201,7 +201,7 @@ async function extractProductData() {
     }
 
     // Извлекаем изображения
-    const allImages = currentParser.extractImages();
+    const allImages = await currentParser.extractImages();
     if (allImages && allImages.length > 0) {
       productData.main_image_url = allImages[0];
       productData.all_image_urls = allImages;

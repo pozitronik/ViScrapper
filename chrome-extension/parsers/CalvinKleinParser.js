@@ -1,0 +1,813 @@
+/**
+ * Парсер для Calvin Klein
+ * Содержит всю логику извлечения данных, специфичную для CK
+ */
+class CalvinKleinParser extends BaseParser {
+  constructor() {
+    super({
+      siteName: 'Calvin Klein',
+      domain: 'calvinklein.us',
+      selectors: {
+        buyBox: '[data-comp="BuyBox"]',
+        productName: '.product-name',
+        priceValue: '.value[content]',
+        productImages: '[data-comp="ProductImage"]',
+        colorsList: '#colorscolorCode',
+        sizesList: '#sizessize',
+        descriptionDetail: '.description-and-detail .content-description',
+        jsonLdScript: 'script[type="application/ld+json"]'
+      }
+    });
+  }
+
+  /**
+   * Проверка, что мы на странице товара Calvin Klein
+   */
+  isValidProductPage() {
+    const url = window.location.href;
+    console.log('Checking CK page validity, URL:', url);
+    
+    if (!url.includes(this.config.domain)) {
+      console.log('Not a Calvin Klein page');
+      return false;
+    }
+    
+    // Проверяем наличие основных элементов в первом BuyBox контейнере
+    const buyBox = document.querySelector(this.config.selectors.buyBox);
+    if (!buyBox) {
+      console.log('No BuyBox container found');
+      return false;
+    }
+    
+    const hasProductName = buyBox.querySelector(this.config.selectors.productName);
+    const hasPrice = buyBox.querySelector(this.config.selectors.priceValue);
+    
+    console.log('ProductName element:', hasProductName);
+    console.log('Price element:', hasPrice);
+    
+    const isValid = !!(hasProductName && hasPrice);
+    console.log('Page is valid CK product page:', isValid);
+    
+    return isValid;
+  }
+
+  /**
+   * Извлечение названия продукта
+   */
+  extractName() {
+    const buyBox = document.querySelector(this.config.selectors.buyBox);
+    if (!buyBox) {
+      console.log('CK extractName: No BuyBox found');
+      return null;
+    }
+    
+    const element = buyBox.querySelector(this.config.selectors.productName);
+    const name = element?.textContent?.trim() || null;
+    console.log('CK extractName result:', name);
+    return name;
+  }
+
+  /**
+   * Извлечение SKU из JSON-LD
+   */
+  extractSku(jsonData) {
+    console.log('CK extractSku called with jsonData:', jsonData);
+    
+    if (jsonData && jsonData.sku) {
+      console.log('CK extractSku from JSON-LD:', jsonData.sku);
+      return jsonData.sku;
+    }
+    
+    // Fallback: try to extract from URL
+    const urlMatch = window.location.pathname.match(/\/([A-Z0-9]+-[0-9]+)\.html$/i);
+    if (urlMatch) {
+      console.log('CK extractSku from URL:', urlMatch[1]);
+      return urlMatch[1];
+    }
+    
+    console.log('CK extractSku: No SKU found');
+    return null;
+  }
+
+  /**
+   * Извлечение цены из JSON-LD или элемента на странице
+   */
+  extractPrice(jsonData) {
+    console.log('CK extractPrice called with jsonData:', jsonData);
+    
+    if (jsonData && jsonData.offers && jsonData.offers.price) {
+      const price = parseFloat(jsonData.offers.price);
+      console.log('CK extractPrice from JSON-LD:', price);
+      return price;
+    }
+    
+    // Альтернативный способ - из первого элемента .value на странице в BuyBox
+    const buyBox = document.querySelector(this.config.selectors.buyBox);
+    if (buyBox) {
+      const priceElement = buyBox.querySelector(this.config.selectors.priceValue);
+      console.log('CK extractPrice: priceElement found:', !!priceElement);
+      if (priceElement) {
+        const priceContent = priceElement.getAttribute('content');
+        console.log('CK extractPrice: priceContent from element:', priceContent);
+        if (priceContent) {
+          const price = parseFloat(priceContent);
+          console.log('CK extractPrice from element:', price);
+          return price;
+        }
+      }
+    }
+    
+    console.log('CK extractPrice: No price found');
+    return null;
+  }
+
+  /**
+   * Извлечение изображений из ProductImage контейнера (из picture элементов)
+   */
+  async extractImages() {
+    console.log('CK extractImages: Starting image extraction...');
+    const imageUrls = [];
+    
+    // Сначала прокручиваем страницу для принудительной загрузки всех изображений
+    await this.forceImageLoadingByScroll();
+    
+    // Ищем в ProductImage контейнере picture элементы в swiper слайдах
+    const productImageContainer = document.querySelector(this.config.selectors.productImages);
+    if (productImageContainer) {
+      console.log('CK extractImages: Found ProductImage container');
+      
+      // Ищем все swiper слайды с изображениями - используем более общий селектор
+      const swiperSlides = productImageContainer.querySelectorAll('.swiper-slide, .product-image.swiper-slide');
+      console.log(`CK extractImages: Found ${swiperSlides.length} swiper slides`);
+      
+      swiperSlides.forEach((slide, slideIndex) => {
+        console.log(`CK extractImages: Processing slide ${slideIndex}`);
+        
+        // Ищем picture элемент в слайде
+        const picture = slide.querySelector('picture');
+        if (picture) {
+          console.log(`CK extractImages: Found picture in slide ${slideIndex}`);
+          
+          // Ищем все source элементы с srcset
+          let foundFromSource = false;
+          const sources = picture.querySelectorAll('source');
+          console.log(`CK extractImages: Found ${sources.length} source elements in slide ${slideIndex}`);
+          
+          // Проходим по всем source элементам для поиска лучшего качества
+          for (const source of sources) {
+            const srcset = source.getAttribute('srcset');
+            if (srcset && srcset.trim()) {
+              console.log(`CK extractImages: Found source with srcset in slide ${slideIndex}:`, srcset);
+              
+              // Извлекаем все URL из srcset и берем самый высокого качества
+              const srcsetUrls = this.extractFromSrcset(srcset);
+              if (srcsetUrls.length > 0) {
+                // Берем последний URL из srcset (обычно самого высокого качества)
+                const bestQualityUrl = srcsetUrls[srcsetUrls.length - 1];
+                const cleanUrl = this.cleanImageUrl(bestQualityUrl);
+                if (!imageUrls.includes(cleanUrl)) {
+                  imageUrls.push(cleanUrl);
+                  console.log(`CK extractImages: Added image from slide ${slideIndex}:`, cleanUrl);
+                  foundFromSource = true;
+                  break; // Берем только первый найденный source с srcset
+                }
+              } else {
+                console.log(`CK extractImages: No URLs extracted from srcset in slide ${slideIndex}`);
+              }
+            } else {
+              console.log(`CK extractImages: Empty or no srcset in source ${Array.from(sources).indexOf(source)} of slide ${slideIndex}`);
+            }
+          }
+          
+          // Если не нашли в source, пробуем img элемент
+          if (!foundFromSource) {
+            const img = picture.querySelector('img');
+            if (img) {
+              let imgSrc = img.src || img.getAttribute('data-src') || img.getAttribute('srcset');
+              if (imgSrc && imgSrc.includes('http')) {
+                // Если это srcset, извлекаем URL
+                if (imgSrc.includes(' ')) {
+                  const srcsetUrls = this.extractFromSrcset(imgSrc);
+                  if (srcsetUrls.length > 0) {
+                    imgSrc = srcsetUrls[srcsetUrls.length - 1]; // Берем последний (высшего качества)
+                  }
+                }
+                const cleanUrl = this.cleanImageUrl(imgSrc);
+                if (!imageUrls.includes(cleanUrl)) {
+                  imageUrls.push(cleanUrl);
+                  console.log(`CK extractImages: Added image from img fallback in slide ${slideIndex}:`, cleanUrl);
+                }
+              }
+            }
+          }
+        } else {
+          // Fallback: ищем img напрямую в слайде
+          const img = slide.querySelector('img');
+          if (img) {
+            let imgSrc = img.src || img.getAttribute('data-src') || img.getAttribute('srcset');
+            if (imgSrc && imgSrc.includes('http')) {
+              // Если это srcset, извлекаем URL
+              if (imgSrc.includes(' ')) {
+                const srcsetUrls = this.extractFromSrcset(imgSrc);
+                if (srcsetUrls.length > 0) {
+                  imgSrc = srcsetUrls[srcsetUrls.length - 1]; // Берем последний (высшего качества)
+                }
+              }
+              const cleanUrl = this.cleanImageUrl(imgSrc);
+              if (!imageUrls.includes(cleanUrl)) {
+                imageUrls.push(cleanUrl);
+                console.log(`CK extractImages: Added image from direct img in slide ${slideIndex}:`, cleanUrl);
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    // Если не нашли изображения в слайдах, используем JSON-LD как fallback
+    if (imageUrls.length === 0) {
+      console.log('CK extractImages: No images found in slides, trying JSON-LD...');
+      const jsonData = this.getJsonLdData();
+      if (jsonData && jsonData.image && Array.isArray(jsonData.image)) {
+        console.log('CK extractImages: Found images in JSON-LD:', jsonData.image.length);
+        jsonData.image.forEach(url => {
+          if (url && typeof url === 'string') {
+            const cleanUrl = this.cleanImageUrl(url);
+            if (!imageUrls.includes(cleanUrl)) {
+              imageUrls.push(cleanUrl);
+              console.log('CK extractImages: Added image from JSON-LD:', cleanUrl);
+            }
+          }
+        });
+      }
+    }
+    
+    
+    console.log(`CK extractImages: Total ${imageUrls.length} unique images found:`, imageUrls);
+    return imageUrls;
+  }
+
+
+  /**
+   * Очистка URL изображения от параметров размера
+   */
+  cleanImageUrl(url) {
+    try {
+      // Calvin Klein использует scene7 CDN с параметрами размера
+      // Пример: https://calvinklein.scene7.com/is/image/CalvinKlein/D3429_001_main?wid=400&hei=400
+      // Очищаем до: https://calvinklein.scene7.com/is/image/CalvinKlein/D3429_001_main
+      const urlObj = new URL(url);
+      urlObj.search = ''; // Удаляем все query параметры
+      return urlObj.toString();
+    } catch (error) {
+      console.warn('CK cleanImageUrl: Error cleaning URL:', url, error);
+      return url;
+    }
+  }
+
+  /**
+   * Извлечение URL из srcset атрибута
+   */
+  extractFromSrcset(srcset) {
+    const urls = [];
+    const srcsetParts = srcset.split(',');
+    
+    srcsetParts.forEach(part => {
+      const trimmed = part.trim();
+      const spaceIndex = trimmed.indexOf(' ');
+      const url = spaceIndex > -1 ? trimmed.substring(0, spaceIndex) : trimmed;
+      
+      if (url && (url.startsWith('http') || url.startsWith('//'))) {
+        // Конвертируем протокол-относительные URL в HTTPS
+        const finalUrl = url.startsWith('//') ? `https:${url}` : url;
+        urls.push(finalUrl);
+      }
+    });
+    
+    // Сортируем по размеру (если есть дескрипторы размера) или просто возвращаем как есть
+    return urls;
+  }
+
+  /**
+   * Принудительная загрузка изображений через прокрутку страницы
+   */
+  async forceImageLoadingByScroll() {
+    console.log('CK forceImageLoadingByScroll: Starting page scroll to trigger lazy loading...');
+    
+    try {
+      // Сохраняем текущую позицию прокрутки
+      const originalScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const originalScrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      console.log('CK forceImageLoadingByScroll: Original scroll position:', { 
+        top: originalScrollTop, 
+        left: originalScrollLeft 
+      });
+      
+      // Получаем полную высоту документа
+      const documentHeight = Math.max(
+        document.body.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.clientHeight,
+        document.documentElement.scrollHeight,
+        document.documentElement.offsetHeight
+      );
+      
+      console.log('CK forceImageLoadingByScroll: Document height:', documentHeight);
+      
+      // Прокручиваем к низу страницы плавно по частям
+      const scrollSteps = 5;
+      const stepSize = documentHeight / scrollSteps;
+      
+      for (let i = 1; i <= scrollSteps; i++) {
+        const targetScroll = Math.min(stepSize * i, documentHeight);
+        console.log(`CK forceImageLoadingByScroll: Scrolling to position ${targetScroll} (step ${i}/${scrollSteps})`);
+        
+        window.scrollTo({
+          top: targetScroll,
+          left: originalScrollLeft,
+          behavior: 'instant'
+        });
+        
+        // Небольшая пауза между шагами прокрутки
+        await this.wait(200);
+      }
+      
+      // Дополнительная пауза в нижней части страницы
+      console.log('CK forceImageLoadingByScroll: Reached bottom, waiting for images to load...');
+      await this.wait(1000);
+      
+      // Прокручиваем обратно к верху по частям
+      for (let i = scrollSteps - 1; i >= 0; i--) {
+        const targetScroll = Math.max(stepSize * i, 0);
+        console.log(`CK forceImageLoadingByScroll: Scrolling back to position ${targetScroll} (step ${scrollSteps - i}/${scrollSteps})`);
+        
+        window.scrollTo({
+          top: targetScroll,
+          left: originalScrollLeft,
+          behavior: 'instant'
+        });
+        
+        await this.wait(200);
+      }
+      
+      // Возвращаемся к исходной позиции
+      console.log('CK forceImageLoadingByScroll: Returning to original position...');
+      window.scrollTo({
+        top: originalScrollTop,
+        left: originalScrollLeft,
+        behavior: 'instant'
+      });
+      
+      // Финальная пауза для загрузки изображений
+      console.log('CK forceImageLoadingByScroll: Waiting for final image loading...');
+      await this.wait(1500);
+      
+      console.log('CK forceImageLoadingByScroll: Page scroll completed');
+      
+    } catch (error) {
+      console.warn('CK forceImageLoadingByScroll: Error during page scroll:', error);
+      
+      // В случае ошибки все равно пытаемся вернуться к исходной позиции
+      try {
+        window.scrollTo({
+          top: originalScrollTop,
+          left: originalScrollLeft,
+          behavior: 'instant'
+        });
+      } catch (restoreError) {
+        console.warn('CK forceImageLoadingByScroll: Error restoring scroll position:', restoreError);
+      }
+    }
+  }
+
+  /**
+   * Извлечение изображений для конкретного цвета
+   */
+  async extractImagesForColor(colorCode) {
+    console.log(`CK extractImagesForColor: Extracting images for color ${colorCode}`);
+    
+    // Кликаем на цвет если он не выбран
+    const colorInput = document.querySelector(`#colorscolorCode input[data-attr-value="${colorCode}"]`);
+    if (colorInput && !colorInput.checked) {
+      console.log(`CK extractImagesForColor: Clicking on color ${colorCode}`);
+      colorInput.click();
+      await this.wait(1000); // Ждем загрузки изображений
+    }
+    
+    // Извлекаем изображения для выбранного цвета
+    return await this.extractImages();
+  }
+
+  /**
+   * Извлечение цвета из выбранного элемента
+   */
+  extractColor() {
+    console.log('CK extractColor: Starting color extraction...');
+    
+    const colorsList = document.querySelector(this.config.selectors.colorsList);
+    if (!colorsList) {
+      console.log('CK extractColor: No colors list found with selector:', this.config.selectors.colorsList);
+      return null;
+    }
+    
+    console.log('CK extractColor: Colors list found:', colorsList);
+    
+    // Ищем все input элементы для отладки
+    const allInputs = colorsList.querySelectorAll('input[type="radio"]');
+    console.log(`CK extractColor: Found ${allInputs.length} color inputs`);
+    
+    // Ищем выбранный (checked) цвет
+    const selectedColor = colorsList.querySelector('input[type="radio"]:checked');
+    if (!selectedColor) {
+      console.log('CK extractColor: No checked color input found');
+      
+      // Попробуем найти по aria-checked="true"
+      const ariaCheckedColor = colorsList.querySelector('input[type="radio"][aria-checked="true"]');
+      if (ariaCheckedColor) {
+        console.log('CK extractColor: Found color with aria-checked="true"');
+        const inputId = ariaCheckedColor.getAttribute('id');
+        
+        // Находим соответствующий label
+        const label = colorsList.querySelector(`label[for="${inputId}"]`);
+        if (label) {
+          console.log('CK extractColor: Found label for aria-checked color:', label);
+          
+          // Ищем span с aria-label (содержит название цвета)
+          const colorSpan = label.querySelector('span[aria-label]');
+          if (colorSpan) {
+            const colorName = colorSpan.getAttribute('aria-label');
+            console.log('CK extractColor from aria-label (aria-checked):', colorName);
+            return colorName;
+          }
+          
+          // Альтернативно ищем скрытый span с текстом
+          const hiddenSpan = label.querySelector('span.d-none');
+          if (hiddenSpan) {
+            const colorName = hiddenSpan.textContent.trim();
+            console.log('CK extractColor from hidden span (aria-checked):', colorName);
+            return colorName;
+          }
+        }
+        
+        // Fallback на data-attr-value
+        const colorValue = ariaCheckedColor.getAttribute('data-attr-value');
+        console.log('CK extractColor fallback to data-attr-value (aria-checked):', colorValue);
+        return colorValue;
+      }
+      
+      return null;
+    }
+    
+    console.log('CK extractColor: Found checked color input:', selectedColor);
+    const inputId = selectedColor.getAttribute('id');
+    console.log('CK extractColor: Input ID:', inputId);
+    
+    // Находим соответствующий label
+    const label = colorsList.querySelector(`label[for="${inputId}"]`);
+    if (label) {
+      console.log('CK extractColor: Found label:', label);
+      
+      // Ищем span с aria-label (содержит название цвета)
+      const colorSpan = label.querySelector('span[aria-label]');
+      if (colorSpan) {
+        const colorName = colorSpan.getAttribute('aria-label');
+        console.log('CK extractColor from aria-label:', colorName);
+        return colorName;
+      }
+      
+      // Альтернативно ищем скрытый span с текстом
+      const hiddenSpan = label.querySelector('span.d-none');
+      if (hiddenSpan) {
+        const colorName = hiddenSpan.textContent.trim();
+        console.log('CK extractColor from hidden span:', colorName);
+        return colorName;
+      }
+      
+      console.log('CK extractColor: No color spans found in label');
+    } else {
+      console.log('CK extractColor: No label found for input ID:', inputId);
+    }
+    
+    // Fallback на data-attr-value
+    const colorValue = selectedColor.getAttribute('data-attr-value');
+    console.log('CK extractColor fallback to data-attr-value:', colorValue);
+    return colorValue;
+  }
+
+  /**
+   * Извлечение описания товара
+   */
+  extractDescription() {
+    const descElement = document.querySelector(this.config.selectors.descriptionDetail);
+    return descElement?.textContent?.trim() || null;
+  }
+
+  /**
+   * Извлечение состава материала (переопределение базового метода)
+   */
+  extractComposition() {
+    // Ищем контейнер description-and-detail
+    const descriptionContainer = document.querySelector('.description-and-detail');
+    if (!descriptionContainer) {
+      console.log('CK extractComposition: No description container found');
+      return null;
+    }
+    
+    // Ищем таблицу контента
+    const contentTable = descriptionContainer.querySelector('.content-table');
+    if (!contentTable) {
+      console.log('CK extractComposition: No content table found');
+      return null;
+    }
+    
+    // Ищем строку с "Composition"
+    const rows = contentTable.querySelectorAll('.content-row');
+    for (const row of rows) {
+      const columns = row.querySelectorAll('.content-column');
+      if (columns.length >= 2) {
+        const label = columns[0].textContent.trim();
+        if (label.toLowerCase() === 'composition') {
+          const composition = columns[1].textContent.trim();
+          console.log('CK extractComposition found:', composition);
+          return composition;
+        }
+      }
+    }
+    
+    console.log('CK extractComposition: No composition found in content table');
+    return null;
+  }
+
+  /**
+   * Извлечение артикула (переопределение базового метода)
+   * Используем SKU как артикул
+   */
+  extractItem() {
+    // Получаем JSON-LD данные для извлечения SKU
+    const jsonData = this.getJsonLdData();
+    const sku = this.extractSku(jsonData);
+    console.log('CK extractItem: Using SKU as item:', sku);
+    return sku;
+  }
+
+  /**
+   * Ожидание появления JSON-LD скрипта
+   */
+  async waitForJsonLd(timeout = 10000) {
+    console.log('CK waitForJsonLd: Starting to wait for JSON-LD...');
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeout) {
+      const jsonLdScripts = document.querySelectorAll(this.config.selectors.jsonLdScript);
+      console.log(`CK waitForJsonLd: Found ${jsonLdScripts.length} script tags`);
+      
+      for (let script of jsonLdScripts) {
+        if (script.textContent.trim() && script.textContent.includes('@type')) {
+          const jsonData = this.parseJsonLd(script.textContent);
+          if (jsonData && jsonData['@type'] === 'Product') {
+            console.log('CK waitForJsonLd: Found Product JSON-LD script');
+            return script;
+          }
+        }
+      }
+      
+      await this.wait(100);
+    }
+    
+    console.log('CK waitForJsonLd: Timeout reached, no Product JSON-LD found');
+    return null;
+  }
+
+  /**
+   * Получение JSON-LD данных продукта
+   */
+  getJsonLdData() {
+    try {
+      const jsonLdScripts = document.querySelectorAll(this.config.selectors.jsonLdScript);
+      
+      for (let script of jsonLdScripts) {
+        if (script.textContent.trim() && script.textContent.includes('@type')) {
+          const jsonData = this.parseJsonLd(script.textContent);
+          if (jsonData && jsonData['@type'] === 'Product') {
+            console.log('Found product JSON-LD data:', jsonData);
+            return jsonData;
+          }
+        }
+      }
+      
+      console.log('No product JSON-LD found');
+      return null;
+    } catch (error) {
+      console.error('Error getting JSON-LD data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Извлечение всех доступных цветов
+   */
+  extractAllColors() {
+    const colors = [];
+    const colorsList = document.querySelector(this.config.selectors.colorsList);
+    
+    if (!colorsList) {
+      console.log('No colors list found');
+      return colors;
+    }
+    
+    const colorInputs = colorsList.querySelectorAll('input[type="radio"]');
+    colorInputs.forEach(input => {
+      const colorCode = input.getAttribute('data-attr-value');
+      const colorLabel = input.closest('li')?.querySelector('label')?.getAttribute('aria-label');
+      
+      if (colorCode || colorLabel) {
+        colors.push({
+          code: colorCode,
+          name: colorLabel || colorCode,
+          isSelected: input.checked
+        });
+      }
+    });
+    
+    console.log(`Found ${colors.length} colors:`, colors);
+    return colors;
+  }
+
+  /**
+   * Извлечение размеров для текущего выбранного цвета
+   */
+  async extractSizes() {
+    try {
+      console.log('Starting CK size extraction...');
+      
+      const sizesList = document.querySelector(this.config.selectors.sizesList);
+      if (!sizesList) {
+        console.log('No sizes list found');
+        return [];
+      }
+      
+      const sizeInputs = sizesList.querySelectorAll('input[type="radio"]');
+      const availableSizes = [];
+      
+      sizeInputs.forEach(input => {
+        const sizeValue = input.getAttribute('data-attr-value');
+        const inputId = input.getAttribute('id');
+        
+        // Находим соответствующий label по for attribute
+        const label = sizesList.querySelector(`label[for="${inputId}"]`);
+        const sizeLabel = label?.textContent?.trim();
+        
+        // Проверяем, что размер доступен (не disabled и не aria-disabled)
+        const isDisabled = input.disabled || input.getAttribute('aria-disabled') === 'true';
+        
+        if (!isDisabled && (sizeValue || sizeLabel)) {
+          availableSizes.push(sizeLabel || sizeValue);
+        }
+      });
+      
+      console.log(`Found ${availableSizes.length} available sizes:`, availableSizes);
+      return availableSizes;
+      
+    } catch (error) {
+      console.error('Error in CK extractSizes:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Извлечение всех вариантов (цвет + размеры) для создания отдельных продуктов
+   */
+  async extractAllVariants() {
+    try {
+      console.log('Starting CK variant extraction...');
+      
+      const baseJsonData = this.getJsonLdData();
+      const baseSku = this.extractSku(baseJsonData);
+      const baseName = this.extractName();
+      const basePrice = this.extractPrice(baseJsonData);
+      const baseCurrency = this.extractCurrency(baseJsonData);
+      const baseAvailability = this.extractAvailability(baseJsonData);
+      const baseImages = await this.extractImages();
+      const baseDescription = this.extractDescription();
+      
+      if (!baseSku) {
+        console.error('No base SKU found, cannot create variants');
+        return [];
+      }
+      
+      const colors = this.extractAllColors();
+      if (colors.length === 0) {
+        console.log('No colors found, creating single variant with current state');
+        const sizes = await this.extractSizes();
+        const currentColor = this.extractColor();
+        
+        return sizes.map(size => ({
+          sku: `${baseSku}-${currentColor || 'default'}-${size}`,
+          name: baseName,
+          price: basePrice,
+          currency: baseCurrency,
+          availability: baseAvailability,
+          color: currentColor,
+          size: size,
+          all_image_urls: baseImages,
+          description: baseDescription,
+          product_url: this.sanitizeUrl(window.location.href)
+        }));
+      }
+      
+      const variants = [];
+      
+      // Для каждого цвета извлекаем размеры и изображения
+      for (const color of colors) {
+        console.log(`Processing color: ${color.name} (${color.code})`);
+        
+        // Кликаем на цвет если он не выбран
+        if (!color.isSelected) {
+          const colorInput = document.querySelector(`input[data-attr-value="${color.code}"]`);
+          if (colorInput) {
+            colorInput.click();
+            await this.wait(500); // Ждем обновления размеров и изображений
+          }
+        }
+        
+        const sizes = await this.extractSizes();
+        console.log(`Color ${color.name} has ${sizes.length} sizes:`, sizes);
+        
+        // Извлекаем изображения для данного цвета
+        const colorImages = await this.extractImagesForColor(color.code);
+        console.log(`Color ${color.name} has ${colorImages.length} images:`, colorImages);
+        
+        // Создаем вариант для каждого размера
+        sizes.forEach(size => {
+          variants.push({
+            sku: `${baseSku}-${color.code}-${size}`,
+            name: baseName,
+            price: basePrice,
+            currency: baseCurrency,
+            availability: baseAvailability,
+            color: color.name,
+            size: size,
+            all_image_urls: colorImages, // Используем изображения для конкретного цвета
+            description: baseDescription,
+            product_url: this.sanitizeUrl(window.location.href)
+          });
+        });
+      }
+      
+      console.log(`Created ${variants.length} variants total`);
+      return variants;
+      
+    } catch (error) {
+      console.error('Error extracting CK variants:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Основной метод парсинга - создает отдельные продукты для каждого варианта
+   */
+  async parseProduct() {
+    try {
+      console.log('Starting CK product parsing...');
+      
+      // Ждем загрузки JSON-LD
+      const jsonLdScript = await this.waitForJsonLd();
+      if (!jsonLdScript) {
+        console.warn('No JSON-LD found, parsing without it');
+      }
+      
+      const variants = await this.extractAllVariants();
+      
+      if (variants.length === 0) {
+        console.error('No variants extracted');
+        return [];
+      }
+      
+      // Валидируем каждый вариант
+      const validVariants = variants.filter(variant => {
+        const validation = this.validateProductData(variant);
+        if (!validation.isValid) {
+          console.warn(`Invalid variant for ${variant.sku}:`, validation.warnings);
+          return false;
+        }
+        if (validation.warnings.length > 0) {
+          console.warn(`Warnings for variant ${variant.sku}:`, validation.warnings);
+        }
+        return true;
+      });
+      
+      console.log(`Returning ${validVariants.length} valid variants out of ${variants.length} total`);
+      return validVariants;
+      
+    } catch (error) {
+      console.error('Error in CK parseProduct:', error);
+      return [];
+    }
+  }
+}
+
+// Экспортируем для использования в других файлах
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = CalvinKleinParser;
+}
