@@ -819,7 +819,7 @@ class TestProduct:
         # Should use manual selling_price even if it's 0
         assert product.sell_price == 0.0
 
-    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1"})
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1", "PRICE_MULTIPLIER": "1.0"})
     def test_product_price_rounding_below_threshold(self):
         """Test price rounding when decimal part is below threshold."""
         product = Product(
@@ -834,7 +834,7 @@ class TestProduct:
         
         assert product.sell_price == 10.05
 
-    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1"})
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1", "PRICE_MULTIPLIER": "1.0"})
     def test_product_price_rounding_above_threshold(self):
         """Test price rounding when decimal part is above threshold."""
         product = Product(
@@ -849,7 +849,7 @@ class TestProduct:
         
         assert product.sell_price == 11.0
 
-    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1"})
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1", "PRICE_MULTIPLIER": "1.0"})
     def test_product_price_rounding_exactly_threshold(self):
         """Test price rounding when decimal part equals threshold."""
         product = Product(
@@ -894,7 +894,7 @@ class TestProduct:
         
         assert product.sell_price == 13.0
 
-    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.0"})
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.0", "PRICE_MULTIPLIER": "1.0"})
     def test_product_price_rounding_disabled(self):
         """Test price rounding when threshold is 0 (disabled)."""
         product = Product(
@@ -909,7 +909,7 @@ class TestProduct:
         
         assert product.sell_price == 10.99
 
-    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "invalid"})
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "invalid", "PRICE_MULTIPLIER": "1.0"})
     def test_product_price_rounding_invalid_threshold(self):
         """Test price rounding with invalid threshold value."""
         product = Product(
@@ -924,7 +924,7 @@ class TestProduct:
         
         assert product.sell_price == 10.55
 
-    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1"})
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1", "PRICE_MULTIPLIER": "1.0"})
     def test_product_price_rounding_with_manual_selling_price(self):
         """Test price rounding applies to manual selling_price too."""
         product = Product(

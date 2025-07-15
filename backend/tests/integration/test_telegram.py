@@ -5,6 +5,7 @@ import pytest
 from datetime import datetime
 from typing import Optional
 from unittest.mock import AsyncMock, patch, MagicMock
+import os
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -40,8 +41,9 @@ class TestTelegramService:
     
     def test_telegram_service_disabled_without_token(self):
         """Test that service is disabled without token"""
-        service = TelegramService(bot_token=None)
-        assert not service.is_enabled()
+        with patch.dict(os.environ, {}, clear=True):
+            service = TelegramService(bot_token=None)
+            assert not service.is_enabled()
     
     def test_telegram_service_enabled_with_token(self):
         """Test that service is enabled with token"""
@@ -51,13 +53,14 @@ class TestTelegramService:
     @pytest.mark.asyncio
     async def test_send_message_disabled_service(self):
         """Test send message with disabled service"""
-        service = TelegramService(bot_token=None)
-        
-        from exceptions.base import ValidationException
-        with pytest.raises(ValidationException) as exc_info:
-            await service.send_message("123", "test message")
-        
-        assert "disabled" in str(exc_info.value)
+        with patch.dict(os.environ, {}, clear=True):
+            service = TelegramService(bot_token=None)
+            
+            from exceptions.base import ValidationException
+            with pytest.raises(ValidationException) as exc_info:
+                await service.send_message("123", "test message")
+            
+            assert "disabled" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_send_message_invalid_params(self):

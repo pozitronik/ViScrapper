@@ -132,13 +132,14 @@ class TestTelegramServiceSendMessage:
     @pytest.mark.asyncio
     async def test_send_message_disabled_service(self):
         """Test send_message with disabled service"""
-        service = TelegramService(bot_token=None)
-        
-        with pytest.raises(ValidationException) as exc_info:
-            await service.send_message("test_chat", "test message")
-        
-        assert "Telegram service is disabled" in str(exc_info.value)
-        assert exc_info.value.details["bot_token_configured"] is False
+        with patch.dict(os.environ, {}, clear=True):
+            service = TelegramService(bot_token=None)
+            
+            with pytest.raises(ValidationException) as exc_info:
+                await service.send_message("test_chat", "test message")
+            
+            assert "Telegram service is disabled" in str(exc_info.value)
+            assert exc_info.value.details["bot_token_configured"] is False
     
     @pytest.mark.asyncio
     async def test_send_message_empty_chat_id(self):
@@ -314,12 +315,13 @@ class TestTelegramServiceSendPhoto:
     @pytest.mark.asyncio
     async def test_send_photo_disabled_service(self):
         """Test send_photo with disabled service"""
-        service = TelegramService(bot_token=None)
-        
-        with pytest.raises(ValidationException) as exc_info:
-            await service.send_photo("test_chat", "test.jpg")
-        
-        assert "Telegram service is disabled" in str(exc_info.value)
+        with patch.dict(os.environ, {}, clear=True):
+            service = TelegramService(bot_token=None)
+            
+            with pytest.raises(ValidationException) as exc_info:
+                await service.send_photo("test_chat", "test.jpg")
+            
+            assert "Telegram service is disabled" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_send_photo_file_not_found(self):
@@ -502,12 +504,13 @@ class TestTelegramServiceSendMediaGroup:
     @pytest.mark.asyncio
     async def test_send_media_group_disabled_service(self):
         """Test send_media_group with disabled service"""
-        service = TelegramService(bot_token=None)
-        
-        with pytest.raises(ValidationException) as exc_info:
-            await service.send_media_group("test_chat", ["test1.jpg", "test2.jpg"])
-        
-        assert "Telegram service is disabled" in str(exc_info.value)
+        with patch.dict(os.environ, {}, clear=True):
+            service = TelegramService(bot_token=None)
+            
+            with pytest.raises(ValidationException) as exc_info:
+                await service.send_media_group("test_chat", ["test1.jpg", "test2.jpg"])
+            
+            assert "Telegram service is disabled" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_send_media_group_invalid_count(self):
@@ -745,12 +748,13 @@ class TestTelegramServiceGetChatInfo:
     @pytest.mark.asyncio
     async def test_get_chat_info_disabled_service(self):
         """Test get_chat_info with disabled service"""
-        service = TelegramService(bot_token=None)
-        
-        with pytest.raises(ValidationException) as exc_info:
-            await service.get_chat_info("test_chat")
-        
-        assert "Telegram service is disabled" in str(exc_info.value)
+        with patch.dict(os.environ, {}, clear=True):
+            service = TelegramService(bot_token=None)
+            
+            with pytest.raises(ValidationException) as exc_info:
+                await service.get_chat_info("test_chat")
+            
+            assert "Telegram service is disabled" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_get_chat_info_success(self):
@@ -829,13 +833,14 @@ class TestTelegramServiceDiagnoseChat:
     @pytest.mark.asyncio
     async def test_diagnose_chat_disabled_service(self):
         """Test diagnose_chat with disabled service"""
-        service = TelegramService(bot_token=None)
-        
-        result = await service.diagnose_chat("test_chat")
-        
-        assert result["accessible"] is False
-        assert result["reason"] == "service_disabled"
-        assert "service is disabled" in result["details"]
+        with patch.dict(os.environ, {}, clear=True):
+            service = TelegramService(bot_token=None)
+            
+            result = await service.diagnose_chat("test_chat")
+            
+            assert result["accessible"] is False
+            assert result["reason"] == "service_disabled"
+            assert "service is disabled" in result["details"]
     
     @pytest.mark.asyncio
     async def test_diagnose_chat_success(self):
@@ -927,8 +932,9 @@ class TestTelegramServiceUtilityMethods:
     
     def test_is_enabled_false(self):
         """Test is_enabled with disabled service"""
-        service = TelegramService(bot_token=None)
-        assert service.is_enabled() is False
+        with patch.dict(os.environ, {}, clear=True):
+            service = TelegramService(bot_token=None)
+            assert service.is_enabled() is False
     
     @pytest.mark.asyncio
     async def test_close_with_client(self):
@@ -942,10 +948,11 @@ class TestTelegramServiceUtilityMethods:
     @pytest.mark.asyncio
     async def test_close_without_client(self):
         """Test close method without client"""
-        service = TelegramService(bot_token=None)
-        
-        # Should not raise exception
-        await service.close()
+        with patch.dict(os.environ, {}, clear=True):
+            service = TelegramService(bot_token=None)
+            
+            # Should not raise exception
+            await service.close()
     
     @pytest.mark.asyncio
     async def test_async_context_manager(self):
