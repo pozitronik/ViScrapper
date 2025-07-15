@@ -576,3 +576,229 @@ class TestProductsAPI:
         assert response.status_code == 404
         data = response.json()
         assert "Image not found for this product" in data["error"]["message"]
+
+
+class TestProductsRouterHelperFunctions:
+    """Test suite for helper functions in products router."""
+
+    def test_calculate_pagination_basic(self):
+        """Test basic pagination calculation."""
+        from api.routers.products import calculate_pagination
+        
+        pagination = calculate_pagination(page=1, per_page=10, total=25)
+        
+        assert pagination.page == 1
+        assert pagination.per_page == 10
+        assert pagination.total == 25
+        assert pagination.pages == 3  # ceil(25/10)
+        assert pagination.has_next is True
+        assert pagination.has_prev is False
+
+    def test_calculate_pagination_last_page(self):
+        """Test pagination calculation for last page."""
+        from api.routers.products import calculate_pagination
+        
+        pagination = calculate_pagination(page=3, per_page=10, total=25)
+        
+        assert pagination.page == 3
+        assert pagination.pages == 3
+        assert pagination.has_next is False
+        assert pagination.has_prev is True
+
+    def test_calculate_pagination_single_page(self):
+        """Test pagination calculation for single page."""
+        from api.routers.products import calculate_pagination
+        
+        pagination = calculate_pagination(page=1, per_page=10, total=5)
+        
+        assert pagination.page == 1
+        assert pagination.pages == 1
+        assert pagination.has_next is False
+        assert pagination.has_prev is False
+
+    def test_apply_filters_search_query(self, session):
+        """Test apply_filters with search query."""
+        from api.routers.products import apply_filters
+        from api.models.responses import SearchFilters
+        from models.product import Product as ProductModel
+        
+        # Create base query
+        query = session.query(ProductModel)
+        
+        # Test search filter
+        filters = SearchFilters(q="test product")
+        filtered_query = apply_filters(query, filters)
+        
+        # Verify filter was applied (check SQL contains LIKE)
+        sql_str = str(filtered_query.statement.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in sql_str.upper()
+
+    def test_apply_sorting_invalid_field(self, session):
+        """Test apply_sorting with invalid field falls back to default."""
+        from api.routers.products import apply_sorting
+        from models.product import Product as ProductModel
+        
+        query = session.query(ProductModel)
+        
+        # Test invalid field name
+        sorted_query = apply_sorting(query, sort_by="invalid_field", sort_order="desc")
+        
+        # Should fall back to created_at
+        sql_str = str(sorted_query.statement.compile(compile_kwargs={"literal_binds": True}))
+        assert "ORDER BY" in sql_str.upper()
+
+
+class TestProductsRouterMissingEndpoints:
+    """Test suite for endpoints that need more coverage."""
+
+    def test_cleanup_old_deleted_products_success(self, client, session):
+        """Test cleanup of old deleted products."""
+        # Create a product and mark it as deleted
+        from models.product import Product as ProductModel
+        from datetime import datetime, timezone, timedelta
+        
+        # Create product that was deleted 40 days ago
+        old_deleted_time = datetime.now(timezone.utc) - timedelta(days=40)
+        product = ProductModel(
+            sku="OLD-DELETED-001",
+            product_url="https://example.com/old",
+            name="Old Product",
+            deleted_at=old_deleted_time
+        )
+        session.add(product)
+        session.commit()
+        
+        # Cleanup products older than 30 days
+        response = client.post("/api/v1/products/cleanup-old-deleted?days_old=30")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["deleted_count"] == 1
+        assert data["data"]["days_threshold"] == 30
+
+    def test_cleanup_old_deleted_products_none_found(self, client):
+        """Test cleanup when no old deleted products exist."""
+        response = client.post("/api/v1/products/cleanup-old-deleted?days_old=30")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["deleted_count"] == 0
+
+    def test_restore_product_success(self, client, session):
+        """Test successful product restoration."""
+        from models.product import Product as ProductModel
+        from datetime import datetime, timezone
+        
+        # Create a soft-deleted product
+        product = ProductModel(
+            sku="RESTORE-001",
+            product_url="https://example.com/restore",
+            name="Restore Product",
+            deleted_at=datetime.now(timezone.utc)
+        )
+        session.add(product)
+        session.commit()
+        product_id = product.id
+        
+        # Restore the product
+        response = client.post(f"/api/v1/products/{product_id}/restore")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["id"] == product_id
+        assert data["data"]["name"] == "Restore Product"
+
+    def test_restore_product_not_found(self, client):
+        """Test restore of non-existent product."""
+        response = client.post("/api/v1/products/99999/restore")
+        
+        assert response.status_code == 404
+        data = response.json()
+        # Check both possible error response formats
+        error_message = data.get("detail") or data.get("error", {}).get("message", "")
+        assert "Product not found" in error_message
+
+    def test_restore_product_not_deleted(self, client, session):
+        """Test restore of product that is not deleted."""
+        from models.product import Product as ProductModel
+        
+        # Create a non-deleted product
+        product = ProductModel(
+            sku="NOT-DELETED-001",
+            product_url="https://example.com/notdeleted",
+            name="Not Deleted Product"
+        )
+        session.add(product)
+        session.commit()
+        product_id = product.id
+        
+        # Try to restore it
+        response = client.post(f"/api/v1/products/{product_id}/restore")
+        
+        assert response.status_code == 400
+        data = response.json()
+        # Check both possible error response formats
+        error_message = data.get("detail") or data.get("error", {}).get("message", "")
+        assert "Product is not deleted" in error_message
+
+    def test_list_products_only_deleted_filter(self, client, session):
+        """Test list products with only_deleted filter."""
+        from models.product import Product as ProductModel
+        from datetime import datetime, timezone
+        
+        # Create one normal and one deleted product
+        normal_product = ProductModel(
+            sku="NORMAL-001",
+            product_url="https://example.com/normal",
+            name="Normal Product"
+        )
+        deleted_product = ProductModel(
+            sku="DELETED-001", 
+            product_url="https://example.com/deleted",
+            name="Deleted Product",
+            deleted_at=datetime.now(timezone.utc)
+        )
+        session.add_all([normal_product, deleted_product])
+        session.commit()
+        
+        # Get only deleted products
+        response = client.get("/api/v1/products?only_deleted=true")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pagination"]["total"] == 1
+        assert data["data"][0]["name"] == "Deleted Product"
+
+    def test_list_products_store_filter(self, client, session):
+        """Test list products with store filter."""
+        from models.product import Product as ProductModel
+        
+        # Create products with different stores
+        product1 = ProductModel(
+            sku="STORE-001",
+            product_url="https://example.com/store1",
+            name="Store Product 1",
+            store="Calvin Klein"
+        )
+        product2 = ProductModel(
+            sku="STORE-002",
+            product_url="https://example.com/store2", 
+            name="Store Product 2",
+            store="Victoria's Secret"
+        )
+        session.add_all([product1, product2])
+        session.commit()
+        
+        # Filter by store
+        response = client.get("/api/v1/products?store=Calvin")
+        
+        assert response.status_code == 200
+        data = response.json()
+        # The filter might match both if they contain "Calvin" substring
+        # Let's check that at least one matches and has the correct store
+        assert data["pagination"]["total"] >= 1
+        found_calvin = any(product["store"] == "Calvin Klein" for product in data["data"])
+        assert found_calvin

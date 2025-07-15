@@ -483,3 +483,148 @@ class TestTemplatesRouterErrorHandling:
             "is_active": "invalid"  # Should be boolean
         })
         assert response.status_code == 422
+
+
+class TestTemplatesRouterEdgeCases:
+    """Test suite for edge cases and additional coverage."""
+
+    def test_calculate_pagination_zero_total(self):
+        """Test pagination with zero total items."""
+        from api.routers.templates import calculate_pagination
+        
+        pagination = calculate_pagination(page=1, per_page=10, total=0)
+        
+        assert pagination.page == 1
+        assert pagination.per_page == 10
+        assert pagination.total == 0
+        assert pagination.pages == 0
+        assert pagination.has_next is False
+        assert pagination.has_prev is False
+
+    def test_calculate_pagination_single_item(self):
+        """Test pagination with single item."""
+        from api.routers.templates import calculate_pagination
+        
+        pagination = calculate_pagination(page=1, per_page=10, total=1)
+        
+        assert pagination.page == 1
+        assert pagination.pages == 1
+        assert pagination.has_next is False
+        assert pagination.has_prev is False
+
+    @patch('api.routers.templates.get_template_by_id')
+    def test_delete_template_failure(self, mock_get_template, test_client):
+        """Test template deletion failure."""
+        # Mock existing template
+        mock_template = Mock()
+        mock_template.id = 1
+        mock_get_template.return_value = mock_template
+        
+        with patch('api.routers.templates.soft_delete_template') as mock_delete:
+            mock_delete.return_value = False  # Deletion failed
+            
+            response = test_client.delete("/api/v1/templates/1")
+            
+            assert response.status_code == 500
+            assert "Failed to delete template" in response.json()["detail"]
+
+    @patch('api.routers.templates.get_template_by_id')
+    def test_restore_template_failure(self, mock_get_template, test_client):
+        """Test template restore failure."""
+        # Mock existing deleted template
+        mock_template = Mock()
+        mock_template.id = 1
+        mock_template.deleted_at = Mock()  # Template is deleted
+        mock_get_template.return_value = mock_template
+        
+        with patch('api.routers.templates.restore_template') as mock_restore:
+            mock_restore.return_value = False  # Restore failed
+            
+            response = test_client.post("/api/v1/templates/1/restore")
+            
+            assert response.status_code == 500
+            assert "Failed to restore template" in response.json()["detail"]
+
+    @patch('api.routers.templates.get_template_by_id')
+    def test_restore_template_not_found_after_restore(self, mock_get_template, test_client):
+        """Test template restore when template not found after restore."""
+        # Mock existing deleted template for first call
+        mock_template = Mock()
+        mock_template.id = 1
+        mock_template.deleted_at = Mock()
+        
+        # Mock get_template_by_id to return template first, then None
+        mock_get_template.side_effect = [mock_template, None]
+        
+        with patch('api.routers.templates.restore_template') as mock_restore:
+            mock_restore.return_value = True  # Restore succeeds
+            
+            response = test_client.post("/api/v1/templates/1/restore")
+            
+            assert response.status_code == 404
+            assert "Template not found after restore" in response.json()["detail"]
+
+    @patch('api.routers.templates.render_template_with_product')
+    def test_render_template_validation_error(self, mock_render, test_client):
+        """Test template rendering with validation error."""
+        mock_render.side_effect = ValidationException("Template not found")
+        
+        response = test_client.post("/api/v1/templates/render", json={
+            "template_id": 999,
+            "product_id": 1
+        })
+        
+        assert response.status_code == 400
+        assert "Template not found" in response.json()["detail"]
+
+    @patch('api.routers.templates.update_template')
+    @patch('api.routers.templates.get_template_by_id')
+    def test_update_template_with_invalid_content(self, mock_get_template, mock_update, test_client):
+        """Test template update with invalid content validation."""
+        # Mock existing template
+        mock_template = Mock()
+        mock_template.id = 1
+        mock_get_template.return_value = mock_template
+        
+        with patch('api.routers.templates.validate_template_content') as mock_validate:
+            mock_validate.return_value = {"is_valid": False, "errors": ["Invalid placeholder"]}
+            
+            response = test_client.put("/api/v1/templates/1", json={
+                "template_content": "Hello {invalid_placeholder}"
+            })
+            
+            assert response.status_code == 400
+            assert "Template contains invalid placeholders" in response.json()["detail"]
+
+    def test_list_templates_edge_case_pagination(self, test_client):
+        """Test list templates with edge case pagination parameters."""
+        with patch('api.routers.templates.get_templates') as mock_get_templates:
+            with patch('api.routers.templates.get_template_count') as mock_count:
+                mock_get_templates.return_value = []
+                mock_count.return_value = 0
+                
+                # Test with page beyond available pages
+                response = test_client.get("/api/v1/templates?page=100&per_page=10")
+                
+                assert response.status_code == 200
+                data = response.json()
+                assert data["pagination"]["page"] == 100
+                assert data["pagination"]["total"] == 0
+                assert data["pagination"]["pages"] == 0
+                assert len(data["data"]) == 0
+
+    def test_validate_template_with_empty_content(self, test_client):
+        """Test template validation with empty content."""
+        with patch('api.routers.templates.validate_template_content') as mock_validate:
+            mock_validate.return_value = {
+                "is_valid": True,
+                "placeholders": [],
+                "errors": []
+            }
+            
+            response = test_client.post("/api/v1/templates/validate?template_content=")
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["data"]["is_valid"] is True
