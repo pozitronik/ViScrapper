@@ -433,27 +433,30 @@ class TestTelegramServiceSendPhoto:
         """Test photo sending with rate limit retry"""
         service = TelegramService(bot_token="test_token")
         
-        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
-            tmp_file.write(b"fake image data")
-            tmp_file.flush()
+        # Create temporary file and get its name
+        tmp_file = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
+        tmp_file.write(b"fake image data")
+        tmp_file.flush()
+        tmp_file_path = tmp_file.name
+        tmp_file.close()  # Close the file before using it
+        
+        try:
+            # First response: rate limit, second response: success
+            mock_responses = [
+                Mock(status_code=429, json=Mock(return_value={"parameters": {"retry_after": 1}})),
+                Mock(status_code=200, json=Mock(return_value={"ok": True, "result": {"message_id": 123}}))
+            ]
             
-            try:
-                # First response: rate limit, second response: success
-                mock_responses = [
-                    Mock(status_code=429, json=Mock(return_value={"parameters": {"retry_after": 1}})),
-                    Mock(status_code=200, json=Mock(return_value={"ok": True, "result": {"message_id": 123}}))
-                ]
+            with patch.object(service._client, 'post', side_effect=mock_responses), \
+                 patch('asyncio.sleep') as mock_sleep:
                 
-                with patch.object(service._client, 'post', side_effect=mock_responses), \
-                     patch('asyncio.sleep') as mock_sleep:
-                    
-                    result = await service.send_photo("test_chat", tmp_file.name)
-                    
-                    assert result["ok"] is True
-                    assert result["result"]["message_id"] == 123
-                    mock_sleep.assert_called_once_with(2)  # retry_after + 1
-            finally:
-                os.unlink(tmp_file.name)
+                result = await service.send_photo("test_chat", tmp_file_path)
+                
+                assert result["ok"] is True
+                assert result["result"]["message_id"] == 123
+                mock_sleep.assert_called_once_with(2)  # retry_after + 1
+        finally:
+            safe_unlink(tmp_file_path)
     
     @pytest.mark.asyncio
     async def test_send_photo_file_not_found_during_send(self):
