@@ -23,7 +23,11 @@ class TelegramService:
         Args:
             bot_token: Telegram bot token. If None, reads from environment
         """
-        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
+        if bot_token is None:
+            self.bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        else:
+            self.bot_token = bot_token
+            
         if not self.bot_token:
             logger.warning("Telegram bot token not provided. Service will be disabled.")
             self.enabled = False
