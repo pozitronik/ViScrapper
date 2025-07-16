@@ -801,7 +801,22 @@ class TestProduct:
             sizes=[]
         )
         
-        assert product.sell_price == 26.0  # Rounded to 2 decimal places
+        assert product.sell_price == 26.0
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.3", "PRICE_MULTIPLIER": "1.0"})
+    def test_product_price_rounding_down_behavior(self):
+        """Test that prices round down when decimal part is <= threshold."""
+        product = Product(
+            sku="TEST_SKU",
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=15.25,  # 0.25 <= 0.3, should round down to 15.0
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 15.0  # Rounded to 2 decimal places
 
     def test_product_selling_price_zero_value(self):
         """Test selling_price with zero value."""
@@ -827,12 +842,12 @@ class TestProduct:
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
-            price=10.05,  # 0.05 < 0.1, should not round up
+            price=10.05,  # 0.05 <= 0.1, should round down to 10.0
             images=[],
             sizes=[]
         )
         
-        assert product.sell_price == 10.05
+        assert product.sell_price == 10.0
 
     @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1", "PRICE_MULTIPLIER": "1.0"})
     def test_product_price_rounding_above_threshold(self):
@@ -857,12 +872,12 @@ class TestProduct:
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
-            price=10.1,  # 0.1 = 0.1, should not round up (not greater than)
+            price=10.1,  # 0.1 = 0.1, should round down to 10.0 (not greater than)
             images=[],
             sizes=[]
         )
         
-        assert product.sell_price == 10.1
+        assert product.sell_price == 10.0
 
     @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.1", "PRICE_MULTIPLIER": "1.5"})
     def test_product_price_rounding_with_multiplier(self):
@@ -887,7 +902,7 @@ class TestProduct:
             id=1,
             product_url="https://example.com/product/1",
             created_at=datetime.now(),
-            price=10.5,  # 10.5 * 1.2 = 12.6, decimal part 0.6 > 0.5, should round to 13
+            price=10.5,  # 10.5 * 1.2 = 12.6, decimal part 0.6 > 0.5, should round up to 13
             images=[],
             sizes=[]
         )
@@ -939,6 +954,21 @@ class TestProduct:
         )
         
         assert product.sell_price == 26.0
+
+    @patch.dict(os.environ, {"PRICE_ROUNDING_THRESHOLD": "0.3", "PRICE_MULTIPLIER": "1.0"})
+    def test_product_price_rounding_down_behavior(self):
+        """Test that prices round down when decimal part is <= threshold."""
+        product = Product(
+            sku="TEST_SKU",
+            id=1,
+            product_url="https://example.com/product/1",
+            created_at=datetime.now(),
+            price=15.25,  # 0.25 <= 0.3, should round down to 15.0
+            images=[],
+            sizes=[]
+        )
+        
+        assert product.sell_price == 15.0
 
 
 class TestProductSchemaIntegration:

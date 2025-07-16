@@ -102,7 +102,7 @@ class Product(ProductBase):
             return None
     
     def _apply_price_rounding(self, price: float) -> float:
-        """Apply price rounding based on PRICE_ROUNDING_THRESHOLD"""
+        """Apply price rounding based on PRICE_ROUNDING_THRESHOLD - always returns integer when threshold > 0"""
         try:
             threshold = float(os.getenv('PRICE_ROUNDING_THRESHOLD', '0.0'))
             
@@ -118,8 +118,8 @@ class Product(ProductBase):
                 # Round up to the next integer
                 return float(integer_part + 1)
             else:
-                # Keep as is, just round to 2 decimal places
-                return round(price, 2)
+                # Round down to current integer
+                return float(integer_part)
                 
         except (ValueError, TypeError):
             # If threshold is invalid, just round to 2 decimal places
