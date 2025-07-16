@@ -1060,37 +1060,258 @@ class CalvinKleinParser extends BaseParser {
     try {
       console.log('Starting CK size extraction...');
       
-      const sizesList = document.querySelector(this.config.selectors.sizesList);
-      if (!sizesList) {
-        console.log('No sizes list found');
+      // Find all size containers using the correct selector
+      const sizeContainers = document.querySelectorAll('[id^="sizes"][class*="variant-list"][role="radiogroup"]');
+      console.log(`Found ${sizeContainers.length} size containers`);
+      
+      if (sizeContainers.length === 0) {
+        console.log('No size containers found');
         return [];
       }
       
-      const sizeInputs = sizesList.querySelectorAll('input[type="radio"]');
-      const availableSizes = [];
+      if (sizeContainers.length === 1) {
+        // Single size dimension - extract simple sizes
+        console.log('Single size dimension detected');
+        return this.extractSimpleSizes(sizeContainers[0]);
+      }
       
-      sizeInputs.forEach(input => {
-        const sizeValue = input.getAttribute('data-attr-value');
-        const inputId = input.getAttribute('id');
-        
-        // Находим соответствующий label по for attribute
-        const label = sizesList.querySelector(`label[for="${inputId}"]`);
-        const sizeLabel = label?.textContent?.trim();
-        
-        // Проверяем, что размер доступен (не disabled и не aria-disabled)
-        const isDisabled = input.disabled || input.getAttribute('aria-disabled') === 'true';
-        
-        if (!isDisabled && (sizeValue || sizeLabel)) {
-          availableSizes.push(sizeLabel || sizeValue);
-        }
-      });
-      
-      console.log(`Found ${availableSizes.length} available sizes:`, availableSizes);
-      return availableSizes;
+      // Multiple size dimensions - extract combinations
+      console.log('Multiple size dimensions detected');
+      return this.extractSizeCombinations(sizeContainers);
       
     } catch (error) {
       console.error('Error in CK extractSizes:', error);
       return [];
+    }
+  }
+
+  /**
+   * Извлечение простых размеров для одномерного продукта
+   */
+  extractSimpleSizes(sizeContainer) {
+    try {
+      console.log('Extracting simple sizes from container:', sizeContainer.id);
+      
+      const sizeInputs = sizeContainer.querySelectorAll('input[type="radio"]');
+      const availableSizes = [];
+      
+      sizeInputs.forEach(input => {
+        const inputId = input.getAttribute('id');
+        const label = document.querySelector(`label[for="${inputId}"]`);
+        const sizeLabel = label?.textContent?.trim();
+        const dataValue = input.getAttribute('data-attr-value');
+        
+        const sizeValue = sizeLabel || dataValue;
+        if (sizeValue) {
+          availableSizes.push(sizeValue);
+        }
+      });
+      
+      console.log(`Found ${availableSizes.length} simple sizes:`, availableSizes);
+      return availableSizes;
+      
+    } catch (error) {
+      console.error('Error extracting simple sizes:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Извлечение комбинаций размеров для многомерного продукта
+   */
+  async extractSizeCombinations(sizeContainers) {
+    try {
+      console.log('Starting CK size combination extraction...');
+      
+      // Get first container as the primary dimension
+      const firstContainer = sizeContainers[0];
+      const secondContainer = sizeContainers[1];
+      
+      // Extract dimension types
+      const firstDimensionType = this.getDimensionType(firstContainer);
+      const secondDimensionType = this.getDimensionType(secondContainer);
+      
+      console.log(`Dimension types: ${firstDimensionType} and ${secondDimensionType}`);
+      
+      // Get all options for first dimension
+      const firstDimensionOptions = firstContainer.querySelectorAll('input[type="radio"]');
+      const combinations = {};
+      
+      console.log(`Found ${firstDimensionOptions.length} first dimension options`);
+      
+      // Save original selections for restoration
+      const originalFirstSelected = firstContainer.querySelector('input[type="radio"]:checked');
+      const originalSecondSelected = secondContainer.querySelector('input[type="radio"]:checked');
+      
+      // Store initial DOM snapshot for comparison
+      const initialSecondOptions = secondContainer.querySelectorAll('input[type="radio"]');
+      console.log(`Initial second dimension options: ${initialSecondOptions.length}`);
+      
+      // Iterate through each first dimension option
+      for (let i = 0; i < firstDimensionOptions.length; i++) {
+        const firstOption = firstDimensionOptions[i];
+        const firstValue = this.getSizeDisplayValue(firstOption);
+        
+        console.log(`\n--- Testing ${firstValue} (iteration ${i + 1}/${firstDimensionOptions.length}) ---`);
+        
+        try {
+          // Check if this option is already selected
+          if (firstOption.checked) {
+            console.log(`${firstValue} is already selected, skipping click`);
+          } else {
+            console.log(`Clicking ${firstValue}...`);
+            
+            // Click the input element
+            firstOption.click();
+            
+            // Essential: Also click the associated label to trigger CK's size logic
+            const firstOptionLabel = document.querySelector(`label[for="${firstOption.id}"]`);
+            if (firstOptionLabel) {
+              firstOptionLabel.click();
+            }
+            
+            // Try to trigger any form submission or AJAX call
+            const form = firstOption.closest('form');
+            if (form) {
+              console.log('Found form, triggering change event on form');
+              form.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+          
+          // Wait for DOM updates with polling
+          let attempts = 0;
+          const maxAttempts = 10;
+          let currentSecondOptions = secondContainer.querySelectorAll('input[type="radio"]');
+          
+          while (attempts < maxAttempts) {
+            await this.wait(200);
+            const newSecondOptions = secondContainer.querySelectorAll('input[type="radio"]');
+            
+            if (newSecondOptions.length !== currentSecondOptions.length) {
+              console.log(`DOM changed after ${attempts * 200}ms: ${currentSecondOptions.length} -> ${newSecondOptions.length} options`);
+              currentSecondOptions = newSecondOptions;
+              break;
+            }
+            
+            attempts++;
+          }
+          
+          if (attempts >= maxAttempts) {
+            console.log(`No DOM changes detected after ${maxAttempts * 200}ms`);
+          }
+          
+          // Debug: Check if the click actually worked
+          const isFirstSelected = firstOption.checked;
+          console.log(`After clicking ${firstValue}: input checked = ${isFirstSelected}`);
+          
+          // Get what second dimension options remain in DOM
+          const secondDimensionOptions = secondContainer.querySelectorAll('input[type="radio"]');
+          console.log(`Final DOM query found ${secondDimensionOptions.length} second dimension options`);
+          
+          const availableSecondOptions = [];
+          
+          secondDimensionOptions.forEach((option) => {
+            const secondValue = this.getSizeDisplayValue(option);
+            const isPresent = option.parentElement && document.contains(option);
+            const parentLi = option.closest('li');
+            const isLiVisible = parentLi ? parentLi.style.display !== 'none' && !parentLi.classList.contains('hidden') : true;
+            
+            if (secondValue && isPresent && isLiVisible) {
+              availableSecondOptions.push(secondValue);
+            }
+          });
+          
+          console.log(`${firstValue} -> Available second options:`, availableSecondOptions);
+          
+          if (availableSecondOptions.length > 0) {
+            combinations[firstValue] = availableSecondOptions;
+          }
+          
+        } catch (clickError) {
+          console.warn(`Failed to click first dimension option ${firstValue}:`, clickError);
+        }
+      }
+      
+      // Restore original selections
+      try {
+        if (originalFirstSelected) {
+          originalFirstSelected.click();
+          await this.wait(100);
+        }
+        if (originalSecondSelected) {
+          originalSecondSelected.click();
+          await this.wait(100);
+        }
+      } catch (restoreError) {
+        console.warn('Failed to restore original selections:', restoreError);
+      }
+      
+      console.log('Final combinations extracted:', combinations);
+      
+      return {
+        size1_type: firstDimensionType,
+        size2_type: secondDimensionType,
+        combinations: combinations
+      };
+      
+    } catch (error) {
+      console.error('Error extracting CK size combinations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Получение типа размерного измерения из контейнера
+   */
+  getDimensionType(container) {
+    try {
+      // Extract from ID: "sizesneck" -> "neck"
+      const dimensionFromId = container.id.replace(/^sizes/, '');
+      if (dimensionFromId) {
+        return dimensionFromId;
+      }
+      
+      // Fallback to data-display-id
+      const displayId = container.getAttribute('data-display-id');
+      if (displayId) {
+        return displayId;
+      }
+      
+      return 'unknown';
+      
+    } catch (error) {
+      console.error('Error getting dimension type:', error);
+      return 'unknown';
+    }
+  }
+
+  /**
+   * Получение отображаемого значения размера из input элемента
+   */
+  getSizeDisplayValue(input) {
+    try {
+      const inputId = input.getAttribute('id');
+      if (inputId) {
+        const label = document.querySelector(`label[for="${inputId}"]`);
+        if (label) {
+          const labelText = label.textContent.trim();
+          if (labelText) {
+            return labelText;
+          }
+        }
+      }
+      
+      // Fallback to data-attr-value
+      const dataValue = input.getAttribute('data-attr-value');
+      if (dataValue) {
+        return dataValue;
+      }
+      
+      return null;
+      
+    } catch (error) {
+      console.error('Error getting size display value:', error);
+      return null;
     }
   }
 
@@ -1121,23 +1342,46 @@ class CalvinKleinParser extends BaseParser {
         const sizes = await this.extractSizes();
         const currentColor = this.extractColor();
         
-        return sizes.map(size => {
+        if (Array.isArray(sizes)) {
+          // Simple sizes array
+          return sizes.map(size => {
+            const uniqueProductId = this.extractUniqueProductId(baseSku);
+            const variantSku = `${uniqueProductId}-${currentColor || 'default'}-${size}`;
+            
+            return {
+              sku: variantSku,
+              name: baseName,
+              price: basePrice,
+              currency: baseCurrency,
+              availability: baseAvailability,
+              color: currentColor,
+              size: size,
+              all_image_urls: baseImages,
+              description: baseDescription,
+              product_url: this.sanitizeUrl(window.location.href)
+            };
+          });
+        } else if (sizes && sizes.combinations) {
+          // Size combinations object
           const uniqueProductId = this.extractUniqueProductId(baseSku);
-          const variantSku = `${uniqueProductId}-${currentColor || 'default'}-${size}`;
+          const variantSku = `${uniqueProductId}-${currentColor || 'default'}`;
           
-          return {
+          return [{
             sku: variantSku,
             name: baseName,
             price: basePrice,
             currency: baseCurrency,
             availability: baseAvailability,
             color: currentColor,
-            size: size,
+            size_combinations: sizes,
             all_image_urls: baseImages,
             description: baseDescription,
             product_url: this.sanitizeUrl(window.location.href)
-          };
-        });
+          }];
+        } else {
+          console.error('Invalid size data format:', sizes);
+          return [];
+        }
       }
       
       const variants = [];
@@ -1156,17 +1400,35 @@ class CalvinKleinParser extends BaseParser {
         }
         
         const sizes = await this.extractSizes();
-        console.log(`Color ${color.name} has ${sizes.length} sizes:`, sizes);
+        console.log(`Color ${color.name} size data:`, sizes);
         
         // Извлекаем изображения для данного цвета
         const colorImages = await this.extractImagesForColor(color.code);
         console.log(`Color ${color.name} has ${colorImages.length} images:`, colorImages);
         
-        // Создаем вариант для каждого размера
-        sizes.forEach(size => {
-          // Используем тот же подход для получения уникального идентификатора
+        if (Array.isArray(sizes)) {
+          // Simple sizes - create variants as before
+          sizes.forEach(size => {
+            const uniqueProductId = this.extractUniqueProductId(baseSku);
+            const variantSku = `${uniqueProductId}-${color.code}-${size}`;
+            
+            variants.push({
+              sku: variantSku,
+              name: baseName,
+              price: basePrice,
+              currency: baseCurrency,
+              availability: baseAvailability,
+              color: color.name,
+              size: size,
+              all_image_urls: colorImages,
+              description: baseDescription,
+              product_url: this.sanitizeUrl(window.location.href)
+            });
+          });
+        } else if (sizes && sizes.combinations) {
+          // Size combinations - create single variant with combined data
           const uniqueProductId = this.extractUniqueProductId(baseSku);
-          const variantSku = `${uniqueProductId}-${color.code}-${size}`;
+          const variantSku = `${uniqueProductId}-${color.code}`;
           
           variants.push({
             sku: variantSku,
@@ -1175,12 +1437,14 @@ class CalvinKleinParser extends BaseParser {
             currency: baseCurrency,
             availability: baseAvailability,
             color: color.name,
-            size: size,
-            all_image_urls: colorImages, // Используем изображения для конкретного цвета
+            size_combinations: sizes,
+            all_image_urls: colorImages,
             description: baseDescription,
             product_url: this.sanitizeUrl(window.location.href)
           });
-        });
+        } else {
+          console.error('Invalid size data format for color', color.name, ':', sizes);
+        }
       }
       
       console.log(`Created ${variants.length} variants total`);

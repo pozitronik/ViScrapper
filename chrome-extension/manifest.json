@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "VIParser - Multi-Site Product Parser",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Автоматический парсер продуктов с Victoria's Secret и Calvin Klein для VIParser",
   
   "permissions": [
