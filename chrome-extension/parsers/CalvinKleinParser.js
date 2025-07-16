@@ -94,6 +94,7 @@ class CalvinKleinParser extends BaseParser {
 
   /**
    * Генерация уникального SKU для конкретного цвета
+   * Использует постоянную уникальную часть продукта, игнорируя переменные суффиксы
    */
   generateColorSpecificSku(baseSku, colorCode) {
     if (!baseSku) {
@@ -106,11 +107,51 @@ class CalvinKleinParser extends BaseParser {
       return baseSku;
     }
 
-    // Формат: D3429-001-5KC (базовый SKU + цветовой код)
-    const colorSpecificSku = `${baseSku}-${colorCode}`;
-    console.log(`CK generateColorSpecificSku: Generated ${colorSpecificSku} from base ${baseSku} and color ${colorCode}`);
+    // Извлекаем уникальную часть продукта (первая часть до первого дефиса)
+    // Пример: 47B266G-RM9 -> 47B266G, D3429-001-ABC -> D3429
+    const uniqueProductId = this.extractUniqueProductId(baseSku);
+    
+    // Формат: 47B266G-100 или D3429-100 (уникальная часть + цветовой код)
+    const colorSpecificSku = `${uniqueProductId}-${colorCode}`;
+    console.log(`CK generateColorSpecificSku: Generated ${colorSpecificSku} from base ${baseSku} (unique part: ${uniqueProductId}) and color ${colorCode}`);
     
     return colorSpecificSku;
+  }
+
+  /**
+   * Извлечение уникального идентификатора продукта из базового SKU
+   * ПРЕДПОЛАГАЕМАЯ ЛОГИКА: Всегда используем только первую часть до первого дефиса
+   * как уникальный идентификатор продукта, так как не знаем точную структуру SKU Calvin Klein.
+   * 
+   * ПРИМЕРЫ:
+   * - 47B266G-RM9 → 47B266G (основной идентификатор)
+   * - D3429-001-ABC → D3429 (основной идентификатор)
+   * - PRODUCT123-VAR-COLOR → PRODUCT123 (основной идентификатор)
+   * 
+   * ВАЖНО: Если эта логика окажется неверной и первая часть не является уникальным
+   * идентификатором, эту функцию можно легко изменить для использования другой части SKU.
+   */
+  extractUniqueProductId(baseSku) {
+    if (!baseSku) {
+      return baseSku;
+    }
+
+    // Проверяем, содержит ли SKU дефисы
+    const parts = baseSku.split('-');
+    
+    if (parts.length < 2) {
+      // Если нет дефисов, возвращаем как есть
+      console.log(`CK extractUniqueProductId: No dashes in SKU, returning as-is: ${baseSku}`);
+      return baseSku;
+    }
+
+    // ПРЕДПОЛАГАЕМАЯ ЛОГИКА: Всегда берем только первую часть как уникальный идентификатор
+    // Это предположение основано на том, что первая часть наиболее вероятно является
+    // основным идентификатором продукта, а все последующие части - переменными суффиксами
+    const uniquePart = parts[0];
+    console.log(`CK extractUniqueProductId: Extracted unique part "${uniquePart}" from "${baseSku}" (using first part assumption)`);
+    
+    return uniquePart;
   }
 
   /**
@@ -344,7 +385,10 @@ class CalvinKleinParser extends BaseParser {
       
       // Строим URLs изображений для данного цвета
       const baseImageUrl = 'https://calvinklein.scene7.com/is/image/CalvinKlein';
-      const baseName = baseSku.split('-')[0]; // D3429-001 -> D3429
+      // Используем уникальный идентификатор продукта для построения URL изображений
+      const uniqueProductId = this.extractUniqueProductId(baseSku);
+      // Поскольку uniqueProductId уже является первой частью SKU, используем его напрямую
+      const baseName = uniqueProductId; // 47B266G-RM9 → 47B266G, D3429-001-ABC → D3429
       const imageTypes = ['main', 'alternate1', 'alternate2', 'alternate3', 'alternate4', 'alternate5'];
       
       const candidateUrls = imageTypes.map(type => {
@@ -908,14 +952,22 @@ class CalvinKleinParser extends BaseParser {
 
   /**
    * Извлечение артикула (переопределение базового метода)
-   * Используем SKU как артикул
+   * Используем уникальную часть SKU как артикул
    */
   extractItem() {
     // Получаем JSON-LD данные для извлечения SKU
     const jsonData = this.getJsonLdData();
-    const sku = this.extractSku(jsonData);
-    console.log('CK extractItem: Using SKU as item:', sku);
-    return sku;
+    const baseSku = this.extractSku(jsonData);
+    
+    if (!baseSku) {
+      console.log('CK extractItem: No base SKU found');
+      return null;
+    }
+    
+    // Используем уникальную часть SKU как артикул
+    const uniqueProductId = this.extractUniqueProductId(baseSku);
+    console.log(`CK extractItem: Using unique product ID as item: ${uniqueProductId} (from base SKU: ${baseSku})`);
+    return uniqueProductId;
   }
 
   /**
@@ -1069,18 +1121,23 @@ class CalvinKleinParser extends BaseParser {
         const sizes = await this.extractSizes();
         const currentColor = this.extractColor();
         
-        return sizes.map(size => ({
-          sku: `${baseSku}-${currentColor || 'default'}-${size}`,
-          name: baseName,
-          price: basePrice,
-          currency: baseCurrency,
-          availability: baseAvailability,
-          color: currentColor,
-          size: size,
-          all_image_urls: baseImages,
-          description: baseDescription,
-          product_url: this.sanitizeUrl(window.location.href)
-        }));
+        return sizes.map(size => {
+          const uniqueProductId = this.extractUniqueProductId(baseSku);
+          const variantSku = `${uniqueProductId}-${currentColor || 'default'}-${size}`;
+          
+          return {
+            sku: variantSku,
+            name: baseName,
+            price: basePrice,
+            currency: baseCurrency,
+            availability: baseAvailability,
+            color: currentColor,
+            size: size,
+            all_image_urls: baseImages,
+            description: baseDescription,
+            product_url: this.sanitizeUrl(window.location.href)
+          };
+        });
       }
       
       const variants = [];
@@ -1107,8 +1164,12 @@ class CalvinKleinParser extends BaseParser {
         
         // Создаем вариант для каждого размера
         sizes.forEach(size => {
+          // Используем тот же подход для получения уникального идентификатора
+          const uniqueProductId = this.extractUniqueProductId(baseSku);
+          const variantSku = `${uniqueProductId}-${color.code}-${size}`;
+          
           variants.push({
-            sku: `${baseSku}-${color.code}-${size}`,
+            sku: variantSku,
             name: baseName,
             price: basePrice,
             currency: baseCurrency,

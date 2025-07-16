@@ -207,6 +207,105 @@ main > *:last-child {
   margin-top: 2px;
 }
 
+/* Image selection interface */
+.image-selector {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.image-selector .image-thumbnail {
+  transition: all 0.2s ease;
+}
+
+.image-selector input[type="checkbox"] {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+  z-index: 2;
+  accent-color: #FF69B4;
+}
+
+.image-selector:hover .image-thumbnail {
+  opacity: 0.8;
+  transform: scale(1.05);
+}
+
+.image-selector.selected .image-thumbnail {
+  border: 2px solid #FF69B4;
+  box-shadow: 0 0 0 1px rgba(255, 105, 180, 0.3);
+}
+
+.image-selector.selected::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: rgba(255, 105, 180, 0.1);
+  pointer-events: none;
+}
+
+.image-selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.image-selection-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.image-selection-btn {
+  background: none;
+  border: none;
+  color: #FF69B4;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+}
+
+.image-selection-btn:hover {
+  background-color: rgba(255, 105, 180, 0.1);
+}
+
+.selected-count {
+  font-size: 10px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* Site-specific image selection colors */
+body.site-calvinklein .image-selector input[type="checkbox"] {
+  accent-color: #D2B48C;
+}
+
+body.site-calvinklein .image-selector.selected .image-thumbnail {
+  border-color: #D2B48C;
+  box-shadow: 0 0 0 1px rgba(210, 180, 140, 0.3);
+}
+
+body.site-calvinklein .image-selector.selected::after {
+  background: rgba(210, 180, 140, 0.1);
+}
+
+body.site-calvinklein .image-selection-btn {
+  color: #D2B48C;
+}
+
+body.site-calvinklein .image-selection-btn:hover {
+  background-color: rgba(210, 180, 140, 0.1);
+}
+
 /* Comment textarea */
 .comment-container {
   position: relative;
