@@ -337,9 +337,19 @@ function updateDataPreview(data) {
       <div class="data-item">
         <div class="data-label">Изображения:</div>
         <div class="data-value">
+          <div class="image-selection-header">
+            <div class="selected-count">Выбрано: <span id="selectedCount">0</span>/${data.all_image_urls.length}</div>
+            <div class="image-selection-actions">
+              <button class="image-selection-btn" id="selectAllBtn">Все</button>
+              <button class="image-selection-btn" id="deselectAllBtn">Ничего</button>
+            </div>
+          </div>
           <div class="images-preview">
-            ${data.all_image_urls.slice(0, 6).map(img => 
-              `<img src="${img}" alt="Product image" class="image-thumbnail">`
+            ${data.all_image_urls.map((img, index) => 
+              `<div class="image-selector" data-index="${index}">
+                <img src="${img}" alt="Product image" class="image-thumbnail">
+                <input type="checkbox" class="image-checkbox" data-index="${index}" ${index < 4 ? 'checked' : ''}>
+              </div>`
             ).join('')}
           </div>
           <div class="images-count">Всего: ${data.all_image_urls.length}</div>
@@ -395,6 +405,122 @@ function updateDataPreview(data) {
   }
   
   container.innerHTML = html;
+  
+  // Настраиваем обработчики для селекции изображений
+  setupImageSelection();
+}
+
+/**
+ * Настройка обработчиков для селекции изображений
+ */
+function setupImageSelection() {
+  const checkboxes = document.querySelectorAll('.image-checkbox');
+  const selectAllBtn = document.getElementById('selectAllBtn');
+  const deselectAllBtn = document.getElementById('deselectAllBtn');
+  const imageSelectors = document.querySelectorAll('.image-selector');
+  
+  if (checkboxes.length === 0) {
+    return; // Нет изображений для настройки
+  }
+  
+  // Обработчики для чекбоксов
+  checkboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', handleImageSelectionChange);
+  });
+  
+  // Обработчики для кликов по изображениям (для удобства)
+  imageSelectors.forEach(selector => {
+    selector.addEventListener('click', (e) => {
+      if (e.target.type !== 'checkbox') {
+        const checkbox = selector.querySelector('.image-checkbox');
+        checkbox.checked = !checkbox.checked;
+        handleImageSelectionChange();
+      }
+    });
+  });
+  
+  // Обработчики для кнопок
+  if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', selectAllImages);
+  }
+  
+  if (deselectAllBtn) {
+    deselectAllBtn.addEventListener('click', deselectAllImages);
+  }
+  
+  // Обновляем начальное состояние
+  updateImageSelectionUI();
+}
+
+/**
+ * Обработка изменения выбора изображения
+ */
+function handleImageSelectionChange() {
+  updateImageSelectionUI();
+}
+
+/**
+ * Обновление интерфейса селекции изображений
+ */
+function updateImageSelectionUI() {
+  const checkboxes = document.querySelectorAll('.image-checkbox');
+  const selectedCountSpan = document.getElementById('selectedCount');
+  const imageSelectors = document.querySelectorAll('.image-selector');
+  
+  let selectedCount = 0;
+  
+  checkboxes.forEach((checkbox, index) => {
+    const selector = imageSelectors[index];
+    if (checkbox.checked) {
+      selectedCount++;
+      selector.classList.add('selected');
+    } else {
+      selector.classList.remove('selected');
+    }
+  });
+  
+  if (selectedCountSpan) {
+    selectedCountSpan.textContent = selectedCount;
+  }
+}
+
+/**
+ * Выбрать все изображения
+ */
+function selectAllImages() {
+  const checkboxes = document.querySelectorAll('.image-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = true;
+  });
+  updateImageSelectionUI();
+}
+
+/**
+ * Снять выбор со всех изображений
+ */
+function deselectAllImages() {
+  const checkboxes = document.querySelectorAll('.image-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+  });
+  updateImageSelectionUI();
+}
+
+/**
+ * Получить выбранные изображения
+ */
+function getSelectedImages() {
+  const checkboxes = document.querySelectorAll('.image-checkbox:checked');
+  const selectedImages = [];
+  
+  checkboxes.forEach(checkbox => {
+    const index = parseInt(checkbox.dataset.index);
+    if (appState.productData && appState.productData.all_image_urls && appState.productData.all_image_urls[index]) {
+      selectedImages.push(appState.productData.all_image_urls[index]);
+    }
+  });
+  
+  return selectedImages;
 }
 
 /**
@@ -559,9 +685,15 @@ async function handleSubmit() {
   submitBtn.textContent = 'Отправка...';
   
   try {
+    // Получаем только выбранные изображения
+    const selectedImages = getSelectedImages();
+    
     const dataToSend = {
       ...appState.productData,
-      comment: commentInput.value.trim()
+      comment: commentInput.value.trim(),
+      // Заменяем все изображения на выбранные
+      all_image_urls: selectedImages,
+      main_image_url: selectedImages.length > 0 ? selectedImages[0] : null
     };
     
     const response = await new Promise((resolve) => {
