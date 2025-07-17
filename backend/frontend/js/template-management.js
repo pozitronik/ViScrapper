@@ -64,9 +64,9 @@ class TemplateManager {
             // Search input
             const searchInput = templateModal.querySelector('#template-search');
             if (searchInput) {
-                searchInput.addEventListener('input', (e) => {
-                    this.searchTemplates(e.target.value);
-                });
+                searchInput.addEventListener('input', 
+                    debounce((e) => this.searchTemplates(e.target.value), 300)
+                );
             }
 
             // Click outside to close
@@ -141,9 +141,9 @@ class TemplateManager {
             // Placeholders search functionality
             const placeholdersSearchInput = editorModal.querySelector('#placeholders-search-input');
             if (placeholdersSearchInput) {
-                placeholdersSearchInput.addEventListener('input', (e) => {
-                    this.filterPlaceholders(e.target.value);
-                });
+                placeholdersSearchInput.addEventListener('input', 
+                    debounce((e) => this.filterPlaceholders(e.target.value), 300)
+                );
                 
                 // Clear search on Escape
                 placeholdersSearchInput.addEventListener('keydown', (e) => {

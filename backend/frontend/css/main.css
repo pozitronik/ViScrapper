@@ -2,7 +2,14 @@
 * {
     margin: 0;
     padding: 0;
+}
+
+/* Scope box-sizing to necessary containers only */
+.modal, .form-container, .table-container, .template-container, .filters-container {
     box-sizing: border-box;
+}
+.modal *, .form-container *, .table-container *, .template-container *, .filters-container * {
+    box-sizing: inherit;
 }
 
 /* Base Modal Styles */
