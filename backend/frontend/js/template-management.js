@@ -201,6 +201,9 @@ class TemplateManager {
             
             // Load templates if not already loaded
             await this.loadTemplates();
+            
+            // Set up event delegation for template actions
+            this.setupTemplateActionsEventDelegation();
         }
     }
 
@@ -257,6 +260,9 @@ class TemplateManager {
             // Generate initial preview
             this.generatePreview();
             this.validateTemplateForm();
+            
+            // Set up event delegation for placeholders
+            this.setupPlaceholdersEventDelegation();
         }
     }
 
@@ -337,24 +343,6 @@ class TemplateManager {
                 </div>
             </div>
         `).join('');
-        
-        // Attach event listeners to action buttons
-        container.querySelectorAll('.edit-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const templateId = parseInt(e.target.dataset.templateId);
-                const template = this.templates.find(t => t.id === templateId);
-                if (template) {
-                    this.openTemplateEditor(template);
-                }
-            });
-        });
-        
-        container.querySelectorAll('.delete-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const templateId = parseInt(e.target.dataset.templateId);
-                this.deleteTemplate(templateId);
-            });
-        });
     }
 
     /**
@@ -660,10 +648,22 @@ class TemplateManager {
                 <span>${placeholder.description}</span>
             </div>
         `).join('');
+    }
+
+    /**
+     * Set up event delegation for placeholder items to prevent memory leaks
+     */
+    setupPlaceholdersEventDelegation() {
+        const container = document.getElementById('template-placeholders-list');
+        if (!container) return;
         
-        // Add click event listeners to all placeholder items
-        container.querySelectorAll('.placeholder-item').forEach(item => {
-            item.addEventListener('click', () => {
+        // Remove existing event listener if any
+        container.removeEventListener('click', this.handlePlaceholderClick);
+        
+        // Add single delegated event listener
+        this.handlePlaceholderClick = (e) => {
+            const item = e.target.closest('.placeholder-item');
+            if (item) {
                 const placeholder = item.dataset.placeholder;
                 this.insertPlaceholderAtCursor(placeholder);
                 
@@ -672,8 +672,40 @@ class TemplateManager {
                 setTimeout(() => {
                     item.classList.remove('clicked');
                 }, 500);
-            });
-        });
+            }
+        };
+        
+        container.addEventListener('click', this.handlePlaceholderClick);
+    }
+
+    /**
+     * Set up event delegation for template action buttons to prevent memory leaks
+     */
+    setupTemplateActionsEventDelegation() {
+        const container = document.getElementById('template-list');
+        if (!container) return;
+        
+        // Remove existing event listener if any
+        container.removeEventListener('click', this.handleTemplateActionClick);
+        
+        // Add single delegated event listener
+        this.handleTemplateActionClick = (e) => {
+            const editBtn = e.target.closest('.edit-btn');
+            const deleteBtn = e.target.closest('.delete-btn');
+            
+            if (editBtn) {
+                const templateId = parseInt(editBtn.dataset.templateId);
+                const template = this.templates.find(t => t.id === templateId);
+                if (template) {
+                    this.openTemplateEditor(template);
+                }
+            } else if (deleteBtn) {
+                const templateId = parseInt(deleteBtn.dataset.templateId);
+                this.deleteTemplate(templateId);
+            }
+        };
+        
+        container.addEventListener('click', this.handleTemplateActionClick);
     }
 
     /**
