@@ -94,12 +94,17 @@ class ProductTable {
      * Render all product rows
      */
     renderRows() {
-        this.tbody.innerHTML = '';
+        // Create DocumentFragment for batch DOM operations
+        const fragment = document.createDocumentFragment();
         
+        // Create all rows and add to fragment
         this.products.forEach(product => {
             const row = this.createProductRow(product);
-            this.tbody.appendChild(row);
+            fragment.appendChild(row);
         });
+        
+        // Single DOM operation - replace all content
+        this.tbody.replaceChildren(fragment);
     }
 
     /**
