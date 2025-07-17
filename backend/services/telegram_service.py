@@ -542,20 +542,20 @@ class TelegramService:
                             "retry_count": retry_count
                         }
                     )
-                        
-                # If we get here, we've exhausted all retries
-                logger.error(f"Exhausted all {max_retries} retries for media group to {chat_id}")
-                raise ExternalServiceException(
-                    service="telegram",
-                    message=f"Failed to send media group after {max_retries} retries due to rate limiting",
-                    details={
-                        "status_code": 429,
-                        "operation": "send_media_group",
-                        "chat_id": chat_id,
-                        "media_count": len(media_paths),
-                        "retry_count": retry_count
-                    }
-                )
+            
+            # If we get here, we've exhausted all retries
+            logger.error(f"Exhausted all {max_retries} retries for media group to {chat_id}")
+            raise ExternalServiceException(
+                service="telegram",
+                message=f"Failed to send media group after {max_retries} retries due to rate limiting",
+                details={
+                    "status_code": 429,
+                    "operation": "send_media_group",
+                    "chat_id": chat_id,
+                    "media_count": len(media_paths),
+                    "retry_count": retry_count
+                }
+            )
         except FileNotFoundError as e:
             raise ValidationException(
                 message="Photo file not found during media group upload",
