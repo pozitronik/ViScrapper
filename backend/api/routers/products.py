@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, desc, asc, and_
+from sqlalchemy.sql import ColumnElement
 from typing import List, Optional, Any, Dict
 from datetime import datetime, timedelta, timezone
 
@@ -157,7 +158,7 @@ async def list_products(
     filters = SearchFilters(
         q=q, min_price=min_price, max_price=max_price,
         currency=currency, availability=availability, color=color,
-        has_images=has_images, has_sizes=has_sizes, telegram_posted=telegram_posted,
+        store=None, has_images=has_images, has_sizes=has_sizes, telegram_posted=telegram_posted,
         created_after=created_after, created_before=created_before
     )
 
@@ -167,7 +168,7 @@ async def list_products(
         joinedload(ProductModel.sizes)
     )
     # Determine include_deleted logic based on parameters
-    actual_include_deleted = include_deleted or only_deleted
+    actual_include_deleted = bool(include_deleted or only_deleted)
     query = apply_filters(query, filters, include_deleted=actual_include_deleted)
     
     # If only_deleted is True, filter to show only deleted products
@@ -344,7 +345,7 @@ async def search_products(
         )
     
     # Build search conditions
-    search_conditions = []
+    search_conditions: List[ColumnElement[bool]] = []
     search_info = []
     
     if sku:
