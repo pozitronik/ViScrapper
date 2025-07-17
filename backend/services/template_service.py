@@ -4,7 +4,7 @@ Supports dynamic placeholder replacement using product data.
 """
 
 import re
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -182,7 +182,7 @@ class TemplateRenderer:
             sell_price = None
         
         # Format sell price without unnecessary decimal zeros
-        def format_price(price):
+        def format_price(price: Optional[float]) -> str:
             if price is None:
                 return '0'
             # Remove trailing zeros and decimal point if it's a whole number
