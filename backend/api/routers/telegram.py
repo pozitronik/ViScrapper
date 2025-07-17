@@ -3,7 +3,7 @@ API router for Telegram functionality
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, cast
 
 from database.session import get_db
 from schemas.telegram import (
@@ -480,7 +480,7 @@ async def bulk_post_unposted_products(
                 detail="No active channels found for posting"
             )
 
-        channel_ids_to_use: List[int] = [channel.id for channel in channels]
+        channel_ids_to_use: List[int] = [cast(int, channel.id) for channel in channels]
         
         logger.info(f"Starting bulk post of {len(unposted_products)} products to {len(channels)} channels")
 
