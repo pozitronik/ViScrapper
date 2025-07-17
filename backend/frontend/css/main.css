@@ -25,6 +25,8 @@
     justify-content: center;
     z-index: 1000;
     backdrop-filter: blur(2px);
+    contain: layout style;
+    will-change: backdrop-filter, opacity;
 }
 
 .modal.hidden {
