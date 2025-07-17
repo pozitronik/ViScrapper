@@ -78,22 +78,32 @@ class WebSocketManager:
             logger.error(f"Error sending personal message: {e}")
             self.disconnect(websocket)
 
+    async def _send_safe(self, connection: WebSocket, message_str: str) -> Optional[Exception]:
+        """Safely send message to a single connection, returning exception if failed"""
+        try:
+            await connection.send_text(message_str)
+            return None
+        except Exception as e:
+            logger.error(f"Error broadcasting to client: {e}")
+            return e
+
     async def broadcast(self, message: Dict[str, Any]) -> None:
         """Broadcast a message to all connected clients"""
         if not self.active_connections:
             return
 
         message_str = json.dumps(message)
+        
+        # Send to all connections in parallel using asyncio.gather
+        tasks = [self._send_safe(conn, message_str) for conn in self.active_connections]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Remove failed connections based on results
         disconnected = []
-
-        # Send to all connections
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(message_str)
-            except Exception as e:
-                logger.error(f"Error broadcasting to client: {e}")
-                disconnected.append(connection)
-
+        for i, result in enumerate(results):
+            if isinstance(result, Exception) or result is not None:
+                disconnected.append(self.active_connections[i])
+        
         # Remove disconnected clients
         for connection in disconnected:
             self.disconnect(connection)
