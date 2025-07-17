@@ -124,6 +124,8 @@ body {
     border: none;
     color: white;
     transition: all 0.3s ease;
+    contain: layout style paint;
+    will-change: transform, box-shadow, background;
 }
 
 .telegram-bulk-btn:hover {
