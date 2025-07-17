@@ -176,8 +176,12 @@ async def list_products(
         query = query.filter(ProductModel.deleted_at.isnot(None))
     query = apply_sorting(query, sort_by, sort_order)
 
-    # Get total count
-    total = query.count()
+    # Get total count using optimized query (without joins)
+    count_query = db.query(ProductModel.id)
+    count_query = apply_filters(count_query, filters, include_deleted=actual_include_deleted)
+    if only_deleted:
+        count_query = count_query.filter(ProductModel.deleted_at.isnot(None))
+    total = count_query.count()
 
     # Apply pagination
     offset = (page - 1) * per_page
