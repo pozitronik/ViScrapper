@@ -475,8 +475,8 @@ async def create_new_product(
     created_product = create_product(db=db, product=product)
 
     # Broadcast the new product to all connected WebSocket clients
-    from schemas.product import Product as ProductSchema
-    product_dict = ProductSchema.model_validate(created_product).model_dump()
+    from utils.schema_utils import product_to_dict
+    product_dict = product_to_dict(created_product)
     await websocket_manager.broadcast_product_created(product_dict)
 
     logger.info(f"Successfully created product with ID: {created_product.id}")
@@ -506,8 +506,8 @@ async def update_existing_product(
     updated_product = update_product(db=db, product_id=product_id, product_update=product_update)
 
     # Broadcast the updated product to all connected WebSocket clients
-    from schemas.product import Product as ProductSchema
-    product_dict = ProductSchema.model_validate(updated_product).model_dump()
+    from utils.schema_utils import product_to_dict
+    product_dict = product_to_dict(updated_product)
     await websocket_manager.broadcast_product_updated(product_dict)
 
     logger.info(f"Successfully updated product with ID: {product_id}")
@@ -583,8 +583,8 @@ async def restore_deleted_product(
         raise HTTPException(status_code=404, detail="Product not found after restore")
 
     # Broadcast the product restoration to all connected WebSocket clients
-    from schemas.product import Product as ProductSchema
-    product_dict = ProductSchema.model_validate(restored_product).model_dump()
+    from utils.schema_utils import product_to_dict
+    product_dict = product_to_dict(restored_product)
     await websocket_manager.broadcast_product_created(product_dict)  # Reuse created event
 
     logger.info(f"Successfully restored product with ID: {product_id}")

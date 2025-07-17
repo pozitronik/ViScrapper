@@ -183,8 +183,8 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
             )
 
             # Broadcast the updated product to all connected WebSocket clients
-            from schemas.product import Product as ProductSchema
-            product_dict = ProductSchema.model_validate(updated_product).model_dump()
+            from utils.schema_utils import product_to_dict
+            product_dict = product_to_dict(updated_product)
             # Add update information for frontend
             product_dict['_update_info'] = {
                 'was_updated': True,
@@ -198,8 +198,8 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
         else:
             logger.info(f"No changes detected for existing product {existing_product.id}")
             # Still broadcast to frontend with info that no changes were needed
-            from schemas.product import Product as ProductSchema
-            product_dict = ProductSchema.model_validate(existing_product).model_dump()
+            from utils.schema_utils import product_to_dict
+            product_dict = product_to_dict(existing_product)
             product_dict['_update_info'] = {
                 'was_updated': False,
                 'match_type': match_type,
@@ -223,8 +223,8 @@ async def scrape_product(product: ProductCreate, db: Session = Depends(get_db)) 
     created_product = create_product(db=db, product=product, downloaded_images_metadata=downloaded_images_metadata)
 
     # Broadcast the new product to all connected WebSocket clients
-    from schemas.product import Product as ProductSchema
-    product_dict = ProductSchema.model_validate(created_product).model_dump()
+    from utils.schema_utils import product_to_dict
+    product_dict = product_to_dict(created_product)
     product_dict['_update_info'] = {
         'was_updated': False,
         'match_type': None,

@@ -485,11 +485,10 @@ async def bulk_post_unposted_products(
         logger.info(f"Starting bulk post of {len(unposted_products)} products to {len(channels)} channels")
 
         # Send bulk post start event
-        await websocket_manager.broadcast({
-            "type": "bulk_post_started",
-            "total_products": len(unposted_products),
-            "channels": [{"id": c.id, "name": c.name} for c in channels]
-        })
+        await websocket_manager.broadcast_bulk_post_started(
+            total_products=len(unposted_products),
+            channels=[{"id": c.id, "name": c.name} for c in channels]
+        )
 
         # Post each product
         results = []
@@ -499,13 +498,12 @@ async def bulk_post_unposted_products(
         for index, product in enumerate(unposted_products, 1):
             try:
                 # Send product start event
-                await websocket_manager.broadcast({
-                    "type": "bulk_post_product_start",
-                    "product_index": index,
-                    "product_id": product.id,
-                    "product_name": product.name or f"Product {product.id}",
-                    "channels": [c.name for c in channels]
-                })
+                await websocket_manager.broadcast_bulk_post_product_start(
+                    product_index=index,
+                    product_id=product.id,
+                    product_name=product.name or f"Product {product.id}",
+                    channels=[c.name for c in channels]
+                )
                 
                 product_id: int = cast(int, product.id)
                 result = await telegram_post_service.send_post(
@@ -526,14 +524,13 @@ async def bulk_post_unposted_products(
                 })
                 
                 # Send product success event
-                await websocket_manager.broadcast({
-                    "type": "bulk_post_product_success",
-                    "product_index": index,
-                    "product_id": product.id,
-                    "product_name": product.name or f"Product {product.id}",
-                    "posts_created": len(result.get("posts_created", [])),
-                    "channels_posted": success_count
-                })
+                await websocket_manager.broadcast_bulk_post_product_success(
+                    product_index=index,
+                    product_id=product.id,
+                    product_name=product.name or f"Product {product.id}",
+                    posts_created=len(result.get("posts_created", [])),
+                    channels_posted=success_count
+                )
                 
                 posted_count += success_count
                 failed_count += error_count
@@ -548,25 +545,23 @@ async def bulk_post_unposted_products(
                 })
                 
                 # Send product error event
-                await websocket_manager.broadcast({
-                    "type": "bulk_post_product_error",
-                    "product_index": index,
-                    "product_id": product.id,
-                    "product_name": product.name or f"Product {product.id}",
-                    "error": error_msg
-                })
+                await websocket_manager.broadcast_bulk_post_product_error(
+                    product_index=index,
+                    product_id=product.id,
+                    product_name=product.name or f"Product {product.id}",
+                    error=error_msg
+                )
                 
                 failed_count += len(channels)
                 logger.error(f"Failed to post product {product.id} ({product.name}): {e}")
 
         # Send bulk post completed event
-        await websocket_manager.broadcast({
-            "type": "bulk_post_completed",
-            "total_products": len(unposted_products),
-            "posted_count": posted_count,
-            "failed_count": failed_count,
-            "channels_used": len(channels)
-        })
+        await websocket_manager.broadcast_bulk_post_completed(
+            total_products=len(unposted_products),
+            posted_count=posted_count,
+            failed_count=failed_count,
+            channels_used=len(channels)
+        )
 
         # Prepare response
         response_data = {

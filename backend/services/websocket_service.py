@@ -12,43 +12,25 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def serialize_for_json(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert Pydantic types to JSON-serializable types"""
-    serialized: Dict[str, Any] = {}
-    for key, value in data.items():
-        if isinstance(value, HttpUrl):
-            serialized[key] = str(value)
-        elif isinstance(value, (datetime, date)):
-            serialized[key] = value.isoformat()
-        elif isinstance(value, BaseModel):
-            serialized[key] = serialize_for_json(value.model_dump())
-        elif isinstance(value, list):
-            serialized[key] = [
-                serialize_for_json(item.model_dump()) if isinstance(item, BaseModel)
-                else serialize_value(item)
-                for item in value
-            ]
-        elif isinstance(value, dict):
-            serialized[key] = serialize_for_json(value)
-        else:
-            serialized[key] = serialize_value(value)
-    return serialized
-
-
 def serialize_value(value: Any) -> Any:
-    """Serialize individual values"""
+    """Serialize any value to JSON-serializable format"""
     if isinstance(value, HttpUrl):
         return str(value)
     elif isinstance(value, (datetime, date)):
         return value.isoformat()
     elif isinstance(value, BaseModel):
-        return serialize_for_json(value.model_dump())
+        return serialize_value(value.model_dump())
     elif isinstance(value, dict):
-        return serialize_for_json(value)
+        return {key: serialize_value(val) for key, val in value.items()}
     elif isinstance(value, list):
         return [serialize_value(item) for item in value]
     else:
         return value
+
+
+def serialize_for_json(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert Pydantic types to JSON-serializable types (legacy wrapper)"""
+    return serialize_value(data)
 
 
 class WebSocketManager:
@@ -152,6 +134,74 @@ class WebSocketManager:
         }
         await self.broadcast(message)
         logger.info(f"Broadcasted scraping status: {status}")
+
+    async def broadcast_bulk_post_started(self, total_products: int, channels: List[Dict[str, Any]]) -> None:
+        """Broadcast bulk post start event"""
+        message = {
+            "type": "bulk_post_started",
+            "total_products": total_products,
+            "channels": channels,
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        await self.broadcast(message)
+        logger.info(f"Broadcasted bulk post started: {total_products} products to {len(channels)} channels")
+
+    async def broadcast_bulk_post_product_start(self, product_index: int, product_id: int, 
+                                              product_name: str, channels: List[str]) -> None:
+        """Broadcast bulk post product start event"""
+        message = {
+            "type": "bulk_post_product_start",
+            "product_index": product_index,
+            "product_id": product_id,
+            "product_name": product_name,
+            "channels": channels,
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        await self.broadcast(message)
+        logger.info(f"Broadcasted bulk post product start: {product_name} ({product_id})")
+
+    async def broadcast_bulk_post_product_success(self, product_index: int, product_id: int,
+                                                product_name: str, posts_created: int, channels_posted: int) -> None:
+        """Broadcast bulk post product success event"""
+        message = {
+            "type": "bulk_post_product_success",
+            "product_index": product_index,
+            "product_id": product_id,
+            "product_name": product_name,
+            "posts_created": posts_created,
+            "channels_posted": channels_posted,
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        await self.broadcast(message)
+        logger.info(f"Broadcasted bulk post product success: {product_name} ({product_id})")
+
+    async def broadcast_bulk_post_product_error(self, product_index: int, product_id: int,
+                                              product_name: str, error: str) -> None:
+        """Broadcast bulk post product error event"""
+        message = {
+            "type": "bulk_post_product_error",
+            "product_index": product_index,
+            "product_id": product_id,
+            "product_name": product_name,
+            "error": error,
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        await self.broadcast(message)
+        logger.info(f"Broadcasted bulk post product error: {product_name} ({product_id})")
+
+    async def broadcast_bulk_post_completed(self, total_products: int, posted_count: int,
+                                          failed_count: int, channels_used: int) -> None:
+        """Broadcast bulk post completed event"""
+        message = {
+            "type": "bulk_post_completed",
+            "total_products": total_products,
+            "posted_count": posted_count,
+            "failed_count": failed_count,
+            "channels_used": channels_used,
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        await self.broadcast(message)
+        logger.info(f"Broadcasted bulk post completed: {posted_count} posted, {failed_count} failed")
 
 
 # Global WebSocket manager instance
