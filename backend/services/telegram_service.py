@@ -495,6 +495,12 @@ class TelegramService:
                             for file_obj in files.values():
                                 file_obj.seek(0)
                             continue
+                        else:
+                            # Rate limit handling failed or no retry recommended
+                            break
+                    elif response.status_code == 429:
+                        # Max retries reached for rate limiting
+                        break
                     
                     response_text = response.text
                     logger.error(f"HTTP error {response.status_code} for media group to {chat_id}: {response_text}")
