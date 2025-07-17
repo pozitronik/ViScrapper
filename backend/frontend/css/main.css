@@ -546,6 +546,8 @@ input:checked + .toggle-slider:before {
     cursor: pointer;
     transition: all 0.2s;
     text-decoration: none;
+    contain: layout style paint;
+    will-change: transform, box-shadow;
 }
 
 .btn:hover {
