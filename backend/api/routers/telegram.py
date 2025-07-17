@@ -507,7 +507,7 @@ async def bulk_post_unposted_products(
                     "channels": [c.name for c in channels]
                 })
                 
-                product_id: int = product.id
+                product_id: int = cast(int, product.id)
                 result = await telegram_post_service.send_post(
                     db=db,
                     product_id=product_id,
