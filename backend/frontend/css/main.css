@@ -112,6 +112,8 @@ body {
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin-bottom: 1rem;
+    contain: layout style paint;
+    will-change: transform;
 }
 
 @keyframes spin {
