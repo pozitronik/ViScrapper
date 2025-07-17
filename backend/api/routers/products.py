@@ -204,21 +204,26 @@ async def get_product_statistics(db: Session = Depends(get_db)) -> SuccessRespon
     """Get comprehensive product statistics."""
     logger.info("Fetching product statistics")
 
-    total_products = db.query(ProductModel).filter(ProductModel.deleted_at.is_(None)).count()
-    products_with_images = db.query(ProductModel).filter(
+    # Use optimized count queries selecting only IDs
+    total_products = db.query(ProductModel.id).filter(ProductModel.deleted_at.is_(None)).count()
+    
+    # Use EXISTS for more efficient counting of products with relationships
+    products_with_images = db.query(ProductModel.id).filter(
         ProductModel.deleted_at.is_(None),
-        ProductModel.images.any()
+        db.query(Image.id).filter(Image.product_id == ProductModel.id, Image.deleted_at.is_(None)).exists()
     ).count()
-    products_with_sizes = db.query(ProductModel).filter(
+    
+    products_with_sizes = db.query(ProductModel.id).filter(
         ProductModel.deleted_at.is_(None),
-        ProductModel.sizes.any()
+        db.query(Size.id).filter(Size.product_id == ProductModel.id, Size.deleted_at.is_(None)).exists()
     ).count()
-    total_images = db.query(Image).filter(Image.deleted_at.is_(None)).count()
-    total_sizes = db.query(Size).filter(Size.deleted_at.is_(None)).count()
+    
+    total_images = db.query(Image.id).filter(Image.deleted_at.is_(None)).count()
+    total_sizes = db.query(Size.id).filter(Size.deleted_at.is_(None)).count()
 
     # Products added in last 24 hours
     twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
-    recent_products_24h = db.query(ProductModel).filter(
+    recent_products_24h = db.query(ProductModel.id).filter(
         ProductModel.deleted_at.is_(None),
         ProductModel.created_at >= twenty_four_hours_ago
     ).count()
