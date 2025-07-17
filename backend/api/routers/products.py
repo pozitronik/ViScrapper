@@ -591,7 +591,7 @@ async def delete_product_image(
     product_id: int,
     image_id: int,
     db: Session = Depends(get_db)
-):
+) -> SuccessResponse[Dict[str, Any]]:
     """Delete a specific image from a product."""
     from crud.product import get_product_by_id
     from crud.product import delete_product_image as crud_delete_image
