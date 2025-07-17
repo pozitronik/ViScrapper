@@ -116,6 +116,12 @@ class TelegramService:
                 message="Telegram service is disabled - bot token not configured",
                 details={"bot_token_configured": False}
             )
+        
+        if not self._client:
+            raise ValidationException(
+                message="Telegram client not initialized",
+                details={"client_initialized": False}
+            )
 
         if not chat_id:
             raise ValidationException(
@@ -270,6 +276,12 @@ class TelegramService:
                 message="Telegram service is disabled - bot token not configured",
                 details={"bot_token_configured": False}
             )
+        
+        if not self._client:
+            raise ValidationException(
+                message="Telegram client not initialized",
+                details={"client_initialized": False}
+            )
 
         if not os.path.exists(photo_path):
             raise ValidationException(
@@ -402,6 +414,12 @@ class TelegramService:
             raise ValidationException(
                 message="Telegram service is disabled - bot token not configured",
                 details={"bot_token_configured": False}
+            )
+        
+        if not self._client:
+            raise ValidationException(
+                message="Telegram client not initialized",
+                details={"client_initialized": False}
             )
 
         if not media_paths or len(media_paths) < 2 or len(media_paths) > 10:
@@ -574,6 +592,12 @@ class TelegramService:
             raise ValidationException(
                 message="Telegram service is disabled - bot token not configured",
                 details={"bot_token_configured": False}
+            )
+        
+        if not self._client:
+            raise ValidationException(
+                message="Telegram client not initialized",
+                details={"client_initialized": False}
             )
 
         logger.info(f"Getting chat info for {chat_id}")
