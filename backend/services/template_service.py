@@ -176,7 +176,7 @@ class TemplateRenderer:
         try:
             # Create Pydantic object to use computed sell_price property
             product_schema = ProductSchema.model_validate(product)
-            sell_price = product_schema.sell_price
+            sell_price: Optional[float] = product_schema.sell_price
         except Exception as e:
             logger.warning(f"Failed to create ProductSchema for sell_price calculation: {e}")
             sell_price = None
