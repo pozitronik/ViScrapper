@@ -488,15 +488,15 @@ class TestTemplateRenderingWithCombinationSizes:
         db = self.test_db
         product = self.create_combination_product(db)
         
-        # Test {sizes} placeholder (should show individual combinations)
+        # Test {sizes} placeholder (should show multiline format with leading newline)
         template_content = "Available sizes: {sizes}"
         rendered = template_renderer.render_template(template_content, product)
         
-        # Should include individual size combinations like "32A, 32B, 32C, 34B, 34C, 34D, 36A, 36C"
-        assert "32A" in rendered
-        assert "32B" in rendered
-        assert "34D" in rendered
-        assert "36A" in rendered
+        # Should include multiline format with each band size on its own line
+        # Note: there's a space after the colon because template is "Available sizes: {sizes}"
+        assert "Available sizes: \n32: A, B, C" in rendered
+        assert "34: B, C, D" in rendered
+        assert "36: A, C" in rendered
     
     def test_template_rendering_with_combination_size_display(self):
         """Test template rendering with {size} placeholder (grid format)"""
@@ -549,7 +549,7 @@ class TestTemplateRenderingWithCombinationSizes:
         template_content = "Sizes: {sizes}"
         rendered = template_renderer.render_template(template_content, product)
         
-        # Should include both simple sizes and combinations
-        assert "One Size" in rendered
-        assert "10" in rendered  # From combination
-        assert "12" in rendered  # From combination
+        # Should use multiline format because there are combinations (leading newline)
+        # Note: there's a space after the colon because template is "Sizes: {sizes}"
+        assert "Sizes: \n10: 5, 6" in rendered
+        assert "12: 6, 7" in rendered

@@ -120,10 +120,11 @@ class TestTemplateRenderer:
         product = Mock(spec=Product)
         product.sizes = []
         
-        display, all_sizes = renderer._format_sizes_for_display(product)
+        display, all_sizes, multiline = renderer._format_sizes_for_display(product)
         
         assert display == 'None'
         assert all_sizes == []
+        assert multiline == 'None'
     
     def test_format_sizes_for_display_simple_sizes(self):
         """Test formatting simple sizes"""
@@ -142,10 +143,11 @@ class TestTemplateRenderer:
         
         product.sizes = [size1, size2]
         
-        display, all_sizes = renderer._format_sizes_for_display(product)
+        display, all_sizes, multiline = renderer._format_sizes_for_display(product)
         
         assert display == 'M, L'
         assert set(all_sizes) == {'M', 'L'}
+        assert multiline == 'M, L'  # Simple sizes use comma-separated format
     
     def test_format_sizes_for_display_combination_sizes(self):
         """Test formatting combination sizes"""
@@ -162,11 +164,14 @@ class TestTemplateRenderer:
         
         product.sizes = [size]
         
-        display, all_sizes = renderer._format_sizes_for_display(product)
+        display, all_sizes, multiline = renderer._format_sizes_for_display(product)
         
         assert '32: A B' in display
         assert '34: A C' in display
         assert set(all_sizes) == {'32A', '32B', '34A', '34C'}
+        # Multiline format for combinations
+        assert '32: A, B' in multiline
+        assert '34: A, C' in multiline
     
     def test_format_sizes_for_display_deleted_sizes_excluded(self):
         """Test that deleted sizes are excluded"""
@@ -185,10 +190,11 @@ class TestTemplateRenderer:
         
         product.sizes = [size1, size2]
         
-        display, all_sizes = renderer._format_sizes_for_display(product)
+        display, all_sizes, multiline = renderer._format_sizes_for_display(product)
         
         assert display == 'M'
         assert all_sizes == ['M']
+        assert multiline == 'M'
     
     def test_get_product_data_basic(self):
         """Test getting basic product data"""
@@ -210,7 +216,7 @@ class TestTemplateRenderer:
         product.images = []
         product.sizes = []
         
-        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [])):
+        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [], 'None')):
             data = renderer._get_product_data(product)
         
         assert data['name'] == 'Test Product'
@@ -253,7 +259,7 @@ class TestTemplateRenderer:
         product.images = [image1, image2]
         product.sizes = []
         
-        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [])):
+        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [], 'None')):
             data = renderer._get_product_data(product)
         
         assert data['images'] == 'image1.jpg, image2.jpg'
@@ -279,7 +285,7 @@ class TestTemplateRenderer:
         product.images = None
         product.sizes = []
         
-        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [])):
+        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [], 'None')):
             data = renderer._get_product_data(product)
         
         assert data['name'] == 'Unnamed Product'
@@ -314,7 +320,7 @@ class TestTemplateRenderer:
         mock_schema_instance.sell_price = 35.50
         mock_product_schema.model_validate.return_value = mock_schema_instance
         
-        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [])):
+        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [], 'None')):
             data = renderer._get_product_data(product)
         
         assert data['sell_price'] == '35.5'
@@ -344,7 +350,7 @@ class TestTemplateRenderer:
         # Mock ProductSchema to raise exception
         mock_product_schema.model_validate.side_effect = Exception("Schema error")
         
-        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [])):
+        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [], 'None')):
             data = renderer._get_product_data(product)
         
         assert data['sell_price'] == '0'
@@ -721,7 +727,7 @@ class TestTemplateRendererEdgeCases:
         product.images = []
         product.sizes = []
         
-        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [])), \
+        with patch.object(renderer, '_format_sizes_for_display', return_value=('None', [], 'None')), \
              patch('services.template_service.ProductSchema') as mock_schema:
             
             mock_instance = Mock()
@@ -732,3 +738,86 @@ class TestTemplateRendererEdgeCases:
         
         assert data['price'] == '0.0'
         assert data['sell_price'] == '0'
+    
+    def test_sizes_formatting_with_newline_for_combinations(self):
+        """Test that combination sizes get a leading newline in the {sizes} placeholder"""
+        renderer = TemplateRenderer()
+        
+        # Test combination sizes
+        product_with_combinations = Mock(spec=Product)
+        
+        size = Mock(spec=Size)
+        size.size_type = 'combination'
+        size.combination_data = {
+            '32': ['A', 'B'],
+            '34': ['A', 'C']
+        }
+        size.deleted_at = None
+        
+        product_with_combinations.sizes = [size]
+        product_with_combinations.id = 123
+        product_with_combinations.name = 'Test Bra'
+        product_with_combinations.sku = 'BRA-001'
+        product_with_combinations.price = 49.99
+        product_with_combinations.currency = 'USD'
+        product_with_combinations.availability = 'In Stock'
+        product_with_combinations.color = 'Black'
+        product_with_combinations.composition = 'Cotton'
+        product_with_combinations.item = 'Bra'
+        product_with_combinations.store = 'Store'
+        product_with_combinations.comment = 'Comment'
+        product_with_combinations.product_url = 'http://example.com'
+        product_with_combinations.created_at = datetime.now()
+        product_with_combinations.images = []
+        
+        with patch('services.template_service.ProductSchema') as mock_schema:
+            mock_instance = Mock()
+            mock_instance.sell_price = 59.99
+            mock_schema.model_validate.return_value = mock_instance
+            
+            data = renderer._get_product_data(product_with_combinations)
+        
+        # Should have leading newline for combination sizes
+        assert data['sizes'].startswith('\n')
+        assert '32: A, B' in data['sizes']
+        assert '34: A, C' in data['sizes']
+        
+        # Test simple sizes - should NOT have leading newline
+        product_with_simple = Mock(spec=Product)
+        
+        size1 = Mock(spec=Size)
+        size1.size_type = 'simple'
+        size1.size_value = 'M'
+        size1.deleted_at = None
+        
+        size2 = Mock(spec=Size)
+        size2.size_type = 'simple'
+        size2.size_value = 'L'
+        size2.deleted_at = None
+        
+        product_with_simple.sizes = [size1, size2]
+        product_with_simple.id = 124
+        product_with_simple.name = 'Test Shirt'
+        product_with_simple.sku = 'SHIRT-001'
+        product_with_simple.price = 29.99
+        product_with_simple.currency = 'USD'
+        product_with_simple.availability = 'In Stock'
+        product_with_simple.color = 'Blue'
+        product_with_simple.composition = 'Cotton'
+        product_with_simple.item = 'Shirt'
+        product_with_simple.store = 'Store'
+        product_with_simple.comment = 'Comment'
+        product_with_simple.product_url = 'http://example.com'
+        product_with_simple.created_at = datetime.now()
+        product_with_simple.images = []
+        
+        with patch('services.template_service.ProductSchema') as mock_schema:
+            mock_instance = Mock()
+            mock_instance.sell_price = 35.99
+            mock_schema.model_validate.return_value = mock_instance
+            
+            data = renderer._get_product_data(product_with_simple)
+        
+        # Should NOT have leading newline for simple sizes
+        assert not data['sizes'].startswith('\n')
+        assert data['sizes'] == 'M, L'
