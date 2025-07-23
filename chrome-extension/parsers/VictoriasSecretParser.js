@@ -57,12 +57,27 @@ class VictoriasSecretParser extends BaseParser {
   }
 
   /**
-   * Извлечение SKU из JSON-LD
+   * Извлечение SKU из JSON-LD с fallback на генерацию из genericId + colorCode
    */
   extractSku(jsonData) {
+    console.log('VS extractSku called with jsonData:', jsonData);
+    
+    // Приоритет 1: Пытаемся получить SKU из JSON-LD
     if (jsonData && jsonData.sku) {
+      console.log('VS extractSku from JSON-LD:', jsonData.sku);
       return jsonData.sku;
     }
+    
+    console.log('VS extractSku: No SKU in JSON-LD, trying fallback generation...');
+    
+    // Приоритет 2: Fallback - генерируем SKU из generic ID + color code
+    const generatedSku = this.generateSkuFromGenericIdAndColor();
+    if (generatedSku) {
+      console.log('VS extractSku: Generated SKU from generic ID + color:', generatedSku);
+      return generatedSku;
+    }
+    
+    console.log('VS extractSku: No SKU found in any method');
     return null;
   }
 
@@ -129,19 +144,118 @@ class VictoriasSecretParser extends BaseParser {
     const element = document.querySelector(this.config.selectors.composition);
     if (!element) return null;
     
-    // Try to find the actual composition text within the prism-danger-zone span > p
+    // Use only span p selector without fallback logic
     const compositionText = element.querySelector('span p');
     if (compositionText) {
       return compositionText.textContent?.trim() || null;
     }
     
-    // Fallback: try to find any p tag with composition text
-    const pTag = element.querySelector('p');
-    if (pTag) {
-      return pTag.textContent?.trim() || null;
-    }
-    
     return null;
+  }
+
+  /**
+   * Генерация SKU из generic ID и color code (fallback метод)
+   */
+  generateSkuFromGenericIdAndColor() {
+    console.log('VS generateSkuFromGenericIdAndColor: Starting SKU generation from generic ID + color...');
+    
+    try {
+      // Извлекаем generic ID из data-testid="ProductInfo-genericId"
+      const genericIdElement = document.querySelector(this.config.selectors.genericId);
+      if (!genericIdElement) {
+        console.log('VS generateSkuFromGenericIdAndColor: No generic ID element found');
+        return null;
+      }
+      
+      const genericId = genericIdElement.textContent?.trim();
+      if (!genericId) {
+        console.log('VS generateSkuFromGenericIdAndColor: Generic ID element is empty');
+        return null;
+      }
+      
+      console.log(`VS generateSkuFromGenericIdAndColor: Found generic ID: ${genericId}`);
+      
+      // Извлекаем color code из выбранного color radio div data-value attribute
+      const colorCode = this.extractColorCodeFromSelection();
+      if (!colorCode) {
+        console.log('VS generateSkuFromGenericIdAndColor: No color code found');
+        return null;
+      }
+      
+      console.log(`VS generateSkuFromGenericIdAndColor: Found color code: ${colorCode}`);
+      
+      // Создаем combined SKU в формате {id}-{color_code}
+      const generatedSku = `${genericId}-${colorCode}`;
+      console.log(`VS generateSkuFromGenericIdAndColor: Generated SKU: ${generatedSku}`);
+      
+      return generatedSku;
+      
+    } catch (error) {
+      console.error('VS generateSkuFromGenericIdAndColor: Error generating SKU:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Извлечение color code из выбранного color radio элемента
+   */
+  extractColorCodeFromSelection() {
+    console.log('VS extractColorCodeFromSelection: Looking for selected color...');
+    
+    try {
+      // Ищем все color radio элементы
+      const colorRadioElements = document.querySelectorAll('input[type="radio"][name*="color"], div[role="radio"][data-value]');
+      
+      for (const element of colorRadioElements) {
+        // Проверяем input radio элементы
+        if (element.tagName === 'INPUT' && element.checked) {
+          const dataValue = element.getAttribute('data-value');
+          if (dataValue) {
+            console.log(`VS extractColorCodeFromSelection: Found selected input color code: ${dataValue}`);
+            return dataValue;
+          }
+        }
+        
+        // Проверяем div[role="radio"] элементы (альтернативный подход)
+        if (element.tagName === 'DIV' && element.getAttribute('aria-checked') === 'true') {
+          const dataValue = element.getAttribute('data-value');
+          if (dataValue) {
+            console.log(`VS extractColorCodeFromSelection: Found selected div color code: ${dataValue}`);
+            return dataValue;
+          }
+        }
+      }
+      
+      // Fallback: ищем по визуальным признакам выбранного цвета
+      const selectedColorElements = document.querySelectorAll('[class*="selected"], [class*="active"], [aria-selected="true"]');
+      for (const element of selectedColorElements) {
+        const dataValue = element.getAttribute('data-value');
+        if (dataValue && dataValue.match(/^\d+$/)) { // Проверяем что это числовой код
+          console.log(`VS extractColorCodeFromSelection: Found color code via visual selection: ${dataValue}`);
+          return dataValue;
+        }
+      }
+      
+      // Дополнительный fallback: ищем в родительских элементах с color-related селекторами
+      const colorContainers = document.querySelectorAll('[class*="color"], [data-testid*="color"], [id*="color"]');
+      for (const container of colorContainers) {
+        const checkedElement = container.querySelector('[checked], [aria-checked="true"], [class*="selected"]');
+        if (checkedElement) {
+          const dataValue = checkedElement.getAttribute('data-value');
+          if (dataValue) {
+            console.log(`VS extractColorCodeFromSelection: Found color code in container: ${dataValue}`);
+            return dataValue;
+          }
+        }
+      }
+      
+      console.log('VS extractColorCodeFromSelection: No color code found in any method');
+      return null;
+      
+    } catch (error) {
+      console.error('VS extractColorCodeFromSelection: Error extracting color code:', error);
+      return null;
+    }
   }
 
   /**
