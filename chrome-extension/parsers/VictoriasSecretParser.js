@@ -127,7 +127,21 @@ class VictoriasSecretParser extends BaseParser {
    */
   extractComposition() {
     const element = document.querySelector(this.config.selectors.composition);
-    return element?.textContent?.trim() || null;
+    if (!element) return null;
+    
+    // Try to find the actual composition text within the prism-danger-zone span > p
+    const compositionText = element.querySelector('span p');
+    if (compositionText) {
+      return compositionText.textContent?.trim() || null;
+    }
+    
+    // Fallback: try to find any p tag with composition text
+    const pTag = element.querySelector('p');
+    if (pTag) {
+      return pTag.textContent?.trim() || null;
+    }
+    
+    return null;
   }
 
   /**
