@@ -97,7 +97,7 @@ class TemplateRenderer:
 
         return invalid_placeholders
 
-    def _format_sizes_for_display(self, product: Product) -> Tuple[str, List[str]]:
+    def _format_sizes_for_display(self, product: Product) -> Tuple[str, List[str], str]:
         """
         Format sizes for display, handling both simple sizes and combinations.
         
@@ -105,14 +105,14 @@ class TemplateRenderer:
             product: Product with sizes
             
         Returns:
-            Tuple of (formatted_display_string, all_sizes_list)
+            Tuple of (formatted_display_string, all_sizes_for_list, multiline_format_string)
         """
         if not product.sizes:
-            return 'None', []
+            return 'None', [], 'None'
 
         active_sizes = [size for size in product.sizes if size.deleted_at is None]
         if not active_sizes:
-            return 'None', []
+            return 'None', [], 'None'
 
         simple_sizes = []
         all_sizes_for_list = []
@@ -157,13 +157,62 @@ class TemplateRenderer:
         else:
             display_str = 'None'
 
-        return display_str, all_sizes_for_list
+        # Create multiline format for Telegram
+        multiline_format = self._create_sizes_multiline(all_sizes_for_list, combinations_found, simple_sizes, active_sizes)
+
+        return display_str, all_sizes_for_list, multiline_format
+
+    def _create_sizes_multiline(self, all_sizes_for_list: List[str], combinations_found: bool, simple_sizes: List[str], active_sizes) -> str:
+        """
+        Create a multiline format for sizes with each band size on a new line.
+        
+        Args:
+            all_sizes_for_list: List of all individual sizes
+            combinations_found: Whether combination sizes were found
+            simple_sizes: List of simple sizes
+            active_sizes: List of active size objects
+            
+        Returns:
+            Formatted string with each band size on a new line
+        """
+        if not all_sizes_for_list:
+            return 'None'
+
+        # For combination sizes (like bras), create multiline format
+        if combinations_found:
+            # Extract combination data from active sizes
+            combination_data = {}
+            for size in active_sizes:
+                if size.size_type == 'combination' and size.combination_data:
+                    combination_data.update(size.combination_data)
+
+            if combination_data:
+                # Sort size1 values (band sizes)
+                sorted_size1 = sorted(combination_data.keys(), key=lambda x: (int(x) if x.isdigit() else float('inf'), x))
+
+                # Create lines for each band size
+                lines = []
+                for size1 in sorted_size1:
+                    size2_options = combination_data.get(size1, [])
+                    if size2_options:
+                        # Sort cup sizes and join with commas
+                        sorted_cups = sorted(size2_options)
+                        cups_str = ', '.join(sorted_cups)
+                        lines.append(f"{size1}: {cups_str}")
+
+                return '\n'.join(lines)
+
+        # Fallback: return comma-separated list (should not be reached due to logic in _get_product_data)
+        return ', '.join(all_sizes_for_list)
 
     def _get_product_data(self, product: Product) -> Dict[str, Any]:
         """Extract product data for placeholder replacement"""
         # Get sizes and format for display
-        sizes_display, all_sizes_list = self._format_sizes_for_display(product)
-        sizes_str = ', '.join(all_sizes_list) if all_sizes_list else 'None'
+        sizes_display, all_sizes_for_list, sizes_multiline = self._format_sizes_for_display(product)
+
+        # Use multiline format only for combination sizes, comma-separated for simple sizes
+        has_combinations = any(size.size_type == 'combination' for size in product.sizes if size.deleted_at is None) if product.sizes else False
+        sizes_str = sizes_multiline if has_combinations else (', '.join(all_sizes_for_list) if all_sizes_for_list else 'None')
 
         # Get images as comma-separated string
         images = [image.url for image in product.images if image.deleted_at is None] if product.images else []
@@ -180,7 +229,7 @@ class TemplateRenderer:
         except Exception as e:
             logger.warning(f"Failed to create ProductSchema for sell_price calculation: {e}")
             sell_price = None
-        
+
         # Format sell price without unnecessary decimal zeros
         def format_price(price: Optional[float]) -> str:
             if price is None:
@@ -207,7 +256,7 @@ class TemplateRenderer:
             'id': str(product.id),
             'created_at': created_at_str,
             'images_count': str(len(images)),
-            'sizes_count': str(len(all_sizes_list)),
+            'sizes_count': str(len(all_sizes_for_list)),
             'sizes': sizes_str,
             'size': sizes_display,
             'images': images_str,
@@ -227,7 +276,7 @@ class TemplateRenderer:
             'product_id': str(product.id),
             'product_created_at': created_at_str,
             'product_images_count': str(len(images)),
-            'product_sizes_count': str(len(all_sizes_list)),
+            'product_sizes_count': str(len(all_sizes_for_list)),
             'product_sizes': sizes_str,
             'product_size': sizes_display,
             'product_images': images_str,
