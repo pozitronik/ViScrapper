@@ -682,7 +682,7 @@ class TemplateManager {
      * Set up event delegation for template action buttons to prevent memory leaks
      */
     setupTemplateActionsEventDelegation() {
-        const container = document.getElementById('template-list');
+        const container = document.getElementById('template-list-container');
         if (!container) return;
         
         // Remove existing event listener if any
