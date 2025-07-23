@@ -212,7 +212,11 @@ class TemplateRenderer:
 
         # Use multiline format only for combination sizes, comma-separated for simple sizes
         has_combinations = any(size.size_type == 'combination' for size in product.sizes if size.deleted_at is None) if product.sizes else False
-        sizes_str = sizes_multiline if has_combinations else (', '.join(all_sizes_for_list) if all_sizes_for_list else 'None')
+        if has_combinations:
+            # Add line break before combination sizes for proper template formatting
+            sizes_str = f"\n{sizes_multiline}" if sizes_multiline != 'None' else 'None'
+        else:
+            sizes_str = ', '.join(all_sizes_for_list) if all_sizes_for_list else 'None'
 
         # Get images as comma-separated string
         images = [image.url for image in product.images if image.deleted_at is None] if product.images else []
