@@ -128,6 +128,7 @@ async def list_products(
         currency: Optional[str] = Query(None, description="Currency filter"),
         availability: Optional[str] = Query(None, description="Availability filter"),
         color: Optional[str] = Query(None, description="Color filter"),
+        store: Optional[str] = Query(None, description="Store filter"),
         has_images: Optional[bool] = Query(None, description="Filter by image presence"),
         has_sizes: Optional[bool] = Query(None, description="Filter by size presence"),
         telegram_posted: Optional[bool] = Query(None, description="Filter by telegram posting status"),
@@ -145,7 +146,7 @@ async def list_products(
     Supports filtering by:
     - Search query (name, SKU, URL, comment)
     - Price range
-    - Currency, availability, color
+    - Currency, availability, color, store
     - Presence of images/sizes
     - Telegram posting status
     - Creation date range
@@ -158,7 +159,7 @@ async def list_products(
     filters = SearchFilters(
         q=q, min_price=min_price, max_price=max_price,
         currency=currency, availability=availability, color=color,
-        store=None, has_images=has_images, has_sizes=has_sizes, telegram_posted=telegram_posted,
+        store=store, has_images=has_images, has_sizes=has_sizes, telegram_posted=telegram_posted,
         created_after=created_after, created_before=created_before
     )
 
