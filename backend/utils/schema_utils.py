@@ -1,4 +1,4 @@
-ё"""
+"""
 Utility functions for schema conversion and validation.
 """
 from typing import Dict, Any, Optional
