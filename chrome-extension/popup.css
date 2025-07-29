@@ -126,7 +126,7 @@ main > *:last-child {
 .status-card {
   background: white;
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 10px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   border-left: 4px solid #ccc;
   transition: border-color 0.3s ease;
