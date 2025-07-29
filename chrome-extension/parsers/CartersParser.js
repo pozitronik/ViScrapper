@@ -19,8 +19,9 @@ class CartersParser extends BaseParser {
         sizeContainer: '[data-testid*="size"], [aria-label*="size"], .size-selector, .size-options',
         sizeButtons: 'button[aria-label*="size"], button[data-value], [role="radio"]',
         
-        // Image selectors
-        productImages: 'img[src*="productimages"], img[alt*="product"], .product-image img',
+        // Image selectors - only inside image gallery
+        imageGallery: '[data-testid="image-gallery"]',
+        productImages: 'img', // Will be used within imageGallery context
         imageContainer: '.product-images, [data-testid*="image"]',
         
         // Additional info
@@ -207,21 +208,32 @@ class CartersParser extends BaseParser {
   extractImages() {
     console.log('Carter\'s extractImages called');
     
-    // Приоритет 1: Из DOM элементов (всегда актуальны)
-    const imageElements = document.querySelectorAll(this.config.selectors.productImages);
+    // Приоритет 1: Из DOM элементов внутри image gallery (всегда актуальны)
+    const imageGallery = document.querySelector(this.config.selectors.imageGallery);
     const imageUrls = [];
     
-    imageElements.forEach(img => {
-      if (img.src && img.src.startsWith('http')) {
-        const enhancedUrl = this.enhanceImageQuality(img.src);
-        if (!imageUrls.includes(enhancedUrl)) {
-          imageUrls.push(enhancedUrl);
+    if (imageGallery) {
+      console.log('Found Carter\'s image gallery:', imageGallery);
+      
+      // Ищем все изображения только внутри галереи
+      const imageElements = imageGallery.querySelectorAll(this.config.selectors.productImages);
+      console.log(`Found ${imageElements.length} images in gallery`);
+      
+      imageElements.forEach(img => {
+        if (img.src && img.src.startsWith('http')) {
+          const enhancedUrl = this.enhanceImageQuality(img.src);
+          if (!imageUrls.includes(enhancedUrl)) {
+            imageUrls.push(enhancedUrl);
+            console.log('Added image:', enhancedUrl);
+          }
         }
-      }
-    });
+      });
+    } else {
+      console.log('Carter\'s image gallery not found');
+    }
     
     if (imageUrls.length > 0) {
-      console.log('Carter\'s images from DOM:', imageUrls);
+      console.log('Carter\'s images from DOM gallery:', imageUrls);
       return imageUrls;
     }
     
@@ -234,12 +246,12 @@ class CartersParser extends BaseParser {
       }).filter(url => url && url.startsWith('http'));
       
       if (images.length > 0) {
-        console.log('Carter\'s images from JSON-LD:', images);
+        console.log('Carter\'s images from JSON-LD fallback:', images);
         return images;
       }
     }
     
-    console.log('Carter\'s images not found');
+    console.log('Carter\'s images not found in gallery or JSON-LD');
     return [];
   }
 
@@ -629,6 +641,20 @@ class CartersParser extends BaseParser {
   extractBrand() {
     // Carter's всегда имеет бренд Carter's
     return "Carter's";
+  }
+
+  /**
+   * Парсинг JSON-LD с предупреждениями вместо ошибок (переопределение базового метода)
+   */
+  parseJsonLd(jsonLdText) {
+    try {
+      return JSON.parse(jsonLdText);
+    } catch (error) {
+      // Для Carter's используем предупреждение вместо ошибки, 
+      // так как JSON-LD может устаревать при SPA навигации
+      console.warn('Carter\'s JSON-LD parsing failed (expected with SPA navigation):', error.message);
+      return null;
+    }
   }
 }
 
