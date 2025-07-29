@@ -154,6 +154,14 @@ main {
   gap: 16px;
 }
 
+/* Status Section with Refresh Button */
+.status-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
 /* Status Card */
 .status-card {
   background: white;
@@ -162,7 +170,41 @@ main {
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   border-left: 4px solid #ccc;
   transition: border-color 0.3s ease;
-  flex-shrink: 0;
+  flex: 1; /* Take remaining space */
+}
+
+/* Manual Refresh Button */
+.refresh-btn {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  height: fit-content;
+}
+
+.refresh-btn:hover {
+  background-color: #f8f9fa;
+  border-color: #ccc;
+  transform: scale(1.05);
+}
+
+.refresh-btn:active {
+  transform: scale(0.95);
+}
+
+.refresh-btn.loading {
+  animation: spin 1s linear infinite;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .status-card.new {

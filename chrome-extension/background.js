@@ -117,6 +117,32 @@ chrome.commands.onCommand.addListener((command) => {
   });
 });
 
+// Обработка изменений URL для автоматического обновления панели
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Проверяем только изменения URL
+  if (!changeInfo.url) {
+    return;
+  }
+  
+  console.log('URL changed to:', changeInfo.url);
+  
+  // Проверяем, что это поддерживаемый сайт
+  const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
+  const isSupportedSite = supportedSites.some(site => changeInfo.url.includes(site));
+  
+  if (isSupportedSite) {
+    console.log('Supported site URL change detected, sending refresh signal');
+    
+    // Отправляем сообщение в side panel о необходимости обновления
+    chrome.runtime.sendMessage({
+      action: 'autoRefreshPanel',
+      url: changeInfo.url,
+      tabId: tabId
+    }).catch(error => {
+      console.log('Could not send auto-refresh message (panel probably not open)');
+    });
+  }
+});
 
 // Обработка сообщений от popup, side panel и content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

@@ -91,7 +91,7 @@ async function saveSettings() {
 }
 
 /**
- * Настройка слушателя сообщений от content script
+ * Настройка слушателя сообщений от content script и background script
  */
 function setupMessageListener() {
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -101,8 +101,72 @@ function setupMessageListener() {
       handleProductChangedNotification(request.reason);
     } else if (request.action === 'updateColorInPopup') {
       handleColorUpdate(request.color);
+    } else if (request.action === 'autoRefreshPanel') {
+      handleAutoRefresh(request.url);
     }
   });
+}
+
+/**
+ * Обработка автоматического обновления при смене URL
+ */
+function handleAutoRefresh(newUrl) {
+  console.log('Auto-refresh triggered for URL:', newUrl);
+  
+  // Показываем индикацию обновления
+  showRefreshIndication('Обновление данных...');
+  
+  // Перезагружаем данные
+  refreshPanelData();
+}
+
+/**
+ * Показать индикацию обновления
+ */
+function showRefreshIndication(message) {
+  const statusCard = document.getElementById('productStatus');
+  const refreshBtn = document.getElementById('manualRefreshBtn');
+  
+  // Добавляем класс загрузки к кнопке
+  refreshBtn.classList.add('loading');
+  
+  // Показываем сообщение в статусе
+  statusCard.classList.remove('new', 'existing', 'unavailable', 'warning');
+  statusCard.classList.add('warning');
+  statusCard.innerHTML = `<div class="status-text">${message}</div>`;
+}
+
+/**
+ * Убрать индикацию обновления
+ */
+function hideRefreshIndication() {
+  const refreshBtn = document.getElementById('manualRefreshBtn');
+  refreshBtn.classList.remove('loading');
+}
+
+/**
+ * Перезагрузка данных панели
+ */
+async function refreshPanelData() {
+  try {
+    // Проверяем статус бэкенда
+    await checkBackendStatus();
+    
+    // Загружаем данные продукта
+    await loadProductData();
+    
+  } catch (error) {
+    console.error('Error refreshing panel data:', error);
+    
+    // Показываем ошибку
+    const statusCard = document.getElementById('productStatus');
+    statusCard.classList.remove('new', 'existing', 'unavailable', 'warning');
+    statusCard.classList.add('warning');
+    statusCard.innerHTML = '<div class="status-text">⚠️ Ошибка обновления</div>';
+  } finally {
+    // Убираем индикацию загрузки
+    hideRefreshIndication();
+  }
 }
 
 /**
@@ -577,17 +641,29 @@ function updateProductStatus(data, statusResponse) {
 function setupEventHandlers() {
   const submitBtn = document.getElementById('submitBtn');
   const refreshBtn = document.getElementById('refreshBtn');
+  const manualRefreshBtn = document.getElementById('manualRefreshBtn');
   
   // Кнопка отправки
   submitBtn.addEventListener('click', async () => {
     await handleSubmit();
   });
   
-  // Кнопка обновления
+  // Кнопка обновления страницы (старая)
   refreshBtn.addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       chrome.tabs.reload(tabs[0].id);
     });
+  });
+  
+  // Кнопка ручного обновления данных (новая)
+  manualRefreshBtn.addEventListener('click', () => {
+    console.log('Manual refresh button clicked');
+    
+    // Показываем индикацию обновления
+    showRefreshIndication('Обновление данных...');
+    
+    // Перезагружаем данные
+    refreshPanelData();
   });
   
   
