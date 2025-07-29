@@ -130,10 +130,17 @@ function showRefreshIndication(message) {
   // Добавляем класс загрузки к кнопке
   refreshBtn.classList.add('loading');
   
-  // Показываем сообщение в статусе
+  // Показываем сообщение в статусе, сохраняя структуру
   statusCard.classList.remove('new', 'existing', 'unavailable', 'warning');
   statusCard.classList.add('warning');
-  statusCard.innerHTML = `<div class="status-text">${message}</div>`;
+  
+  // Ищем существующий status-text или создаем новый
+  let statusText = statusCard.querySelector('.status-text');
+  if (!statusText) {
+    statusCard.innerHTML = `<div class="status-text">${message}</div>`;
+  } else {
+    statusText.textContent = message;
+  }
 }
 
 /**
@@ -149,6 +156,28 @@ function hideRefreshIndication() {
  */
 async function refreshPanelData() {
   try {
+    // Обновляем брендинг для нового сайта
+    await setupSiteBranding();
+    
+    // Сбрасываем состояние приложения
+    if (viParserCore) {
+      viParserCore.appState = {
+        backendStatus: 'checking',
+        productData: null,
+        productStatus: null,
+        isDataValid: false
+      };
+    }
+    
+    // Очищаем превью данных
+    const previewContainer = document.getElementById('dataPreview');
+    previewContainer.innerHTML = '<div class="loading">Загрузка данных...</div>';
+    previewContainer.style.display = 'block';
+    
+    // Показываем поле комментария
+    const commentContainer = document.querySelector('.comment-container');
+    commentContainer.style.display = 'block';
+    
     // Проверяем статус бэкенда
     await checkBackendStatus();
     

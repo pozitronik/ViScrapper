@@ -171,6 +171,9 @@ main {
   border-left: 4px solid #ccc;
   transition: border-color 0.3s ease;
   flex: 1; /* Take remaining space */
+  min-height: 40px; /* Prevent height jumping */
+  display: flex;
+  align-items: center;
 }
 
 /* Manual Refresh Button */
@@ -183,7 +186,12 @@ main {
   font-size: 16px;
   transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  height: fit-content;
+  width: 40px; /* Fixed width */
+  height: 40px; /* Fixed height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .refresh-btn:hover {
@@ -657,7 +665,13 @@ textarea:focus {
   text-align: center;
   color: #666;
   font-style: italic;
-  padding: 40px 20px;
+  padding: 20px;
+}
+
+/* Loading state in status card - no extra padding */
+.status-card .loading {
+  padding: 0;
+  text-align: left;
 }
 
 /* Scrollbar */
