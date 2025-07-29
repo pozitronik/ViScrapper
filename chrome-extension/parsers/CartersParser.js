@@ -15,9 +15,10 @@ class CartersParser extends BaseParser {
         productTitle: 'h1, [data-testid*="title"], .product-title',
         productPrice: '[data-testid*="price"], .price, .product-price',
         
-        // Size selectors (may need refinement)
-        sizeContainer: '[data-testid*="size"], [aria-label*="size"], .size-selector, .size-options',
-        sizeButtons: 'button[aria-label*="size"], button[data-value], [role="radio"]',
+        // Size selectors - based on Carter's DOM structure
+        sizeContainer: '.size-buttons-holder',
+        sizeButtons: '.size-buttons button.chakra-button',
+        sizeButtonSpan: 'span', // Size text is inside span
         
         // Image selectors - only inside image gallery
         imageGallery: '[data-testid="image-gallery"]',
@@ -284,19 +285,46 @@ class CartersParser extends BaseParser {
       
       // Извлечение размеров из кнопок
       const sizes = [];
-      sizeButtons.forEach(button => {
-        // Проверяем, что кнопка не отключена
-        if (button.disabled || button.getAttribute('aria-disabled') === 'true') {
+      sizeButtons.forEach((button, index) => {
+        console.log(`Processing button ${index + 1}:`, button);
+        
+        // Проверяем, что кнопка не отключена (игнорируем disabled)
+        if (button.disabled || button.getAttribute('disabled') === '' || button.getAttribute('disabled') === 'true') {
+          console.log(`Button ${index + 1} is disabled, skipping`);
           return;
         }
         
-        // Пытаемся получить размер из разных атрибутов
-        let size = button.getAttribute('data-value') || 
-                  button.getAttribute('aria-label') || 
-                  button.textContent?.trim();
+        // Извлекаем размер из span элемента внутри кнопки
+        const sizeSpan = button.querySelector(this.config.selectors.sizeButtonSpan);
+        let size = null;
+        
+        if (sizeSpan) {
+          size = sizeSpan.textContent?.trim();
+          console.log(`Found size in span: "${size}"`);
+        } else {
+          // Запасной способ: из aria-label или текста кнопки
+          const ariaLabel = button.getAttribute('aria-label');
+          if (ariaLabel) {
+            // Извлекаем размер из aria-label (например, "Clickable Baby size 24 months" -> "24M")
+            const sizeMatch = ariaLabel.match(/size\s+([\w\-]+)(?:\s+months?)?/i);
+            if (sizeMatch) {
+              size = sizeMatch[1];
+              // Преобразуем "24 months" в "24M"
+              if (ariaLabel.includes('months')) {
+                size = size + 'M';
+              }
+            }
+          }
+          console.log(`Extracted size from aria-label: "${size}"`);
+        }
         
         if (size && !sizes.includes(size)) {
           sizes.push(size);
+          console.log(`Added size: "${size}"`);
+        } else if (size) {
+          console.log(`Size "${size}" already exists, skipping`);
+        } else {
+          console.log(`No size found for button ${index + 1}`);
         }
       });
       
