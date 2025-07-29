@@ -1,22 +1,28 @@
 /**
- * Popup Script для VIParser Chrome Extension
- * Управляет интерфейсом popup и коммуникацией с background script
+ * Side Panel Script для VIParser Chrome Extension
+ * Управляет интерфейсом side panel и коммуникацией с background script
+ * Использует общую логику из VIParserCore
  */
 
-// Состояние приложения
-let appState = {
-  backendStatus: 'checking',
-  productData: null,
-  productStatus: null,
-  isDataValid: false
+// Инициализация core и состояния
+let viParserCore = null;
+let currentSettings = {
+  autoOpenSidePanel: true,
+  defaultMode: 'sidepanel'
 };
 
-// Инициализация popup
+// Инициализация side panel
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('VIParser popup initialized');
+  console.log('VIParser side panel initialized');
+  
+  // Создаем экземпляр core
+  viParserCore = new VIParserCore();
   
   // Определение сайта и применение брендинга
   await setupSiteBranding();
+  
+  // Загрузка настроек
+  await loadSettings();
   
   // Инициализация элементов
   initializeElements();
@@ -32,9 +38,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Настройка обработчиков событий
   setupEventHandlers();
-  
-  // Запуск наблюдателя за цветом для Carter's
-  await startColorObserverIfNeeded();
 });
 
 /**
@@ -42,18 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
  */
 async function setupSiteBranding() {
   try {
-    // Получаем информацию о текущей активной вкладке
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    if (!tab || !tab.url) {
-      console.warn('Could not get current tab URL for branding');
-      return;
-    }
-    
-    console.log('Setting up branding for URL:', tab.url);
-    
-    // Определяем сайт на основе URL
-    const siteInfo = detectSite(tab.url);
+    const siteInfo = await viParserCore.detectSite();
     console.log('Detected site:', siteInfo);
     
     // Применяем соответствующий класс к body
@@ -73,30 +65,29 @@ async function setupSiteBranding() {
 }
 
 /**
- * Определение сайта на основе URL
+ * Загрузка настроек из chrome.storage
  */
-function detectSite(url) {
-  if (url.includes('victoriassecret.com')) {
-    return {
-      id: 'victoriassecret',
-      name: "Victoria's Secret"
-    };
-  } else if (url.includes('calvinklein.us')) {
-    return {
-      id: 'calvinklein', 
-      name: 'Calvin Klein'
-    };
-  } else if (url.includes('carters.com')) {
-    return {
-      id: 'carters',
-      name: "Carter's"
-    };
-  } else {
-    // Дефолтный сайт
-    return {
-      id: 'victoriassecret',
-      name: 'VIParser'
-    };
+async function loadSettings() {
+  try {
+    const stored = await chrome.storage.sync.get(['viparserSettings']);
+    if (stored.viparserSettings) {
+      currentSettings = { ...currentSettings, ...stored.viparserSettings };
+    }
+    console.log('Loaded settings:', currentSettings);
+  } catch (error) {
+    console.error('Error loading settings:', error);
+  }
+}
+
+/**
+ * Сохранение настроек в chrome.storage
+ */
+async function saveSettings() {
+  try {
+    await chrome.storage.sync.set({ viparserSettings: currentSettings });
+    console.log('Settings saved:', currentSettings);
+  } catch (error) {
+    console.error('Error saving settings:', error);
   }
 }
 
@@ -105,7 +96,7 @@ function detectSite(url) {
  */
 function setupMessageListener() {
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('Popup received message:', request);
+    console.log('Side panel received message:', request);
     
     if (request.action === 'productChanged') {
       handleProductChangedNotification(request.reason);
@@ -150,8 +141,8 @@ function handleColorUpdate(color) {
   console.log('Received color update:', color);
   
   // Обновляем данные в состоянии приложения
-  if (appState.productData) {
-    appState.productData.color = color;
+  if (viParserCore.appState.productData) {
+    viParserCore.appState.productData.color = color;
   }
   
   // Находим элемент цвета в превью и обновляем его
@@ -159,7 +150,7 @@ function handleColorUpdate(color) {
   if (colorValueElement) {
     colorValueElement.textContent = color;
     colorValueElement.classList.remove('missing');
-    console.log('Updated color in popup preview:', color);
+    console.log('Updated color in side panel preview:', color);
   }
 }
 
@@ -188,12 +179,7 @@ async function checkBackendStatus() {
   updateBackendStatus('checking', 'Проверка...');
   
   try {
-    const response = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: 'checkBackendStatus' },
-        resolve
-      );
-    });
+    const response = await viParserCore.checkBackendStatus();
     
     if (response.status === 'available') {
       updateBackendStatus('available', 'Доступен');
@@ -201,11 +187,9 @@ async function checkBackendStatus() {
       updateBackendStatus('unavailable', 'Недоступен');
     }
     
-    appState.backendStatus = response.status;
   } catch (error) {
     console.error('Error checking backend status:', error);
     updateBackendStatus('unavailable', 'Ошибка');
-    appState.backendStatus = 'unavailable';
   }
 }
 
@@ -239,13 +223,8 @@ async function loadProductData() {
     previewContainer.innerHTML = '<div class="loading">Загрузка данных...</div>';
     productStatus.innerHTML = '<div class="loading">Проверка статуса...</div>';
     
-    // Запрос данных через background script
-    const response = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: 'getTabData' },
-        resolve
-      );
-    });
+    // Запрос данных через core
+    const response = await viParserCore.loadProductData();
     
     if (response.error) {
       // Скрываем превью данных при ошибке
@@ -270,9 +249,6 @@ async function loadProductData() {
       
       return;
     }
-    
-    appState.productData = response.data;
-    appState.isDataValid = response.isValid;
     
     // Обновляем интерфейс
     updateDataPreview(response.data);
@@ -303,7 +279,7 @@ async function loadProductData() {
 }
 
 /**
- * Обновление предварительного просмотра данных
+ * Обновление предварительного просмотра данных (оптимизировано для side panel)
  */
 function updateDataPreview(data) {
   const container = document.getElementById('dataPreview');
@@ -317,24 +293,7 @@ function updateDataPreview(data) {
     { key: 'name', label: 'Название' },
     { key: 'sku', label: 'SKU' },
     { key: 'price', label: 'Цена', format: (value, data) => value ? `${value} ${data.currency || 'USD'}` : value },
-    { key: 'availability', label: 'Доступность', format: (value) => {
-      const availabilityMap = {
-        'InStock': '✅ В наличии',
-        'OutOfStock': '❌ Нет в наличии', 
-        'SoldOut': '❌ Распродано',
-        'PreOrder': '⏰ Предзаказ',
-        'PreSale': '⏰ Предпродажа',
-        'BackOrder': '📦 Под заказ',
-        'MadeToOrder': '🔨 Изготовление на заказ',
-        'Discontinued': '🚫 Снят с производства',
-        'InStoreOnly': '🏪 Только в магазине',
-        'OnlineOnly': '💻 Только онлайн',
-        'LimitedAvailability': '⚠️ Ограниченная доступность',
-        'Reserved': '🔒 Зарезервировано'
-      };
-      
-      return availabilityMap[value] || `❓ ${value}`;
-    }},
+    { key: 'availability', label: 'Доступность', format: (value) => viParserCore.formatAvailability(value) },
     { key: 'color', label: 'Цвет' },
     { key: 'composition', label: 'Состав' },
     { key: 'item', label: 'Артикул' }
@@ -361,7 +320,7 @@ function updateDataPreview(data) {
     `;
   });
   
-  // Добавляем изображения
+  // Добавляем изображения (с увеличенным размером для side panel)
   if (data.all_image_urls && data.all_image_urls.length > 0) {
     html += `
       <div class="data-item">
@@ -397,7 +356,6 @@ function updateDataPreview(data) {
   
   // Добавляем размеры
   if (data.available_sizes && data.available_sizes.length > 0) {
-    // Простые размеры (одноразмерный продукт)
     html += `
       <div class="data-item">
         <div class="data-label">Размеры:</div>
@@ -405,7 +363,6 @@ function updateDataPreview(data) {
       </div>
     `;
   } else if (data.size_combinations && data.size_combinations.combinations) {
-    // Комбинации размеров (двухразмерный продукт) - показываем все без сокращений
     const combinations = data.size_combinations.combinations;
     let combinationDisplay = '';
     
@@ -450,7 +407,7 @@ function setupImageSelection() {
   const imageSelectors = document.querySelectorAll('.image-selector');
   
   if (checkboxes.length === 0) {
-    return; // Нет изображений для настройки
+    return;
   }
   
   // Обработчики для чекбоксов
@@ -458,7 +415,7 @@ function setupImageSelection() {
     checkbox.addEventListener('change', handleImageSelectionChange);
   });
   
-  // Обработчики для кликов по изображениям (для удобства)
+  // Обработчики для кликов по изображениям
   imageSelectors.forEach(selector => {
     selector.addEventListener('click', (e) => {
       if (e.target.type !== 'checkbox') {
@@ -537,36 +494,12 @@ function deselectAllImages() {
 }
 
 /**
- * Получить выбранные изображения
- */
-function getSelectedImages() {
-  const checkboxes = document.querySelectorAll('.image-checkbox:checked');
-  const selectedImages = [];
-  
-  checkboxes.forEach(checkbox => {
-    const index = parseInt(checkbox.dataset.index);
-    if (appState.productData && appState.productData.all_image_urls && appState.productData.all_image_urls[index]) {
-      selectedImages.push(appState.productData.all_image_urls[index]);
-    }
-  });
-  
-  return selectedImages;
-}
-
-/**
  * Проверка статуса продукта на бэкенде
  */
 async function checkProductStatus(data) {
   try {
-    const response = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: 'checkProductStatus', data: data },
-        resolve
-      );
-    });
-    
+    const response = await viParserCore.checkProductStatus(data);
     updateProductStatus(null, response);
-    appState.productStatus = response.status;
     
   } catch (error) {
     console.error('Error checking product status:', error);
@@ -600,7 +533,6 @@ function updateProductStatus(data, statusResponse) {
     case 'existing':
       statusClass = 'existing';
       
-      // Делаем саму надпись ссылкой, если есть URL продукта
       if (statusResponse.productUrl) {
         statusText = `<a href="${statusResponse.productUrl}" target="_blank" style="color: #4ade80; text-decoration: underline;">${statusResponse.message || '✅ Продукт уже существует'}</a>`;
       } else {
@@ -646,7 +578,8 @@ function updateProductStatus(data, statusResponse) {
 function setupEventHandlers() {
   const submitBtn = document.getElementById('submitBtn');
   const refreshBtn = document.getElementById('refreshBtn');
-  const switchToSidePanelBtn = document.getElementById('switchToSidePanelBtn');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const switchModeBtn = document.getElementById('switchModeBtn');
   
   // Кнопка отправки
   submitBtn.addEventListener('click', async () => {
@@ -657,38 +590,104 @@ function setupEventHandlers() {
   refreshBtn.addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       chrome.tabs.reload(tabs[0].id);
-      window.close();
     });
   });
   
-  // Кнопка переключения на side panel
-  switchToSidePanelBtn.addEventListener('click', () => {
-    // Получаем текущую активную вкладку
-    chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
-      try {
-        // Обновляем настройки на sidepanel
-        const settings = { defaultMode: 'sidepanel', autoOpenSidePanel: true };
-        await chrome.storage.sync.set({ viparserSettings: settings });
-        
-        // Уведомляем background script об изменении настроек
-        chrome.runtime.sendMessage({
-          action: 'settingsChanged',
-          settings: settings
-        });
-        
-        // Открываем side panel
-        chrome.sidePanel.open({ tabId: tab.id });
-        
-        // Закрываем popup
-        window.close();
-      } catch (error) {
-        console.error('Error switching to side panel:', error);
-      }
-    });
+  // Кнопка настроек
+  settingsBtn.addEventListener('click', () => {
+    showSettingsModal();
   });
+  
+  // Кнопка переключения режима
+  switchModeBtn.addEventListener('click', async () => {
+    // Переключаемся на popup режим
+    currentSettings.defaultMode = 'popup';
+    await saveSettings();
+    
+    // Уведомляем background script об изменении настроек
+    chrome.runtime.sendMessage({
+      action: 'settingsChanged',
+      settings: currentSettings
+    });
+    
+    // Открываем popup (side panel останется, но по умолчанию будет использоваться popup)
+    chrome.action.openPopup();
+  });
+  
+  // Настройка modal
+  setupSettingsModal();
   
   // Обновление состояния кнопок
   updateButtons();
+}
+
+/**
+ * Настройка модального окна настроек
+ */
+function setupSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  const closeBtn = document.getElementById('closeSettingsBtn');
+  const saveBtn = document.getElementById('saveSettingsBtn');
+  
+  // Закрытие модального окна
+  closeBtn.addEventListener('click', () => {
+    hideSettingsModal();
+  });
+  
+  // Клик вне модального окна
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      hideSettingsModal();
+    }
+  });
+  
+  // Сохранение настроек
+  saveBtn.addEventListener('click', () => {
+    saveSettingsFromModal();
+  });
+}
+
+/**
+ * Показать модальное окно настроек
+ */
+function showSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  const autoOpenCheckbox = document.getElementById('autoOpenSidePanel');
+  const defaultModeSelect = document.getElementById('defaultMode');
+  
+  // Заpolняем текущие настройки
+  autoOpenCheckbox.checked = currentSettings.autoOpenSidePanel;
+  defaultModeSelect.value = currentSettings.defaultMode;
+  
+  modal.style.display = 'flex';
+}
+
+/**
+ * Скрыть модальное окно настроек
+ */
+function hideSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  modal.style.display = 'none';
+}
+
+/**
+ * Сохранить настройки из модального окна
+ */
+async function saveSettingsFromModal() {
+  const autoOpenCheckbox = document.getElementById('autoOpenSidePanel');
+  const defaultModeSelect = document.getElementById('defaultMode');
+  
+  currentSettings.autoOpenSidePanel = autoOpenCheckbox.checked;
+  currentSettings.defaultMode = defaultModeSelect.value;
+  
+  await saveSettings();
+  hideSettingsModal();
+  
+  // Уведомляем background script об изменении настроек
+  chrome.runtime.sendMessage({
+    action: 'settingsChanged',
+    settings: currentSettings
+  });
 }
 
 /**
@@ -707,28 +706,9 @@ function updateButtons() {
   submitBtn.style.display = 'block';
   refreshBtn.style.display = 'none';
   
-  const canSubmit = appState.backendStatus === 'available' && 
-                   appState.productData && 
-                   appState.isDataValid;
-  
+  const canSubmit = viParserCore.canSubmitData();
   submitBtn.disabled = !canSubmit;
-  
-  if (!canSubmit) {
-    if (appState.backendStatus !== 'available') {
-      submitBtn.textContent = 'Бэкенд недоступен';
-    } else if (!appState.productData) {
-      submitBtn.textContent = 'Нет данных';
-    } else if (!appState.isDataValid) {
-      submitBtn.textContent = 'Данные некорректны';
-    }
-  } else {
-    // Проверяем статус продукта для определения текста кнопки
-    if (appState.productStatus === 'existing') {
-      submitBtn.textContent = 'Повторно отправить';
-    } else {
-      submitBtn.textContent = 'Отправить данные';
-    }
-  }
+  submitBtn.textContent = viParserCore.getSubmitButtonText();
 }
 
 /**
@@ -743,22 +723,17 @@ async function handleSubmit() {
   
   try {
     // Получаем только выбранные изображения
-    const selectedImages = getSelectedImages();
+    const selectedImages = viParserCore.getSelectedImages();
     
     const dataToSend = {
-      ...appState.productData,
+      ...viParserCore.appState.productData,
       comment: commentInput.value.trim(),
       // Заменяем все изображения на выбранные
       all_image_urls: selectedImages,
       main_image_url: selectedImages.length > 0 ? selectedImages[0] : null
     };
     
-    const response = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: 'sendToBackend', data: dataToSend },
-        resolve
-      );
-    });
+    const response = await viParserCore.submitData(dataToSend);
     
     if (response.error) {
       // Показываем ошибку в кнопке
@@ -781,12 +756,16 @@ async function handleSubmit() {
         submitBtn.textContent = 'Данные отправлены!';
       }
       
-      setTimeout(() => window.close(), 2000);
+      // Сбрасываем форму через 2 секунды
+      setTimeout(() => {
+        updateButtons();
+        commentInput.value = '';
+        commentInput.dispatchEvent(new Event('input')); // Trigger char counter update
+      }, 2000);
     }
     
   } catch (error) {
     console.error('Error submitting data:', error);
-    // Показываем ошибку в кнопке
     submitBtn.textContent = 'Ошибка отправки - попробуйте снова';
     setTimeout(() => {
       updateButtons();
@@ -814,19 +793,14 @@ async function startColorObserverIfNeeded() {
       return;
     }
     
-    // Проверяем, нужен ли observer (если цвет отсутствует или "Отсутствует")
+    // Проверяем, нужен ли observer (если цвет отсутствует)
     const colorValueElement = document.querySelector('[data-field="color"] .data-value');
     if (colorValueElement) {
       const colorText = colorValueElement.textContent.trim();
       if (colorText === 'Отсутствует' || colorText === '' || colorValueElement.classList.contains('missing')) {
         console.log('Color is missing, starting observer...');
         
-        const response = await new Promise((resolve) => {
-          chrome.runtime.sendMessage(
-            { action: 'startColorObserver' },
-            resolve
-          );
-        });
+        const response = await viParserCore.startColorObserver();
         
         if (response.success) {
           console.log('Color observer started successfully');
@@ -843,29 +817,14 @@ async function startColorObserverIfNeeded() {
   }
 }
 
-/**
- * Остановка наблюдателя за цветом при закрытии popup
- */
-async function stopColorObserver() {
-  try {
-    const response = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: 'stopColorObserver' },
-        resolve
-      );
-    });
-    
-    if (response.success) {
-      console.log('Color observer stopped successfully');
-    }
-    
-  } catch (error) {
-    console.error('Error stopping color observer:', error);
-  }
-}
-
-// Останавливаем observer при закрытии popup
+// Останавливаем observer при закрытии side panel
 window.addEventListener('beforeunload', () => {
-  stopColorObserver();
+  if (viParserCore) {
+    viParserCore.stopColorObserver();
+  }
 });
 
+// После загрузки данных запускаем color observer если нужно
+document.addEventListener('dataLoaded', () => {
+  startColorObserverIfNeeded();
+});

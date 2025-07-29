@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIParser Side Panel</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body class="site-victoriassecret">
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-content">
+        <h1 id="appTitle">VIParser</h1>
+        <div class="header-controls">
+          <button id="settingsBtn" class="icon-btn" title="Настройки">⚙️</button>
+          <button id="switchModeBtn" class="icon-btn" title="Переключить на popup">🔄</button>
+        </div>
+      </div>
+      <div class="status-indicator" id="backendStatus">
+        <div class="status-dot checking"></div>
+        <span class="status-text">Проверка...</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- Product Status Card -->
+      <div class="status-card warning" id="productStatus">
+        <div class="status-text">Проверяется...</div>
+      </div>
+
+      <!-- Data Preview -->
+      <div class="preview-container" id="dataPreview">
+        <div class="loading">Загрузка данных...</div>
+      </div>
+
+      <!-- Comment Section -->
+      <div class="comment-container">
+        <label for="commentInput" class="comment-label">Комментарий:</label>
+        <div class="comment-input-wrapper">
+          <textarea 
+            id="commentInput" 
+            placeholder="Добавьте комментарий к продукту (необязательно)..."
+            maxlength="500"
+            rows="4"></textarea>
+          <div class="char-counter">
+            <span id="charCount">0</span>/500
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        <button id="refreshBtn" class="btn btn-secondary" style="display: none;">
+          🔄 Обновить страницу
+        </button>
+        <button id="submitBtn" class="btn btn-primary">
+          Отправить данные
+        </button>
+      </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Настройки VIParser</h3>
+          <button id="closeSettingsBtn" class="close-btn">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="setting-group">
+            <label class="setting-label">
+              <input type="checkbox" id="autoOpenSidePanel" />
+              <span>Автоматически открывать боковую панель на поддерживаемых сайтах</span>
+            </label>
+          </div>
+          <div class="setting-group">
+            <label class="setting-label">
+              <span>Режим по умолчанию:</span>
+              <select id="defaultMode">
+                <option value="popup">Popup</option>
+                <option value="sidepanel">Side Panel</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="saveSettingsBtn" class="btn btn-primary">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="shared/viparser-core.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

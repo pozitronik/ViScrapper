@@ -6,7 +6,9 @@
   
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "sidePanel",
+    "contextMenus"
   ],
   
   "host_permissions": [
@@ -49,6 +51,27 @@
   
   "background": {
     "service_worker": "background.js"
+  },
+  
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  
+  "commands": {
+    "open-side-panel": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+V",
+        "mac": "Command+Shift+V"
+      },
+      "description": "Open VIParser side panel"
+    },
+    "toggle-viparser": {
+      "suggested_key": {
+        "default": "Alt+V",
+        "mac": "Alt+V"
+      },
+      "description": "Toggle VIParser (popup or side panel)"
+    }
   },
   
   "web_accessible_resources": [

@@ -1,14 +1,163 @@
 /**
  * Background Service Worker для VIParser Chrome Extension
- * Обрабатывает коммуникацию между popup и content script
+ * Обрабатывает коммуникацию между popup, side panel и content script
+ * Поддерживает двойной режим работы (popup + side panel)
  */
 
+// Глобальные настройки расширения
+let extensionSettings = {
+  autoOpenSidePanel: true,
+  defaultMode: 'sidepanel'
+};
+
 // Обработка установки расширения
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   console.log('VIParser extension installed');
+  
+  // Загружаем настройки
+  await loadSettings();
+  
+  // Создаем контекстное меню
+  createContextMenu();
 });
 
-// Обработка сообщений от popup и content script
+// Загрузка настроек из storage
+async function loadSettings() {
+  try {
+    const stored = await chrome.storage.sync.get(['viparserSettings']);
+    if (stored.viparserSettings) {
+      extensionSettings = { ...extensionSettings, ...stored.viparserSettings };
+    }
+    console.log('Background loaded settings:', extensionSettings);
+  } catch (error) {
+    console.error('Error loading settings in background:', error);
+  }
+}
+
+// Создание контекстного меню
+function createContextMenu() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: 'openVIParser',
+      title: 'Открыть VIParser',
+      contexts: ['page'],
+      documentUrlPatterns: [
+        'https://www.victoriassecret.com/*',
+        'https://www.calvinklein.us/*',
+        'https://www.carters.com/*'
+      ]
+    });
+    
+    chrome.contextMenus.create({
+      id: 'openSidePanel',
+      title: 'Открыть боковую панель',
+      contexts: ['page'],
+      documentUrlPatterns: [
+        'https://www.victoriassecret.com/*',
+        'https://www.calvinklein.us/*',
+        'https://www.carters.com/*'
+      ]
+    });
+    
+    chrome.contextMenus.create({
+      id: 'openPopup',
+      title: 'Открыть popup',
+      contexts: ['page'],
+      documentUrlPatterns: [
+        'https://www.victoriassecret.com/*',
+        'https://www.calvinklein.us/*',
+        'https://www.carters.com/*'
+      ]
+    });
+  });
+}
+
+// Обработка кликов по контекстному меню
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  switch (info.menuItemId) {
+    case 'openVIParser':
+      if (extensionSettings.defaultMode === 'sidepanel') {
+        chrome.sidePanel.open({ tabId: tab.id });
+      } else {
+        chrome.action.openPopup();
+      }
+      break;
+    case 'openSidePanel':
+      chrome.sidePanel.open({ tabId: tab.id });
+      break;
+    case 'openPopup':
+      chrome.action.openPopup();
+      break;
+  }
+});
+
+// Обработка клавиатурных сочетаний
+chrome.commands.onCommand.addListener((command) => {
+  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    // Проверяем, что мы на поддерживаемом сайте
+    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
+    const isSupportedSite = supportedSites.some(site => tab.url && tab.url.includes(site));
+    
+    if (!isSupportedSite) {
+      console.log('Keyboard shortcut ignored - not on supported site');
+      return;
+    }
+    
+    switch (command) {
+      case 'open-side-panel':
+        chrome.sidePanel.open({ tabId: tab.id });
+        break;
+      case 'toggle-viparser':
+        if (extensionSettings.defaultMode === 'sidepanel') {
+          chrome.sidePanel.open({ tabId: tab.id });
+        } else {
+          chrome.action.openPopup();
+        }
+        break;
+    }
+  });
+});
+
+// Обработка переключения вкладок для автоматического открытия side panel
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  if (!extensionSettings.autoOpenSidePanel) {
+    return;
+  }
+  
+  // Избегаем async gap - получаем tab info и сразу проверяем URL
+  chrome.tabs.get(activeInfo.tabId, (tab) => {
+    if (chrome.runtime.lastError) {
+      console.log('Could not get tab info for auto-open');
+      return;
+    }
+    
+    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
+    const isSupportedSite = supportedSites.some(site => tab.url && tab.url.includes(site));
+    
+    if (isSupportedSite && extensionSettings.defaultMode === 'sidepanel') {
+      chrome.sidePanel.open({ tabId: tab.id });
+      console.log('Auto-opened side panel for supported site');
+    }
+  });
+});
+
+// Обработка обновления URL вкладки для автоматического открытия side panel
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!extensionSettings.autoOpenSidePanel || !changeInfo.url) {
+    return;
+  }
+  
+  // Избегаем async gap - сразу проверяем URL без await
+  const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
+  const isSupportedSite = supportedSites.some(site => changeInfo.url.includes(site));
+  
+  if (isSupportedSite && extensionSettings.defaultMode === 'sidepanel') {
+    chrome.sidePanel.open({ tabId: tabId });
+    console.log('Auto-opened side panel on URL change to supported site');
+  }
+});
+
+// Обработка сообщений от popup, side panel и content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Background received message:', request);
   
@@ -44,8 +193,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true; // Асинхронный ответ
       
     case 'colorUpdated':
-      // Обновление цвета от content script - пересылаем в popup
+      // Обновление цвета от content script - пересылаем в popup и side panel
       handleColorUpdated(request, sendResponse);
+      return false; // Синхронный ответ
+      
+    case 'settingsChanged':
+      // Обновление настроек от side panel или popup
+      handleSettingsChanged(request.settings, sendResponse);
       return false; // Синхронный ответ
   }
 });
@@ -260,15 +414,30 @@ async function handleStopColorObserver(sendResponse) {
 function handleColorUpdated(request, sendResponse) {
   console.log('Color updated from content script:', request.color);
   
-  // Отправляем обновление в popup, если он открыт
+  // Отправляем обновление в popup и side panel, если они открыты
   try {
     chrome.runtime.sendMessage({
       action: 'updateColorInPopup',
       color: request.color
     });
   } catch (error) {
-    console.log('Could not send color update to popup (probably closed)');
+    console.log('Could not send color update to popup/side panel (probably closed)');
   }
+  
+  sendResponse({ success: true });
+}
+
+/**
+ * Обработка изменения настроек
+ */
+async function handleSettingsChanged(newSettings, sendResponse) {
+  console.log('Settings changed:', newSettings);
+  
+  // Обновляем глобальные настройки
+  extensionSettings = { ...extensionSettings, ...newSettings };
+  
+  // Пересоздаем контекстное меню с новыми настройками
+  createContextMenu();
   
   sendResponse({ success: true });
 }
