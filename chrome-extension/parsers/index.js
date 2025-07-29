@@ -17,6 +17,14 @@ if (typeof VictoriasSecretParser === 'undefined') {
   console.error('VictoriasSecretParser not loaded!');
 }
 
+if (typeof CalvinKleinParser === 'undefined') {
+  console.error('CalvinKleinParser not loaded!');
+}
+
+if (typeof CartersParser === 'undefined') {
+  console.error('CartersParser not loaded!');
+}
+
 if (typeof ParserFactory === 'undefined') {
   console.error('ParserFactory not loaded!');
 }
@@ -28,6 +36,8 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     BaseParser,
     VictoriasSecretParser,
+    CalvinKleinParser,
+    CartersParser,
     ParserFactory
   };
 }

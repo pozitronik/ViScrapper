@@ -7,6 +7,7 @@ class ParserFactory {
   static parsers = new Map([
     ['victoriassecret.com', () => new VictoriasSecretParser()],
     ['calvinklein.us', () => new CalvinKleinParser()],
+    ['carters.com', () => new CartersParser()],
     // Добавлять новые парсеры здесь:
     // ['anothersite.com', () => new AnotherSiteParser()],
   ]);

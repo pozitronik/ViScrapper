@@ -32,6 +32,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // Проверка статуса продукта
       handleCheckProductStatus(request.data, sendResponse);
       return true; // Асинхронный ответ
+      
+    case 'startColorObserver':
+      // Запуск наблюдателя за цветом
+      handleStartColorObserver(sendResponse);
+      return true; // Асинхронный ответ
+      
+    case 'stopColorObserver':
+      // Остановка наблюдателя за цветом
+      handleStopColorObserver(sendResponse);
+      return true; // Асинхронный ответ
+      
+    case 'colorUpdated':
+      // Обновление цвета от content script - пересылаем в popup
+      handleColorUpdated(request, sendResponse);
+      return false; // Синхронный ответ
   }
 });
 
@@ -43,7 +58,7 @@ async function handleGetTabData(sendResponse) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
     // Проверяем, поддерживается ли сайт
-    const supportedSites = ['victoriassecret.com', 'calvinklein.us'];
+    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
     const isSupportedSite = supportedSites.some(site => tab.url.includes(site));
     
     if (!isSupportedSite) {
@@ -199,4 +214,61 @@ async function handleCheckProductStatus(data, sendResponse) {
     console.error('Error checking product status:', error);
     sendResponse({ status: 'error', message: 'Ошибка проверки продукта' });
   }
+}
+
+/**
+ * Запуск наблюдателя за цветом на активной вкладке
+ */
+async function handleStartColorObserver(sendResponse) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    chrome.tabs.sendMessage(tab.id, { action: 'startColorObserver' }, (response) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ error: 'Не удалось запустить наблюдатель за цветом' });
+      } else {
+        sendResponse(response);
+      }
+    });
+  } catch (error) {
+    sendResponse({ error: 'Ошибка при запуске наблюдателя за цветом' });
+  }
+}
+
+/**
+ * Остановка наблюдателя за цветом на активной вкладке
+ */
+async function handleStopColorObserver(sendResponse) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    chrome.tabs.sendMessage(tab.id, { action: 'stopColorObserver' }, (response) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ error: 'Не удалось остановить наблюдатель за цветом' });
+      } else {
+        sendResponse(response);
+      }
+    });
+  } catch (error) {
+    sendResponse({ error: 'Ошибка при остановке наблюдателя за цветом' });
+  }
+}
+
+/**
+ * Обработка обновления цвета от content script
+ */
+function handleColorUpdated(request, sendResponse) {
+  console.log('Color updated from content script:', request.color);
+  
+  // Отправляем обновление в popup, если он открыт
+  try {
+    chrome.runtime.sendMessage({
+      action: 'updateColorInPopup',
+      color: request.color
+    });
+  } catch (error) {
+    console.log('Could not send color update to popup (probably closed)');
+  }
+  
+  sendResponse({ success: true });
 }

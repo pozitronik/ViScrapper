@@ -14,6 +14,7 @@ let extractionInProgress = false;
 let isProductChanged = false;
 let changeTrackingActive = false;
 let mutationObserver = null;
+let colorObserver = null;
 let currentUrl = window.location.href;
 let changeTrackingStartTime = null;
 
@@ -28,6 +29,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     case 'checkPageChanges':
       handleCheckPageChanges(sendResponse);
+      return true;
+      
+    case 'startColorObserver':
+      handleStartColorObserver(sendResponse);
+      return true;
+      
+    case 'stopColorObserver':
+      handleStopColorObserver(sendResponse);
       return true;
       
     default:
@@ -211,11 +220,11 @@ async function extractProductData() {
 
     // Дополнительные поля (если поддерживаются парсером)
     if (typeof currentParser.extractColor === 'function') {
-      productData.color = currentParser.extractColor();
+      productData.color = await currentParser.extractColor();
     }
     
     if (typeof currentParser.extractComposition === 'function') {
-      productData.composition = currentParser.extractComposition();
+      productData.composition = await currentParser.extractComposition();
     }
     
     if (typeof currentParser.extractItem === 'function') {
@@ -362,6 +371,76 @@ function handleCheckPageChanges(sendResponse) {
       console.error('Error checking page changes:', error);
       sendResponse({ needsRefresh: true });
     });
+}
+
+/**
+ * Запуск наблюдателя за цветом
+ */
+function handleStartColorObserver(sendResponse) {
+  try {
+    console.log('Starting color observer...');
+    
+    if (!currentParser || !currentParser.setupColorObserver) {
+      sendResponse({ error: 'Parser does not support color observation' });
+      return;
+    }
+    
+    // Останавливаем предыдущий observer если есть
+    if (colorObserver) {
+      colorObserver.disconnect();
+    }
+    
+    // Создаем callback для обновления popup
+    const colorUpdateCallback = (color) => {
+      console.log('Color detected by observer:', color);
+      
+      // Обновляем сохраненные данные
+      if (currentProductData) {
+        currentProductData.color = color;
+      }
+      
+      // Отправляем обновление в popup
+      try {
+        chrome.runtime.sendMessage({
+          action: 'colorUpdated',
+          color: color
+        });
+      } catch (error) {
+        console.log('Could not send color update to popup (probably closed)');
+      }
+    };
+    
+    // Настраиваем observer
+    colorObserver = currentParser.setupColorObserver(colorUpdateCallback);
+    
+    console.log('Color observer started successfully');
+    sendResponse({ success: true });
+    
+  } catch (error) {
+    console.error('Error starting color observer:', error);
+    sendResponse({ error: 'Failed to start color observer' });
+  }
+}
+
+/**
+ * Остановка наблюдателя за цветом
+ */
+function handleStopColorObserver(sendResponse) {
+  try {
+    console.log('Stopping color observer...');
+    
+    if (colorObserver) {
+      colorObserver.disconnect();
+      colorObserver = null;
+      console.log('Color observer stopped');
+    }
+    
+    sendResponse({ success: true });
+    
+  } catch (error) {
+    console.error('Error stopping color observer:', error);
+    sendResponse({ error: 'Failed to stop color observer' });
+  }
 }
 
 // Инициализация при загрузке страницы
@@ -597,6 +676,17 @@ function handleProductChange(reason) {
   if (changeTrackingStartTime && (Date.now() - changeTrackingStartTime < 2000)) {
     console.log('Ignoring change during initial tracking setup period');
     return;
+  }
+  
+  // Для Carter's: если можем извлечь SKU из URL, не требуем обновления страницы
+  if (currentParser && currentParser.config && currentParser.config.domain === 'carters.com') {
+    const url = window.location.href;
+    const urlMatch = url.match(/\/V_([A-Z0-9]+)$/i);
+    if (urlMatch) {
+      console.log('Carter\'s detected with valid URL SKU pattern - no refresh needed');
+      console.log(`Reason for change: ${reason}, but URL SKU is available`);
+      return; // Не устанавливаем флаг изменения
+    }
   }
   
   if (!isProductChanged) {

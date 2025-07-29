@@ -32,6 +32,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Настройка обработчиков событий
   setupEventHandlers();
+  
+  // Запуск наблюдателя за цветом для Carter's
+  await startColorObserverIfNeeded();
 });
 
 /**
@@ -83,6 +86,11 @@ function detectSite(url) {
       id: 'calvinklein', 
       name: 'Calvin Klein'
     };
+  } else if (url.includes('carters.com')) {
+    return {
+      id: 'carters',
+      name: "Carter's"
+    };
   } else {
     // Дефолтный сайт
     return {
@@ -101,6 +109,8 @@ function setupMessageListener() {
     
     if (request.action === 'productChanged') {
       handleProductChangedNotification(request.reason);
+    } else if (request.action === 'updateColorInPopup') {
+      handleColorUpdate(request.color);
     }
   });
 }
@@ -131,6 +141,26 @@ function handleProductChangedNotification(reason) {
   // Скрываем поле комментария
   const commentContainer = document.querySelector('.comment-container');
   commentContainer.style.display = 'none';
+}
+
+/**
+ * Обработка обновления цвета в реальном времени
+ */
+function handleColorUpdate(color) {
+  console.log('Received color update:', color);
+  
+  // Обновляем данные в состоянии приложения
+  if (appState.productData) {
+    appState.productData.color = color;
+  }
+  
+  // Находим элемент цвета в превью и обновляем его
+  const colorValueElement = document.querySelector('[data-field="color"] .data-value');
+  if (colorValueElement) {
+    colorValueElement.textContent = color;
+    colorValueElement.classList.remove('missing');
+    console.log('Updated color in popup preview:', color);
+  }
 }
 
 /**
@@ -322,7 +352,7 @@ function updateDataPreview(data) {
     }
     
     html += `
-      <div class="data-item">
+      <div class="data-item" data-field="${field.key}">
         <div class="data-label">${field.label}:</div>
         <div class="data-value ${hasValue ? '' : 'missing'}">
           ${displayValue}
@@ -738,4 +768,77 @@ async function handleSubmit() {
     submitBtn.disabled = false;
   }
 }
+
+/**
+ * Запуск наблюдателя за цветом если нужно (для Carter's и если цвет отсутствует)
+ */
+async function startColorObserverIfNeeded() {
+  try {
+    // Получаем информацию о текущей активной вкладке
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab || !tab.url) {
+      return;
+    }
+    
+    // Проверяем, что это Carter's
+    if (!tab.url.includes('carters.com')) {
+      console.log('Not Carter\'s site, skipping color observer');
+      return;
+    }
+    
+    // Проверяем, нужен ли observer (если цвет отсутствует или "Отсутствует")
+    const colorValueElement = document.querySelector('[data-field="color"] .data-value');
+    if (colorValueElement) {
+      const colorText = colorValueElement.textContent.trim();
+      if (colorText === 'Отсутствует' || colorText === '' || colorValueElement.classList.contains('missing')) {
+        console.log('Color is missing, starting observer...');
+        
+        const response = await new Promise((resolve) => {
+          chrome.runtime.sendMessage(
+            { action: 'startColorObserver' },
+            resolve
+          );
+        });
+        
+        if (response.success) {
+          console.log('Color observer started successfully');
+        } else {
+          console.log('Failed to start color observer:', response.error);
+        }
+      } else {
+        console.log('Color already available:', colorText);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error starting color observer:', error);
+  }
+}
+
+/**
+ * Остановка наблюдателя за цветом при закрытии popup
+ */
+async function stopColorObserver() {
+  try {
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        { action: 'stopColorObserver' },
+        resolve
+      );
+    });
+    
+    if (response.success) {
+      console.log('Color observer stopped successfully');
+    }
+    
+  } catch (error) {
+    console.error('Error stopping color observer:', error);
+  }
+}
+
+// Останавливаем observer при закрытии popup
+window.addEventListener('beforeunload', () => {
+  stopColorObserver();
+});
 

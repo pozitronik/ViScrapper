@@ -46,6 +46,10 @@ body.site-calvinklein h1 {
   color: #D2B48C; /* Calvin Klein beige */
 }
 
+body.site-carters h1 {
+  color: #179DCA; /* Carter's blue */
+}
+
 body.site-victoriassecret .btn-primary {
   background-color: #FF69B4;
   border-color: #FF69B4;
@@ -56,6 +60,11 @@ body.site-calvinklein .btn-primary {
   border-color: #D2B48C;
 }
 
+body.site-carters .btn-primary {
+  background-color: #179DCA;
+  border-color: #179DCA;
+}
+
 body.site-victoriassecret .btn-primary:hover {
   background-color: #E05A9B;
   border-color: #E05A9B;
@@ -64,6 +73,11 @@ body.site-victoriassecret .btn-primary:hover {
 body.site-calvinklein .btn-primary:hover {
   background-color: #C4A47C;
   border-color: #C4A47C;
+}
+
+body.site-carters .btn-primary:hover {
+  background-color: #1489B8;
+  border-color: #1489B8;
 }
 
 .status-indicator {

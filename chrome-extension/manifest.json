@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VIParser - Multi-Site Product Parser",
-  "version": "2.3.0",
-  "description": "Автоматический парсер продуктов с Victoria's Secret и Calvin Klein для VIParser",
+  "version": "2.4.0",
+  "description": "Автоматический парсер продуктов с Victoria's Secret, Calvin Klein и Carter's для VIParser",
   
   "permissions": [
     "activeTab",
@@ -12,6 +12,7 @@
   "host_permissions": [
     "https://www.victoriassecret.com/*",
     "https://www.calvinklein.us/*",
+    "https://www.carters.com/*",
     "http://localhost:8000/*"
   ],
   
@@ -19,12 +20,14 @@
     {
       "matches": [
         "https://www.victoriassecret.com/*",
-        "https://www.calvinklein.us/*"
+        "https://www.calvinklein.us/*",
+        "https://www.carters.com/*"
       ],
       "js": [
         "parsers/BaseParser.js",
         "parsers/VictoriasSecretParser.js",
         "parsers/CalvinKleinParser.js",
+        "parsers/CartersParser.js",
         "parsers/ParserFactory.js",
         "parsers/index.js",
         "content.js"
@@ -53,7 +56,8 @@
       "resources": ["icons/*"],
       "matches": [
         "https://www.victoriassecret.com/*",
-        "https://www.calvinklein.us/*"
+        "https://www.calvinklein.us/*",
+        "https://www.carters.com/*"
       ]
     }
   ]
