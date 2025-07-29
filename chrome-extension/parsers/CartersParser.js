@@ -542,28 +542,7 @@ class CartersParser extends BaseParser {
     console.log('Carter\'s extractComposition called');
     
     try {
-      // Ищем кнопку "Fabric & Care"
-      const fabricCareButton = document.querySelector(this.config.selectors.fabricCareButton);
-      
-      if (!fabricCareButton) {
-        console.log('Fabric & Care button not found');
-        return null;
-      }
-      
-      // Проверяем, раскрыт ли аккордеон
-      const isExpanded = fabricCareButton.getAttribute('aria-expanded') === 'true';
-      
-      if (!isExpanded) {
-        console.log('Fabric & Care accordion is collapsed, trying to expand...');
-        // Пытаемся раскрыть аккордеон
-        fabricCareButton.click();
-        
-        // Даем время на раскрытие
-        await new Promise(resolve => setTimeout(resolve, 300));
-      } else {
-        console.log('Fabric & Care accordion is already expanded');
-      }
-      
+      // Извлекаем состав напрямую из DOM (данные всегда присутствуют)
       return this.extractCompositionFromPanel();
       
     } catch (error) {
@@ -573,19 +552,18 @@ class CartersParser extends BaseParser {
   }
 
   /**
-   * Извлечение состава из раскрытой панели
+   * Извлечение состава из DOM (без клика по аккордеону)
    */
   extractCompositionFromPanel() {
     try {
-      // Ищем все видимые панели аккордеона
-      const allPanels = document.querySelectorAll('[id*="accordion-panel"]:not([style*="display: none"])');
+      console.log('Extracting composition directly from DOM...');
       
-      if (allPanels.length === 0) {
-        console.log('No visible accordion panels found');
-        return null;
-      }
+      // Ищем все панели аккордеона (включая скрытые, так как данные всегда присутствуют)
+      const allPanels = document.querySelectorAll('[id*="accordion-panel"]');
       
-      // Ищем панель с Fabric & Care (по кнопке-триггеру)
+      console.log(`Found ${allPanels.length} accordion panels`);
+      
+      // Способ 1: Ищем панель с Fabric & Care по кнопке-триггеру
       const fabricCareButton = document.querySelector(this.config.selectors.fabricCareButton);
       let fabricCarePanel = null;
       
@@ -593,19 +571,21 @@ class CartersParser extends BaseParser {
         const panelId = fabricCareButton.getAttribute('aria-controls');
         if (panelId) {
           fabricCarePanel = document.getElementById(panelId);
+          console.log('Found Fabric & Care panel by aria-controls:', panelId);
         }
       }
       
-      // Если не нашли по aria-controls, пробуем другие способы
+      // Способ 2: Если не нашли по aria-controls, ищем по содержимому
       if (!fabricCarePanel) {
-        // Ищем панель, содержащую состав (с процентами)
+        console.log('Searching for Fabric & Care panel by composition content...');
         for (const panel of allPanels) {
           const compositionItems = panel.querySelectorAll('ul li');
           for (const item of compositionItems) {
             const text = item.textContent?.trim();
+            // Ищем текст с процентами (признак состава)
             if (text && text.match(/\d+%/)) {
               fabricCarePanel = panel;
-              console.log('Found Fabric & Care panel by composition match');
+              console.log('Found Fabric & Care panel by composition match:', text);
               break;
             }
           }
@@ -614,22 +594,24 @@ class CartersParser extends BaseParser {
       }
       
       if (!fabricCarePanel) {
-        console.log('Fabric & Care panel not found');
+        console.log('Fabric & Care panel not found in any accordion');
         return null;
       }
       
-      // Ищем первый элемент с составом (с процентами)
+      // Извлекаем состав из найденной панели
       const compositionItems = fabricCarePanel.querySelectorAll('ul li');
+      console.log(`Found ${compositionItems.length} items in Fabric & Care panel`);
+      
+      // Приоритет: ищем элемент с процентами
       for (const item of compositionItems) {
         const text = item.textContent?.trim();
-        // Ищем строку с процентами (например, "60% cotton, 40% polyester")
         if (text && text.match(/\d+%/)) {
-          console.log('Carter\'s composition found:', text);
+          console.log('Carter\'s composition found with percentages:', text);
           return text;
         }
       }
       
-      // Если не нашли с процентами, берем первый элемент списка
+      // Fallback: берем первый элемент списка
       const firstListItem = fabricCarePanel.querySelector('ul li:first-child');
       if (firstListItem) {
         const composition = firstListItem.textContent?.trim();
@@ -641,7 +623,7 @@ class CartersParser extends BaseParser {
       return null;
       
     } catch (error) {
-      console.error('Error extracting composition from panel:', error);
+      console.error('Error extracting composition from DOM:', error);
       return null;
     }
   }
