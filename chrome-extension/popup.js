@@ -646,7 +646,6 @@ function updateProductStatus(data, statusResponse) {
 function setupEventHandlers() {
   const submitBtn = document.getElementById('submitBtn');
   const refreshBtn = document.getElementById('refreshBtn');
-  const switchToSidePanelBtn = document.getElementById('switchToSidePanelBtn');
   
   // Кнопка отправки
   submitBtn.addEventListener('click', async () => {
@@ -661,31 +660,6 @@ function setupEventHandlers() {
     });
   });
   
-  // Кнопка переключения на side panel
-  switchToSidePanelBtn.addEventListener('click', () => {
-    // Получаем текущую активную вкладку
-    chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
-      try {
-        // Обновляем настройки на sidepanel
-        const settings = { defaultMode: 'sidepanel', autoOpenSidePanel: true };
-        await chrome.storage.sync.set({ viparserSettings: settings });
-        
-        // Уведомляем background script об изменении настроек
-        chrome.runtime.sendMessage({
-          action: 'settingsChanged',
-          settings: settings
-        });
-        
-        // Открываем side panel
-        chrome.sidePanel.open({ tabId: tab.id });
-        
-        // Закрываем popup
-        window.close();
-      } catch (error) {
-        console.error('Error switching to side panel:', error);
-      }
-    });
-  });
   
   // Обновление состояния кнопок
   updateButtons();

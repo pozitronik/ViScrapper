@@ -6,7 +6,6 @@
 
 // Глобальные настройки расширения
 let extensionSettings = {
-  autoOpenSidePanel: true,
   defaultMode: 'sidepanel'
 };
 
@@ -118,44 +117,6 @@ chrome.commands.onCommand.addListener((command) => {
   });
 });
 
-// Обработка переключения вкладок для автоматического открытия side panel
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  if (!extensionSettings.autoOpenSidePanel) {
-    return;
-  }
-  
-  // Избегаем async gap - получаем tab info и сразу проверяем URL
-  chrome.tabs.get(activeInfo.tabId, (tab) => {
-    if (chrome.runtime.lastError) {
-      console.log('Could not get tab info for auto-open');
-      return;
-    }
-    
-    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
-    const isSupportedSite = supportedSites.some(site => tab.url && tab.url.includes(site));
-    
-    if (isSupportedSite && extensionSettings.defaultMode === 'sidepanel') {
-      chrome.sidePanel.open({ tabId: tab.id });
-      console.log('Auto-opened side panel for supported site');
-    }
-  });
-});
-
-// Обработка обновления URL вкладки для автоматического открытия side panel
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (!extensionSettings.autoOpenSidePanel || !changeInfo.url) {
-    return;
-  }
-  
-  // Избегаем async gap - сразу проверяем URL без await
-  const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
-  const isSupportedSite = supportedSites.some(site => changeInfo.url.includes(site));
-  
-  if (isSupportedSite && extensionSettings.defaultMode === 'sidepanel') {
-    chrome.sidePanel.open({ tabId: tabId });
-    console.log('Auto-opened side panel on URL change to supported site');
-  }
-});
 
 // Обработка сообщений от popup, side panel и content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

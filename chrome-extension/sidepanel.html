@@ -12,10 +12,6 @@
     <header>
       <div class="header-content">
         <h1 id="appTitle">VIParser</h1>
-        <div class="header-controls">
-          <button id="settingsBtn" class="icon-btn" title="Настройки">⚙️</button>
-          <button id="switchModeBtn" class="icon-btn" title="Переключить на popup">🔄</button>
-        </div>
       </div>
       <div class="status-indicator" id="backendStatus">
         <div class="status-dot checking"></div>
@@ -60,35 +56,6 @@
       </div>
     </main>
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal" style="display: none;">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Настройки VIParser</h3>
-          <button id="closeSettingsBtn" class="close-btn">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="setting-group">
-            <label class="setting-label">
-              <input type="checkbox" id="autoOpenSidePanel" />
-              <span>Автоматически открывать боковую панель на поддерживаемых сайтах</span>
-            </label>
-          </div>
-          <div class="setting-group">
-            <label class="setting-label">
-              <span>Режим по умолчанию:</span>
-              <select id="defaultMode">
-                <option value="popup">Popup</option>
-                <option value="sidepanel">Side Panel</option>
-              </select>
-            </label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="saveSettingsBtn" class="btn btn-primary">Сохранить</button>
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- Scripts -->

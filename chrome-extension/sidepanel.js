@@ -7,7 +7,6 @@
 // Инициализация core и состояния
 let viParserCore = null;
 let currentSettings = {
-  autoOpenSidePanel: true,
   defaultMode: 'sidepanel'
 };
 
@@ -320,7 +319,7 @@ function updateDataPreview(data) {
     `;
   });
   
-  // Добавляем изображения (с увеличенным размером для side panel)
+  // Добавляем изображения (с уменьшенным размером для компактности)
   if (data.all_image_urls && data.all_image_urls.length > 0) {
     html += `
       <div class="data-item">
@@ -578,8 +577,6 @@ function updateProductStatus(data, statusResponse) {
 function setupEventHandlers() {
   const submitBtn = document.getElementById('submitBtn');
   const refreshBtn = document.getElementById('refreshBtn');
-  const settingsBtn = document.getElementById('settingsBtn');
-  const switchModeBtn = document.getElementById('switchModeBtn');
   
   // Кнопка отправки
   submitBtn.addEventListener('click', async () => {
@@ -593,101 +590,9 @@ function setupEventHandlers() {
     });
   });
   
-  // Кнопка настроек
-  settingsBtn.addEventListener('click', () => {
-    showSettingsModal();
-  });
-  
-  // Кнопка переключения режима
-  switchModeBtn.addEventListener('click', async () => {
-    // Переключаемся на popup режим
-    currentSettings.defaultMode = 'popup';
-    await saveSettings();
-    
-    // Уведомляем background script об изменении настроек
-    chrome.runtime.sendMessage({
-      action: 'settingsChanged',
-      settings: currentSettings
-    });
-    
-    // Открываем popup (side panel останется, но по умолчанию будет использоваться popup)
-    chrome.action.openPopup();
-  });
-  
-  // Настройка modal
-  setupSettingsModal();
   
   // Обновление состояния кнопок
   updateButtons();
-}
-
-/**
- * Настройка модального окна настроек
- */
-function setupSettingsModal() {
-  const modal = document.getElementById('settingsModal');
-  const closeBtn = document.getElementById('closeSettingsBtn');
-  const saveBtn = document.getElementById('saveSettingsBtn');
-  
-  // Закрытие модального окна
-  closeBtn.addEventListener('click', () => {
-    hideSettingsModal();
-  });
-  
-  // Клик вне модального окна
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      hideSettingsModal();
-    }
-  });
-  
-  // Сохранение настроек
-  saveBtn.addEventListener('click', () => {
-    saveSettingsFromModal();
-  });
-}
-
-/**
- * Показать модальное окно настроек
- */
-function showSettingsModal() {
-  const modal = document.getElementById('settingsModal');
-  const autoOpenCheckbox = document.getElementById('autoOpenSidePanel');
-  const defaultModeSelect = document.getElementById('defaultMode');
-  
-  // Заpolняем текущие настройки
-  autoOpenCheckbox.checked = currentSettings.autoOpenSidePanel;
-  defaultModeSelect.value = currentSettings.defaultMode;
-  
-  modal.style.display = 'flex';
-}
-
-/**
- * Скрыть модальное окно настроек
- */
-function hideSettingsModal() {
-  const modal = document.getElementById('settingsModal');
-  modal.style.display = 'none';
-}
-
-/**
- * Сохранить настройки из модального окна
- */
-async function saveSettingsFromModal() {
-  const autoOpenCheckbox = document.getElementById('autoOpenSidePanel');
-  const defaultModeSelect = document.getElementById('defaultMode');
-  
-  currentSettings.autoOpenSidePanel = autoOpenCheckbox.checked;
-  currentSettings.defaultMode = defaultModeSelect.value;
-  
-  await saveSettings();
-  hideSettingsModal();
-  
-  // Уведомляем background script об изменении настроек
-  chrome.runtime.sendMessage({
-    action: 'settingsChanged',
-    settings: currentSettings
-  });
 }
 
 /**
