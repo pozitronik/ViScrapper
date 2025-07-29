@@ -246,6 +246,38 @@ main {
   border-bottom: 1px solid #f0f0f0;
 }
 
+/* Compact: Horizontal layout like popup */
+@media (max-height: 1200px) {
+    .data-item {
+      flex-direction: row;
+      margin-bottom: 6px; /* reduced */
+    }
+    .data-label {
+        min-width: 100px;
+    }
+
+    .image-selection-header {
+        padding: 0!important;
+    }
+
+    .images-preview {
+        grid-template-columns: repeat(auto-fill, minmax(50px, 1fr))!important;
+    }
+}
+
+/* Very compact: Smaller fonts/margins */
+@media (max-height: 900px) {
+    .data-item { margin-bottom: 4px; padding: 0 }
+    .data-label { font-size: 12px; }
+    .data-value { font-size: 13px; }
+}
+
+/* Ultra compact: Minimal spacing */
+@media (max-height: 500px) {
+    .preview-container { padding: 12px; }
+    .data-item { margin-bottom: 2px; }
+}
+
 .data-item:last-child {
   border-bottom: none;
   margin-bottom: 0;
