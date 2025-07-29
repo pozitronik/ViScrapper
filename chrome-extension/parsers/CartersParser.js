@@ -675,6 +675,12 @@ class CartersParser extends BaseParser {
    * Парсинг JSON-LD с предупреждениями вместо ошибок (переопределение базового метода)
    */
   parseJsonLd(jsonLdText) {
+    // Проверяем, что есть что парсить
+    if (!jsonLdText || typeof jsonLdText !== 'string' || jsonLdText.trim() === '') {
+      console.log('Carter\'s JSON-LD content is empty or missing (normal for SPA)');
+      return null;
+    }
+    
     try {
       return JSON.parse(jsonLdText);
     } catch (error) {
