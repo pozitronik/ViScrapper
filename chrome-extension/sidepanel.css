@@ -5,6 +5,11 @@
   box-sizing: border-box;
 }
 
+main {
+    overflow-x: hidden;
+    /* padding-right: 10px; */
+}
+
 body {
   width: 100%;
   min-height: 100vh;
@@ -180,8 +185,8 @@ main {
 .refresh-btn {
   background: white;
   border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: 30px;
+  padding: 8px;
   cursor: pointer;
   font-size: 16px;
   transition: all 0.2s ease;
