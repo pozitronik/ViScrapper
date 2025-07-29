@@ -17,6 +17,8 @@ let mutationObserver = null;
 let colorObserver = null;
 let currentUrl = window.location.href;
 let changeTrackingStartTime = null;
+let initialPageLoadComplete = false;
+let pageInitializedTime = null;
 
 // Обработчик сообщений от background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -453,6 +455,9 @@ if (document.readyState === 'loading') {
 function initialize() {
   console.log('VIParser content script initialized');
   
+  // Отмечаем время инициализации
+  pageInitializedTime = Date.now();
+  
   // Инициализируем парсер
   if (!initializeParser()) {
     console.log('Site not supported, extension will remain inactive');
@@ -543,13 +548,29 @@ function startChangeTracking() {
   
   changeTrackingStartTime = Date.now();
   
-  // 1. Отслеживание изменений JSON-LD (если поддерживается)
+  // Отмечаем, что начальная загрузка страницы завершена
+  setTimeout(() => {
+    initialPageLoadComplete = true;
+    console.log('Initial page load marked as complete');
+  }, 3000); // Даем 3 секунды на завершение всех начальных загрузок
+  
+  // 1. Отслеживание изменений JSON-LD (если поддерживается и необходимо)
   if (currentParser && typeof currentParser.waitForJsonLd === 'function') {
-    setupJsonLdTracking();
+    // Для Carter's отключаем mutation observer - используем URL-based navigation
+    if (currentParser.config && currentParser.config.domain === 'carters.com') {
+      console.log('Carter\'s detected - skipping JSON-LD mutation observer (URL-based navigation)');
+    } else {
+      setupJsonLdTracking();
+    }
   }
   
   // 2. Отслеживание изменений URL
-  setupUrlTracking();
+  // Для Carter's URL изменения нормальны (смена стилей), для других сайтов могут означать проблему
+  if (currentParser.config && currentParser.config.domain === 'carters.com') {
+    console.log('Carter\'s detected - URL changes are normal, minimal URL tracking');
+  } else {
+    setupUrlTracking();
+  }
   
   changeTrackingActive = true;
   console.log('Change tracking activated');
@@ -672,8 +693,20 @@ function handleUrlChange() {
 function handleProductChange(reason) {
   console.log(`Product change detected: ${reason}`);
   
-  // Игнорируем изменения в первые 2 секунды после начала отслеживания
-  if (changeTrackingStartTime && (Date.now() - changeTrackingStartTime < 2000)) {
+  // Игнорируем изменения во время начальной загрузки страницы
+  if (!initialPageLoadComplete) {
+    console.log('Ignoring change during initial page load period');
+    return;
+  }
+  
+  // Игнорируем изменения в первые 5 секунд после инициализации скрипта
+  if (pageInitializedTime && (Date.now() - pageInitializedTime < 5000)) {
+    console.log('Ignoring change during initial script setup period');
+    return;
+  }
+  
+  // Игнорируем изменения в первые 3 секунды после начала отслеживания
+  if (changeTrackingStartTime && (Date.now() - changeTrackingStartTime < 3000)) {
     console.log('Ignoring change during initial tracking setup period');
     return;
   }
@@ -686,6 +719,16 @@ function handleProductChange(reason) {
       console.log('Carter\'s detected with valid URL SKU pattern - no refresh needed');
       console.log(`Reason for change: ${reason}, but URL SKU is available`);
       return; // Не устанавливаем флаг изменения
+    }
+  }
+  
+  // Дополнительная проверка: если это URL изменение на той же странице (anchor/параметры), игнорируем
+  if (reason === 'URL changed') {
+    const currentBasePath = window.location.pathname;
+    const previousBasePath = currentUrl ? new URL(currentUrl).pathname : '';
+    if (currentBasePath === previousBasePath) {
+      console.log('URL change detected but same page path - ignoring');
+      return;
     }
   }
   
@@ -710,6 +753,9 @@ function handleProductChange(reason) {
  * Сброс флага изменения продукта (вызывается при обновлении страницы)
  */
 function resetProductChangeFlag() {
-  console.log('Resetting product change flag');
+  console.log('Resetting product change flag and page load state');
   isProductChanged = false;
+  initialPageLoadComplete = false;
+  pageInitializedTime = null;
+  changeTrackingStartTime = null;
 }

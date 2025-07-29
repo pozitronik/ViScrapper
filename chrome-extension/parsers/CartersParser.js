@@ -73,19 +73,19 @@ class CartersParser extends BaseParser {
    * Извлечение названия продукта
    */
   extractName() {
-    // Приоритет 1: Из JSON-LD
-    const jsonData = this.getJsonLdData();
-    if (jsonData && jsonData.name) {
-      console.log('Carter\'s name from JSON-LD:', jsonData.name);
-      return jsonData.name;
-    }
-    
-    // Приоритет 2: Из DOM элементов
+    // Приоритет 1: Из DOM элементов (всегда актуальны)
     const titleElement = document.querySelector(this.config.selectors.productTitle);
     if (titleElement) {
       const name = titleElement.textContent?.trim();
       console.log('Carter\'s name from DOM:', name);
       return name;
+    }
+    
+    // Приоритет 2: Из JSON-LD (может устареть при SPA навигации)
+    const jsonData = this.getJsonLdData();
+    if (jsonData && jsonData.name) {
+      console.log('Carter\'s name from JSON-LD:', jsonData.name);
+      return jsonData.name;
     }
     
     console.log('Carter\'s name not found');
@@ -132,7 +132,19 @@ class CartersParser extends BaseParser {
   extractPrice(jsonData = null) {
     console.log('Carter\'s extractPrice called');
     
-    // Приоритет 1: Из JSON-LD
+    // Приоритет 1: Из DOM элементов (всегда актуальны)
+    const priceElement = document.querySelector(this.config.selectors.productPrice);
+    if (priceElement) {
+      const priceText = priceElement.textContent.trim();
+      const priceMatch = priceText.match(/[\d,]+\.?\d*/);
+      if (priceMatch) {
+        const price = parseFloat(priceMatch[0].replace(',', ''));
+        console.log('Carter\'s price from DOM:', price);
+        return price;
+      }
+    }
+    
+    // Приоритет 2: Из JSON-LD (может устареть при SPA навигации)
     if (!jsonData) {
       jsonData = this.getJsonLdData();
     }
@@ -145,18 +157,6 @@ class CartersParser extends BaseParser {
       }
     }
     
-    // Приоритет 2: Из DOM элементов
-    const priceElement = document.querySelector(this.config.selectors.productPrice);
-    if (priceElement) {
-      const priceText = priceElement.textContent.trim();
-      const priceMatch = priceText.match(/[\d,]+\.?\d*/);
-      if (priceMatch) {
-        const price = parseFloat(priceMatch[0].replace(',', ''));
-        console.log('Carter\'s price from DOM:', price);
-        return price;
-      }
-    }
-    
     console.log('Carter\'s price not found');
     return null;
   }
@@ -165,16 +165,7 @@ class CartersParser extends BaseParser {
    * Извлечение валюты
    */
   extractCurrency(jsonData = null) {
-    // Приоритет 1: Из JSON-LD
-    if (!jsonData) {
-      jsonData = this.getJsonLdData();
-    }
-    
-    if (jsonData && jsonData.offers && jsonData.offers.priceCurrency) {
-      return jsonData.offers.priceCurrency;
-    }
-    
-    // Carter's is US-based, defaulting to USD
+    // Carter's всегда использует USD
     return 'USD';
   }
 
@@ -182,7 +173,18 @@ class CartersParser extends BaseParser {
    * Извлечение доступности
    */
   extractAvailability(jsonData = null) {
-    // Приоритет 1: Из JSON-LD
+    // Приоритет 1: Из DOM элементов (всегда актуальны)
+    const availabilityElement = document.querySelector(this.config.selectors.availability);
+    if (availabilityElement) {
+      const availabilityText = availabilityElement.textContent.trim().toLowerCase();
+      if (availabilityText.includes('in stock') || availabilityText.includes('available')) {
+        return 'InStock';
+      } else if (availabilityText.includes('out of stock') || availabilityText.includes('unavailable')) {
+        return 'OutOfStock';
+      }
+    }
+    
+    // Приоритет 2: Из JSON-LD (может устареть при SPA навигации)
     if (!jsonData) {
       jsonData = this.getJsonLdData();
     }
@@ -195,17 +197,6 @@ class CartersParser extends BaseParser {
       return availability;
     }
     
-    // Приоритет 2: Из DOM элементов
-    const availabilityElement = document.querySelector(this.config.selectors.availability);
-    if (availabilityElement) {
-      const availabilityText = availabilityElement.textContent.trim().toLowerCase();
-      if (availabilityText.includes('in stock') || availabilityText.includes('available')) {
-        return 'InStock';
-      } else if (availabilityText.includes('out of stock') || availabilityText.includes('unavailable')) {
-        return 'OutOfStock';
-      }
-    }
-    
     // Default to InStock for Carter's
     return 'InStock';
   }
@@ -216,7 +207,25 @@ class CartersParser extends BaseParser {
   extractImages() {
     console.log('Carter\'s extractImages called');
     
-    // Приоритет 1: Из JSON-LD
+    // Приоритет 1: Из DOM элементов (всегда актуальны)
+    const imageElements = document.querySelectorAll(this.config.selectors.productImages);
+    const imageUrls = [];
+    
+    imageElements.forEach(img => {
+      if (img.src && img.src.startsWith('http')) {
+        const enhancedUrl = this.enhanceImageQuality(img.src);
+        if (!imageUrls.includes(enhancedUrl)) {
+          imageUrls.push(enhancedUrl);
+        }
+      }
+    });
+    
+    if (imageUrls.length > 0) {
+      console.log('Carter\'s images from DOM:', imageUrls);
+      return imageUrls;
+    }
+    
+    // Приоритет 2: Из JSON-LD (может устареть при SPA навигации)
     const jsonData = this.getJsonLdData();
     if (jsonData && jsonData.image && Array.isArray(jsonData.image)) {
       const images = jsonData.image.map(img => {
@@ -230,21 +239,8 @@ class CartersParser extends BaseParser {
       }
     }
     
-    // Приоритет 2: Из DOM элементов
-    const imageElements = document.querySelectorAll(this.config.selectors.productImages);
-    const imageUrls = [];
-    
-    imageElements.forEach(img => {
-      if (img.src && img.src.startsWith('http')) {
-        const enhancedUrl = this.enhanceImageQuality(img.src);
-        if (!imageUrls.includes(enhancedUrl)) {
-          imageUrls.push(enhancedUrl);
-        }
-      }
-    });
-    
-    console.log('Carter\'s images from DOM:', imageUrls);
-    return imageUrls;
+    console.log('Carter\'s images not found');
+    return [];
   }
 
   /**
@@ -359,16 +355,16 @@ class CartersParser extends BaseParser {
    * Извлечение описания продукта
    */
   extractDescription() {
-    // Приоритет 1: Из JSON-LD
-    const jsonData = this.getJsonLdData();
-    if (jsonData && jsonData.description) {
-      return jsonData.description;
-    }
-    
-    // Приоритет 2: Из DOM элементов
+    // Приоритет 1: Из DOM элементов (всегда актуальны)
     const descriptionElement = document.querySelector(this.config.selectors.productDescription);
     if (descriptionElement) {
       return descriptionElement.textContent?.trim();
+    }
+    
+    // Приоритет 2: Из JSON-LD (может устареть при SPA навигации)
+    const jsonData = this.getJsonLdData();
+    if (jsonData && jsonData.description) {
+      return jsonData.description;
     }
     
     return null;
@@ -631,13 +627,7 @@ class CartersParser extends BaseParser {
    * Извлечение бренда
    */
   extractBrand() {
-    // Приоритет 1: Из JSON-LD
-    const jsonData = this.getJsonLdData();
-    if (jsonData && jsonData.brand) {
-      return typeof jsonData.brand === 'string' ? jsonData.brand : jsonData.brand.name;
-    }
-    
-    // Carter's brand по умолчанию
+    // Carter's всегда имеет бренд Carter's
     return "Carter's";
   }
 }
