@@ -130,18 +130,18 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
   const isSupportedSite = supportedSites.some(site => changeInfo.url.includes(site));
   
-  if (isSupportedSite) {
-    console.log('Supported site URL change detected, sending refresh signal');
-    
-    // Отправляем сообщение в side panel о необходимости обновления
-    chrome.runtime.sendMessage({
-      action: 'autoRefreshPanel',
-      url: changeInfo.url,
-      tabId: tabId
-    }).catch(error => {
-      console.log('Could not send auto-refresh message (panel probably not open)');
-    });
-  }
+  // Отправляем сообщение в side panel о смене URL (независимо от поддержки)
+  // Панель сама решит, что делать с неподдерживаемыми сайтами
+  console.log(`URL change detected (supported: ${isSupportedSite}), sending refresh signal`);
+  
+  chrome.runtime.sendMessage({
+    action: 'autoRefreshPanel',
+    url: changeInfo.url,
+    tabId: tabId,
+    supported: isSupportedSite
+  }).catch(error => {
+    console.log('Could not send auto-refresh message (panel probably not open)');
+  });
 });
 
 // Обработка сообщений от popup, side panel и content script

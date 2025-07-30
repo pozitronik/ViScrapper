@@ -53,13 +53,21 @@ async function setupSiteBranding() {
     // Обновляем заголовок
     const titleElement = document.getElementById('appTitle');
     if (titleElement) {
-      titleElement.textContent = `VIParser: ${siteInfo.name}`;
+      if (siteInfo.supported) {
+        titleElement.textContent = `VIParser: ${siteInfo.name}`;
+      } else {
+        titleElement.textContent = 'VIParser';
+      }
     }
     
-    console.log(`Applied branding for ${siteInfo.name}`);
+    console.log(`Applied branding for ${siteInfo.name} (supported: ${siteInfo.supported})`);
+    
+    // Возвращаем информацию о поддержке сайта
+    return siteInfo;
     
   } catch (error) {
     console.error('Error setting up site branding:', error);
+    return { id: 'unsupported', name: 'VIParser', supported: false };
   }
 }
 
@@ -152,14 +160,41 @@ function hideRefreshIndication() {
 }
 
 /**
+ * Показать сообщение о неподдерживаемом сайте
+ */
+function showUnsupportedSiteMessage() {
+  const statusCard = document.getElementById('productStatus');
+  
+  // Показываем сообщение о неподдерживаемом сайте
+  statusCard.classList.remove('new', 'existing', 'unavailable', 'warning');
+  statusCard.classList.add('unavailable');
+  
+  // Ищем существующий status-text или создаем новый
+  let statusText = statusCard.querySelector('.status-text');
+  if (!statusText) {
+    statusCard.innerHTML = '<div class="status-text">ℹ️ Сайт не поддерживается</div>';
+  } else {
+    statusText.textContent = 'ℹ️ Сайт не поддерживается';
+  }
+  
+  console.log('Showed unsupported site message');
+}
+
+/**
  * Перезагрузка данных панели
  */
 async function refreshPanelData() {
   try {
     // Обновляем брендинг для нового сайта
-    await setupSiteBranding();
+    const siteInfo = await setupSiteBranding();
     
-    // Сбрасываем состояние приложения
+    // Если сайт не поддерживается, показываем соответствующее сообщение
+    if (!siteInfo.supported) {
+      showUnsupportedSiteMessage();
+      return;
+    }
+    
+    // Сбрасываем состояние приложения для поддерживаемых сайтов
     if (viParserCore) {
       viParserCore.appState = {
         backendStatus: 'checking',

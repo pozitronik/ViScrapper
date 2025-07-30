@@ -86,6 +86,10 @@ body.site-carters h1 {
   color: #179DCA; /* Carter's blue */
 }
 
+body.site-unsupported h1 {
+  color: #666; /* Neutral gray for unsupported sites */
+}
+
 body.site-victoriassecret .btn-primary {
   background-color: #FF69B4;
   border-color: #FF69B4;
