@@ -21,6 +21,7 @@ from crud.product import get_products_not_posted_to_telegram
 from services.websocket_service import websocket_manager
 from services.telegram_post_service import telegram_post_service
 from services.telegram_service import telegram_service
+from services.image_combination_service import combine_product_images
 from utils.logger import get_logger
 from exceptions.base import ValidationException, ExternalServiceException
 
@@ -604,3 +605,110 @@ async def get_unposted_products_count(
     except Exception as e:
         logger.error(f"Error getting unposted products count: {e}")
         raise HTTPException(status_code=500, detail="Failed to get unposted products count")
+
+
+@router.post("/image-preview", response_model=APIResponse[Dict[str, Any]])
+async def generate_combined_image_preview(
+        product_id: int = Query(..., description="Product ID"),
+        template_id: Optional[int] = Query(None, description="Template ID"),
+        db: Session = Depends(get_db)
+) -> APIResponse[Dict[str, Any]]:
+    """
+    Generate combined image preview for a product based on template settings.
+    Returns URLs of the generated preview images.
+    """
+    try:
+        from crud.product import get_product_by_id
+        from crud.template import get_template_by_id
+        import os
+        import uuid
+
+        # Get product
+        product = get_product_by_id(db, product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        # Get active images
+        active_images = [img for img in product.images if not img.deleted_at]
+        if not active_images:
+            return APIResponse(
+                success=True,
+                message="No images to process",
+                data={"preview_urls": [], "will_combine": False, "image_count": 0}
+            )
+
+        # Get template if provided
+        template = None
+        if template_id:
+            template = get_template_by_id(db, template_id)
+            if not template:
+                raise HTTPException(status_code=404, detail="Template not found")
+
+        # Check if images should be combined
+        will_combine = template and template.combine_images and len(active_images) > 1
+
+        if not will_combine:
+            # Return original image URLs
+            preview_urls = [f"/images/{img.url}" for img in active_images]
+            return APIResponse(
+                success=True,
+                message=f"Using {len(preview_urls)} original images",
+                data={
+                    "preview_urls": preview_urls,
+                    "will_combine": False,
+                    "will_optimize": template.optimize_images if template else False,
+                    "image_count": len(preview_urls)
+                }
+            )
+
+        # Generate combined image previews
+        image_paths = []
+        for image in active_images:
+            if image.url:
+                image_path = os.path.join("images", image.url)
+                if os.path.exists(image_path):
+                    image_paths.append(image_path)
+
+        if not image_paths:
+            return APIResponse(
+                success=True,
+                message="No valid image files found",
+                data={"preview_urls": [], "will_combine": False, "image_count": 0}
+            )
+
+        # Generate combined images using the service
+        combined_images_bytes = await combine_product_images(
+            image_paths=image_paths,
+            max_width=template.max_width if template else 1920,
+            max_height=template.max_height if template else 1080,
+            spacing=10
+        )
+
+        # Save combined images and return URLs
+        preview_urls = []
+        for i, image_bytes in enumerate(combined_images_bytes):
+            preview_filename = f"preview_{uuid.uuid4()}.jpg"
+            preview_path = os.path.join("images", preview_filename)
+            
+            with open(preview_path, 'wb') as f:
+                f.write(image_bytes)
+            
+            preview_urls.append(f"/images/{preview_filename}")
+
+        return APIResponse(
+            success=True,
+            message=f"Generated {len(preview_urls)} combined image preview(s)",
+            data={
+                "preview_urls": preview_urls,
+                "will_combine": True,
+                "will_optimize": template.optimize_images if template else False,
+                "image_count": len(preview_urls),
+                "original_count": len(active_images)
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating combined image preview: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate image preview: {str(e)}")
