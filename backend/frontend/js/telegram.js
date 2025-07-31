@@ -487,8 +487,205 @@ class TelegramModal {
             messageContainer.textContent = previewData.rendered_content || 'No content';
         }
 
+        // Render image preview
+        this.renderImagePreview(previewData);
+
         // Update tabs if multiple products
         this.updatePreviewTabs();
+    }
+
+    async renderImagePreview(previewData) {
+        const previewImagesContainer = document.getElementById('preview-images');
+        const imagesGrid = document.getElementById('preview-images-grid');
+        const processingInfo = document.getElementById('image-processing-info');
+
+        // Hide if no photos will be sent
+        if (!previewData.will_send_photos || !previewData.photo_count) {
+            this.hideElement(previewImagesContainer);
+            return;
+        }
+
+        try {
+            // Get product details including images
+            const productId = this.selectedProducts[0];
+            const productResponse = await fetch(`/api/v1/products/${productId}`);
+            
+            if (!productResponse.ok) {
+                console.warn('Could not fetch product details for image preview');
+                this.hideElement(previewImagesContainer);
+                return;
+            }
+
+            const productData = await productResponse.json();
+            const product = productData.data || productData;
+            
+            // Get active images
+            const activeImages = product.images?.filter(img => !img.deleted_at) || [];
+            
+            if (!activeImages.length) {
+                this.hideElement(previewImagesContainer);
+                return;
+            }
+
+            // Get template details to check for image processing
+            let template = null;
+            const templateType = document.querySelector('input[name="template-type"]:checked')?.value;
+            
+            if (templateType === 'template-select') {
+                const selectedTemplateId = document.getElementById('template-select')?.value;
+                if (selectedTemplateId) {
+                    const templateResponse = await fetch(`/api/v1/templates/${selectedTemplateId}`);
+                    if (templateResponse.ok) {
+                        const templateData = await templateResponse.json();
+                        template = templateData.data || templateData;
+                    }
+                }
+            } else if (templateType === 'channel-default') {
+                // Get channel's default template
+                const channelId = this.selectedChannels[0];
+                const channelResponse = await fetch(`/api/v1/telegram/channels/${channelId}`);
+                if (channelResponse.ok) {
+                    const channelData = await channelResponse.json();
+                    const channel = channelData.data || channelData;
+                    if (channel.template_id) {
+                        const templateResponse = await fetch(`/api/v1/templates/${channel.template_id}`);
+                        if (templateResponse.ok) {
+                            const templateData = await templateResponse.json();
+                            template = templateData.data || templateData;
+                        }
+                    }
+                }
+            }
+
+            // Show processing info badges
+            this.renderProcessingInfo(template, processingInfo);
+
+            // Render image grid
+            this.renderImageGrid(activeImages, template, imagesGrid);
+
+            // Show the container
+            this.showElement(previewImagesContainer);
+
+        } catch (error) {
+            console.error('Error rendering image preview:', error);
+            this.hideElement(previewImagesContainer);
+        }
+    }
+
+    renderProcessingInfo(template, container) {
+        if (!template || (!template.combine_images && !template.optimize_images)) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const badges = [];
+        
+        if (template.combine_images) {
+            badges.push('<span class="processing-info-badge combine">🔗 Combined</span>');
+        }
+        
+        if (template.optimize_images) {
+            badges.push('<span class="processing-info-badge optimize">⚡ Optimized</span>');
+        }
+
+        container.innerHTML = badges.join('');
+    }
+
+    renderImageGrid(images, template, container) {
+        if (!images.length) {
+            container.innerHTML = '<p class="text-muted">No images to display</p>';
+            return;
+        }
+
+        const willCombine = template?.combine_images && images.length > 1;
+        const willOptimize = template?.optimize_images;
+
+        if (willCombine) {
+            // Request backend to generate combined image previews
+            this.generateBackendCombinedPreview(images, template, container);
+        } else {
+            // Show individual images
+            container.innerHTML = images.map(image => `
+                <div class="preview-image-item">
+                    <img src="/images/${image.url}" alt="Product image ${image.id}" onerror="this.src='/images/placeholder.jpg'">
+                    ${willOptimize ? '<div class="preview-image-overlay">Optimized</div>' : ''}
+                    ${willOptimize ? '<div class="preview-combined-indicator">⚡</div>' : ''}
+                </div>
+            `).join('');
+        }
+    }
+
+    async generateBackendCombinedPreview(images, template, container) {
+        try {
+            // Show loading state
+            container.innerHTML = `
+                <div class="preview-image-item" style="display: flex; align-items: center; justify-content: center; min-height: 80px;">
+                    <div style="text-align: center; color: #6c757d;">
+                        <div style="margin-bottom: 0.5rem;">⏳</div>
+                        <small>Generating preview...</small>
+                    </div>
+                </div>
+            `;
+
+            const productId = this.selectedProducts[0];
+            const templateId = template?.id;
+
+            // Build query parameters
+            const params = new URLSearchParams({
+                product_id: productId.toString()
+            });
+            
+            if (templateId) {
+                params.append('template_id', templateId.toString());
+            }
+
+            // Request backend to generate combined image preview
+            const response = await fetch(`/api/v1/telegram/image-preview?${params}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to generate preview: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const previewData = data.data;
+
+            if (previewData.will_combine && previewData.preview_urls.length > 0) {
+                // Show combined image previews
+                container.innerHTML = previewData.preview_urls.map((url, index) => `
+                    <div class="preview-image-item">
+                        <img src="${url}" alt="Combined preview ${index + 1}">
+                        <div class="preview-image-overlay">
+                            Combined ${Math.min(4, previewData.original_count - index * 4)} image${Math.min(4, previewData.original_count - index * 4) !== 1 ? 's' : ''}
+                        </div>
+                        <div class="preview-combined-indicator">🔗</div>
+                    </div>
+                `).join('');
+            } else {
+                // Fall back to individual images
+                container.innerHTML = previewData.preview_urls.map((url, index) => `
+                    <div class="preview-image-item">
+                        <img src="${url}" alt="Image ${index + 1}">
+                        ${previewData.will_optimize ? '<div class="preview-image-overlay">Optimized</div>' : ''}
+                        ${previewData.will_optimize ? '<div class="preview-combined-indicator">⚡</div>' : ''}
+                    </div>
+                `).join('');
+            }
+
+        } catch (error) {
+            console.error('Failed to generate backend combined preview:', error);
+            // Show error state
+            container.innerHTML = `
+                <div class="preview-image-item" style="display: flex; align-items: center; justify-content: center; min-height: 80px;">
+                    <div style="text-align: center; color: #dc3545;">
+                        <div style="margin-bottom: 0.5rem;">⚠️</div>
+                        <small>Preview failed</small>
+                    </div>
+                </div>
+            `;
+        }
     }
 
     updatePreviewTabs() {
@@ -516,10 +713,12 @@ class TelegramModal {
         const container = document.getElementById('preview-container');
         const error = document.getElementById('preview-error');
         const loading = document.getElementById('preview-loading');
+        const previewImages = document.getElementById('preview-images');
         
         this.showElement(container);
         this.hideElement(error);
         this.hideElement(loading);
+        this.hideElement(previewImages);
         
         // Set default preview content
         const channelName = document.querySelector('.preview-channel');
