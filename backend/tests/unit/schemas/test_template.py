@@ -154,7 +154,13 @@ class TestMessageTemplateBase:
             "name": "Serialize Test",
             "description": "Test description",
             "template_content": "Content: {content}",
-            "is_active": True
+            "is_active": True,
+            "combine_images": False,
+            "optimize_images": True,
+            "max_file_size_kb": 500,
+            "max_width": 1920,
+            "max_height": 1080,
+            "compression_quality": 80
         }
         
         assert json_data == expected

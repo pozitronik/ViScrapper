@@ -239,6 +239,12 @@ class TestCreateTemplate:
         mock_template_data.description = "A test template"
         mock_template_data.template_content = "Hello {{name}}"
         mock_template_data.is_active = True
+        mock_template_data.combine_images = False
+        mock_template_data.optimize_images = True
+        mock_template_data.max_file_size_kb = 500
+        mock_template_data.max_width = 1920
+        mock_template_data.max_height = 1080
+        mock_template_data.compression_quality = 80
         
         # Mock no existing template
         mock_get_by_name.return_value = None
