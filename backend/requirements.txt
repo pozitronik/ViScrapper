@@ -16,3 +16,4 @@ faker
 requests
 sqlalchemy[mypy]
 pytest-xdist
+Pillow

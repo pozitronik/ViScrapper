@@ -812,6 +812,113 @@
                         </div>
                     </div>
 
+                    <!-- Image Processing Settings Section -->
+                    <div class="form-section image-processing-section">
+                        <h4 class="section-title">🖼️ Image Processing Settings</h4>
+                        <div class="section-description">
+                            Configure how images are processed when posting products with this template.
+                        </div>
+                        
+                        <!-- Image Combination Settings -->
+                        <div class="subsection">
+                            <div class="subsection-header">
+                                <label class="checkbox-option">
+                                    <input type="checkbox" id="template-combine-images" name="combine_images">
+                                    <span class="checkbox-label">🔗 Combine all product images into one image</span>
+                                </label>
+                            </div>
+                            <div class="subsection-description">
+                                When enabled, all product images will be intelligently arranged into a single combined image with optimal spacing and layout.
+                            </div>
+                        </div>
+
+                        <!-- Image Optimization Settings -->
+                        <div class="subsection">
+                            <div class="subsection-header">
+                                <label class="checkbox-option">
+                                    <input type="checkbox" id="template-optimize-images" name="optimize_images" checked>
+                                    <span class="checkbox-label">⚡ Optimize images (compression & resizing)</span>
+                                </label>
+                            </div>
+                            <div class="subsection-description">
+                                Automatically optimize images to meet size and quality requirements for better posting performance.
+                            </div>
+                            
+                            <div id="optimization-settings" class="optimization-settings">
+                                <div class="settings-grid">
+                                    <div class="setting-item">
+                                        <label for="template-max-file-size" class="setting-label">Maximum File Size (KB)</label>
+                                        <input 
+                                            type="number" 
+                                            id="template-max-file-size" 
+                                            name="max_file_size_kb"
+                                            class="form-input"
+                                            min="50" 
+                                            max="5000" 
+                                            value="500"
+                                            placeholder="500"
+                                        >
+                                        <small class="setting-help">Range: 50-5000 KB. Default: 500 KB</small>
+                                    </div>
+
+                                    <div class="setting-item">
+                                        <label for="template-compression-quality" class="setting-label">Compression Quality (%)</label>
+                                        <input 
+                                            type="number" 
+                                            id="template-compression-quality" 
+                                            name="compression_quality"
+                                            class="form-input"
+                                            min="10" 
+                                            max="100" 
+                                            value="80"
+                                            placeholder="80"
+                                        >
+                                        <small class="setting-help">Range: 10-100%. Default: 80%</small>
+                                    </div>
+
+                                    <div class="setting-item">
+                                        <label for="template-max-width" class="setting-label">Maximum Width (px)</label>
+                                        <input 
+                                            type="number" 
+                                            id="template-max-width" 
+                                            name="max_width"
+                                            class="form-input"
+                                            min="200" 
+                                            max="4000" 
+                                            value="1920"
+                                            placeholder="1920"
+                                        >
+                                        <small class="setting-help">Range: 200-4000 px. Default: 1920 px</small>
+                                    </div>
+
+                                    <div class="setting-item">
+                                        <label for="template-max-height" class="setting-label">Maximum Height (px)</label>
+                                        <input 
+                                            type="number" 
+                                            id="template-max-height" 
+                                            name="max_height"
+                                            class="form-input"
+                                            min="200" 
+                                            max="4000" 
+                                            value="1080"
+                                            placeholder="1080"
+                                        >
+                                        <small class="setting-help">Range: 200-4000 px. Default: 1080 px</small>
+                                    </div>
+                                </div>
+
+                                <div class="optimization-priority-info">
+                                    <div class="info-icon">ℹ️</div>
+                                    <div class="info-text">
+                                        <strong>Optimization Priority:</strong> File size → Compression quality → Dimensions
+                                        <br>
+                                        Images are optimized by adjusting compression first, then reducing dimensions if needed to meet the file size target.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="form-section">
                         <div class="form-checkboxes">
                             <label class="checkbox-option">

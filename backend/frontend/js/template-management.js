@@ -113,6 +113,39 @@ class TemplateManager {
                 });
             }
 
+            // Image processing fields event listeners
+            const optimizeImagesInput = editorModal.querySelector('#template-optimize-images');
+            const combineImagesInput = editorModal.querySelector('#template-combine-images');
+            const maxFileSizeInput = editorModal.querySelector('#template-max-file-size');
+            const maxWidthInput = editorModal.querySelector('#template-max-width');
+            const maxHeightInput = editorModal.querySelector('#template-max-height');
+            const compressionQualityInput = editorModal.querySelector('#template-compression-quality');
+
+            // Toggle optimization settings visibility based on optimize checkbox
+            if (optimizeImagesInput) {
+                optimizeImagesInput.addEventListener('change', this.toggleOptimizationSettings.bind(this));
+            }
+
+            // Validate numerical inputs
+            [maxFileSizeInput, maxWidthInput, maxHeightInput, compressionQualityInput].forEach(input => {
+                if (input) {
+                    input.addEventListener('input', () => {
+                        this.validateImageProcessingField(input);
+                        this.validateTemplateForm();
+                    });
+                    input.addEventListener('blur', () => {
+                        this.validateImageProcessingField(input);
+                    });
+                }
+            });
+
+            // Update form validation when checkboxes change
+            [combineImagesInput, optimizeImagesInput].forEach(input => {
+                if (input) {
+                    input.addEventListener('change', this.validateTemplateForm.bind(this));
+                }
+            });
+
             // Template editor tool buttons
             const showPlaceholdersBtn = editorModal.querySelector('#show-template-placeholders');
             const previewBtn = editorModal.querySelector('#preview-template');
@@ -234,6 +267,15 @@ class TemplateManager {
             const modalTitle = modal.querySelector('.modal-title');
             const saveBtn = modal.querySelector('#template-save');
             
+            // Get image processing fields
+            const combineImagesInput = modal.querySelector('#template-combine-images');
+            const optimizeImagesInput = modal.querySelector('#template-optimize-images');
+            const maxFileSizeInput = modal.querySelector('#template-max-file-size');
+            const maxWidthInput = modal.querySelector('#template-max-width');
+            const maxHeightInput = modal.querySelector('#template-max-height');
+            const compressionQualityInput = modal.querySelector('#template-compression-quality');
+            const isActiveInput = modal.querySelector('#template-active');
+            
             if (template) {
                 // Editing existing template
                 if (modalTitle) modalTitle.textContent = 'Edit Template';
@@ -241,6 +283,15 @@ class TemplateManager {
                 if (nameInput) nameInput.value = template.name || '';
                 if (descriptionInput) descriptionInput.value = template.description || '';
                 if (contentInput) contentInput.value = template.template_content || '';
+                
+                // Set image processing fields
+                if (combineImagesInput) combineImagesInput.checked = template.combine_images || false;
+                if (optimizeImagesInput) optimizeImagesInput.checked = template.optimize_images !== undefined ? template.optimize_images : true;
+                if (maxFileSizeInput) maxFileSizeInput.value = template.max_file_size_kb || 500;
+                if (maxWidthInput) maxWidthInput.value = template.max_width || 1920;
+                if (maxHeightInput) maxHeightInput.value = template.max_height || 1080;
+                if (compressionQualityInput) compressionQualityInput.value = template.compression_quality || 80;
+                if (isActiveInput) isActiveInput.checked = template.is_active !== undefined ? template.is_active : true;
             } else {
                 // Creating new template
                 if (modalTitle) modalTitle.textContent = 'Create Template';
@@ -248,6 +299,15 @@ class TemplateManager {
                 if (nameInput) nameInput.value = '';
                 if (descriptionInput) descriptionInput.value = '';
                 if (contentInput) contentInput.value = '';
+                
+                // Set default values for image processing fields
+                if (combineImagesInput) combineImagesInput.checked = false;
+                if (optimizeImagesInput) optimizeImagesInput.checked = true;
+                if (maxFileSizeInput) maxFileSizeInput.value = 500;
+                if (maxWidthInput) maxWidthInput.value = 1920;
+                if (maxHeightInput) maxHeightInput.value = 1080;
+                if (compressionQualityInput) compressionQualityInput.value = 80;
+                if (isActiveInput) isActiveInput.checked = true;
             }
             
             modal.classList.remove('hidden');
@@ -259,6 +319,11 @@ class TemplateManager {
             
             // Generate initial preview
             this.generatePreview();
+            
+            // Initialize image processing settings
+            this.initializeImageProcessingSettings();
+            
+            // Validate form
             this.validateTemplateForm();
             
             // Set up event delegation for placeholders
@@ -310,6 +375,13 @@ class TemplateManager {
         
         const templatesToRender = filteredTemplates || this.templates;
         
+        // Update template count display
+        const countElement = document.getElementById('template-count');
+        if (countElement) {
+            const count = templatesToRender.length;
+            countElement.textContent = `${count} template${count !== 1 ? 's' : ''}`;
+        }
+        
         if (templatesToRender.length === 0) {
             container.innerHTML = `
                 <div class="template-empty">
@@ -327,22 +399,38 @@ class TemplateManager {
             return;
         }
         
-        container.innerHTML = templatesToRender.map(template => `
-            <div class="template-item" data-template-id="${template.id}">
-                <div class="template-info">
-                    <h4 class="template-name">${escapeHtml(template.name)}</h4>
-                    <p class="template-description">${escapeHtml(template.description || 'No description')}</p>
-                    <div class="template-meta">
-                        <span class="template-date">Created: ${formatDate(template.created_at)}</span>
-                        <span class="template-usage">Used: ${template.usage_count || 0} times</span>
+        container.innerHTML = templatesToRender.map(template => {
+            // Create image processing status indicators
+            const imageProcessingBadges = [];
+            if (template.combine_images) {
+                imageProcessingBadges.push('<span class="processing-badge combine">🔗 Combine</span>');
+            }
+            if (template.optimize_images) {
+                imageProcessingBadges.push('<span class="processing-badge optimize">⚡ Optimize</span>');
+            }
+            
+            const badgesHtml = imageProcessingBadges.length > 0 
+                ? `<div class="image-processing-badges">${imageProcessingBadges.join('')}</div>`
+                : '';
+            
+            return `
+                <div class="template-item" data-template-id="${template.id}">
+                    <div class="template-info">
+                        <h4 class="template-name">${escapeHtml(template.name)}</h4>
+                        <p class="template-description">${escapeHtml(template.description || 'No description')}</p>
+                        ${badgesHtml}
+                        <div class="template-meta">
+                            <span class="template-date">Created: ${formatDate(template.created_at)}</span>
+                            <span class="template-usage">Used: ${template.usage_count || 0} times</span>
+                        </div>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn btn-sm btn-secondary edit-btn" data-template-id="${template.id}">Edit</button>
+                        <button class="btn btn-sm btn-danger delete-btn" data-template-id="${template.id}">Delete</button>
                     </div>
                 </div>
-                <div class="template-actions">
-                    <button class="btn btn-sm btn-secondary edit-btn" data-template-id="${template.id}">Edit</button>
-                    <button class="btn btn-sm btn-danger delete-btn" data-template-id="${template.id}">Delete</button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     /**
@@ -376,9 +464,15 @@ class TemplateManager {
         const name = nameInput?.value?.trim() || '';
         const content = contentInput?.value?.trim() || '';
         
-        const isValid = name.length > 0 && content.length > 0;
+        // Validate basic required fields
+        let isValid = name.length > 0 && content.length > 0;
         
-        console.log('Validation check:', { name, content, isValid });
+        // Validate image processing fields
+        if (isValid) {
+            isValid = this.validateImageProcessingFields();
+        }
+        
+        console.log('Validation check:', { name, content, imageProcessingValid: isValid });
         
         if (saveBtn) {
             saveBtn.disabled = !isValid;
@@ -454,11 +548,28 @@ class TemplateManager {
         const contentInput = modal.querySelector('#template-content-input');
         const saveBtn = modal.querySelector('#template-save');
         
+        // Get image processing fields
+        const combineImagesInput = modal.querySelector('#template-combine-images');
+        const optimizeImagesInput = modal.querySelector('#template-optimize-images');
+        const maxFileSizeInput = modal.querySelector('#template-max-file-size');
+        const maxWidthInput = modal.querySelector('#template-max-width');
+        const maxHeightInput = modal.querySelector('#template-max-height');
+        const compressionQualityInput = modal.querySelector('#template-compression-quality');
+        const isActiveInput = modal.querySelector('#template-active');
+        
         const templateData = {
             name: nameInput.value.trim(),
             description: descriptionInput.value.trim(),
             template_content: contentInput.value.trim(),
-            is_active: true
+            is_active: isActiveInput ? isActiveInput.checked : true,
+            
+            // Image processing settings
+            combine_images: combineImagesInput ? combineImagesInput.checked : false,
+            optimize_images: optimizeImagesInput ? optimizeImagesInput.checked : true,
+            max_file_size_kb: maxFileSizeInput ? parseInt(maxFileSizeInput.value) || 500 : 500,
+            max_width: maxWidthInput ? parseInt(maxWidthInput.value) || 1920 : 1920,
+            max_height: maxHeightInput ? parseInt(maxHeightInput.value) || 1080 : 1080,
+            compression_quality: compressionQualityInput ? parseInt(compressionQualityInput.value) || 80 : 80
         };
         
         console.log('Sending template data:', templateData);
@@ -812,6 +923,122 @@ class TemplateManager {
         
         // Show in alert for now (could be enhanced with a modal)
         alert('Template Preview:\n\n' + preview);
+    }
+
+    /**
+     * Toggle optimization settings visibility
+     */
+    toggleOptimizationSettings() {
+        const optimizeImagesInput = document.querySelector('#template-optimize-images');
+        const optimizationSettings = document.querySelector('#optimization-settings');
+        
+        if (optimizeImagesInput && optimizationSettings) {
+            if (optimizeImagesInput.checked) {
+                optimizationSettings.classList.remove('hidden');
+            } else {
+                optimizationSettings.classList.add('hidden');
+            }
+        }
+    }
+
+    /**
+     * Validate image processing field values
+     */
+    validateImageProcessingField(input) {
+        if (!input) return true;
+        
+        const value = parseInt(input.value);
+        const min = parseInt(input.min);
+        const max = parseInt(input.max);
+        
+        let isValid = true;
+        let errorMessage = '';
+        
+        if (isNaN(value)) {
+            isValid = false;
+            errorMessage = 'Please enter a valid number';
+        } else if (value < min) {
+            isValid = false;
+            errorMessage = `Value must be at least ${min}`;
+        } else if (value > max) {
+            isValid = false;
+            errorMessage = `Value must be no more than ${max}`;
+        }
+        
+        // Update input styling and show/hide error
+        if (isValid) {
+            input.classList.remove('invalid');
+            this.hideFieldError(input);
+        } else {
+            input.classList.add('invalid');
+            this.showFieldError(input, errorMessage);
+        }
+        
+        return isValid;
+    }
+
+    /**
+     * Show field error message
+     */
+    showFieldError(input, message) {
+        // Remove existing error
+        this.hideFieldError(input);
+        
+        // Create error element
+        const errorElement = document.createElement('small');
+        errorElement.className = 'field-error';
+        errorElement.style.color = '#ef4444';
+        errorElement.style.fontSize = '0.75rem';
+        errorElement.style.marginTop = '0.25rem';
+        errorElement.textContent = message;
+        
+        // Insert after input
+        input.parentNode.insertBefore(errorElement, input.nextSibling);
+    }
+
+    /**
+     * Hide field error message
+     */
+    hideFieldError(input) {
+        const errorElement = input.parentNode.querySelector('.field-error');
+        if (errorElement) {
+            errorElement.remove();
+        }
+    }
+
+    /**
+     * Validate all image processing fields
+     */
+    validateImageProcessingFields() {
+        const modal = document.getElementById('template-editor-modal');
+        if (!modal) return true;
+        
+        const fields = [
+            modal.querySelector('#template-max-file-size'),
+            modal.querySelector('#template-max-width'),
+            modal.querySelector('#template-max-height'),
+            modal.querySelector('#template-compression-quality')
+        ];
+        
+        let allValid = true;
+        fields.forEach(field => {
+            if (field && !this.validateImageProcessingField(field)) {
+                allValid = false;
+            }
+        });
+        
+        return allValid;
+    }
+
+    /**
+     * Initialize image processing settings when opening modal
+     */
+    initializeImageProcessingSettings() {
+        // Set up initial state
+        this.toggleOptimizationSettings();
+        
+        // Validate all fields
+        this.validateImageProcessingFields();
     }
 
     /**

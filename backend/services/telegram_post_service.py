@@ -3,6 +3,7 @@ Service for posting products to Telegram channels with template rendering
 """
 
 import os
+import uuid
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
@@ -11,6 +12,8 @@ from models.product import Product, TelegramChannel, TelegramPost
 from schemas.telegram import TelegramPostCreate, PostStatus
 from services.telegram_service import telegram_service
 from services.template_service import template_renderer
+from services.image_combination_service import combine_product_images
+from services.image_optimization_service import optimize_product_image
 from crud.telegram import create_post, update_post_status, get_channel_by_id
 from crud.template import get_template_by_id
 from crud.product import get_product_by_id
@@ -293,6 +296,10 @@ class TelegramPostService:
                             else:
                                 logger.warning(f"Alternative image path also not found: {alt_path}")
 
+                # Apply image processing based on template settings
+                if photo_paths:
+                    photo_paths = await self._process_images_for_template(db, post, photo_paths)
+
             # Send message to telegram
             if photo_paths:
                 if len(photo_paths) == 1:
@@ -447,6 +454,122 @@ class TelegramPostService:
             product_id=product_id,
             channel_ids=channel_ids
         )
+
+    async def _process_images_for_template(
+        self,
+        db: Session,
+        post: TelegramPost,
+        original_image_paths: List[str]
+    ) -> List[str]:
+        """
+        Process images based on template settings (combination and optimization).
+        
+        Args:
+            db: Database session
+            post: TelegramPost containing template information
+            original_image_paths: List of original image file paths
+            
+        Returns:
+            List of processed image file paths
+        """
+        try:
+            # Get template to check for image processing settings
+            template = None
+            if post.template_id:
+                template = get_template_by_id(db, post.template_id)
+            
+            # If no template or no image processing needed, return original paths
+            if not template or (not template.combine_images and not template.optimize_images):
+                logger.debug("No image processing needed - using original images")
+                return original_image_paths
+            
+            processed_paths = []
+            
+            # Step 1: Combine images if requested
+            if template.combine_images and len(original_image_paths) > 1:
+                logger.info(f"Combining {len(original_image_paths)} images for template '{template.name}'")
+                try:
+                    combined_images_bytes = await combine_product_images(
+                        image_paths=original_image_paths,
+                        max_width=template.max_width,
+                        max_height=template.max_height,
+                        spacing=10  # Fixed spacing for now
+                    )
+                    
+                    # Save all combined images
+                    processed_paths = []
+                    for i, image_bytes in enumerate(combined_images_bytes):
+                        combined_filename = f"combined_{uuid.uuid4()}.jpg"
+                        combined_path = os.path.join("images", combined_filename)
+                        
+                        with open(combined_path, 'wb') as f:
+                            f.write(image_bytes)
+                        
+                        processed_paths.append(combined_path)
+                    
+                    logger.info(f"Images combined successfully: {len(processed_paths)} combined images created")
+                    
+                except Exception as e:
+                    logger.error(f"Image combination failed: {e}. Using original images.")
+                    processed_paths = original_image_paths
+            else:
+                processed_paths = original_image_paths
+            
+            # Step 2: Optimize images if requested
+            if template.optimize_images:
+                logger.info(f"Optimizing {len(processed_paths)} images for template '{template.name}'")
+                optimized_paths = []
+                
+                for image_path in processed_paths:
+                    try:
+                        # Read original image
+                        with open(image_path, 'rb') as f:
+                            image_data = f.read()
+                        
+                        # Optimize image
+                        optimized_data = await optimize_product_image(
+                            image_data=image_data,
+                            max_file_size_kb=template.max_file_size_kb,
+                            max_width=template.max_width,
+                            max_height=template.max_height,
+                            compression_quality=template.compression_quality
+                        )
+                        
+                        # Save optimized image
+                        if image_path.startswith("combined_"):
+                            # For combined images, replace the temporary file
+                            optimized_path = image_path
+                        else:
+                            # For regular images, create new optimized file
+                            base_name = os.path.splitext(os.path.basename(image_path))[0]
+                            optimized_filename = f"opt_{base_name}_{uuid.uuid4().hex[:8]}.jpg"
+                            optimized_path = os.path.join("images", optimized_filename)
+                        
+                        with open(optimized_path, 'wb') as f:
+                            f.write(optimized_data)
+                        
+                        optimized_paths.append(optimized_path)
+                        logger.debug(f"Image optimized: {image_path} -> {optimized_path}")
+                        
+                        # Clean up temporary combined file if it's different from optimized
+                        if image_path != optimized_path and image_path.startswith("images/combined_"):
+                            try:
+                                os.remove(image_path)
+                            except:
+                                pass
+                        
+                    except Exception as e:
+                        logger.error(f"Image optimization failed for {image_path}: {e}. Using original.")
+                        optimized_paths.append(image_path)
+                
+                processed_paths = optimized_paths
+            
+            logger.info(f"Image processing completed. Final paths: {processed_paths}")
+            return processed_paths
+            
+        except Exception as e:
+            logger.error(f"Image processing failed: {e}. Using original images.")
+            return original_image_paths
 
 
 # Global instance

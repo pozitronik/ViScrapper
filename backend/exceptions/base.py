@@ -184,3 +184,30 @@ class ImageDownloadException(ExternalServiceException):
         )
         # Override the error_code after parent initialization
         self.error_code = "IMAGE_DOWNLOAD_ERROR"
+
+
+class ImageProcessingException(VIParserException):
+    """Exception raised when image processing operations fail."""
+
+    def __init__(
+            self,
+            message: str,
+            processing_type: Optional[str] = None,
+            image_path: Optional[str] = None,
+            **kwargs: Any
+    ) -> None:
+        details = kwargs.pop('details', {})
+        # Remove conflicting parameters
+        kwargs.pop('error_code', None)
+
+        if processing_type:
+            details['processing_type'] = processing_type
+        if image_path:
+            details['image_path'] = image_path
+
+        super().__init__(
+            message=message,
+            error_code="IMAGE_PROCESSING_ERROR",
+            details=details,
+            **kwargs
+        )

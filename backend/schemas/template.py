@@ -8,6 +8,16 @@ class MessageTemplateBase(BaseModel):
     description: Optional[str] = Field(None, max_length=500, description="Template description")
     template_content: str = Field(..., min_length=1, description="Template content with placeholders")
     is_active: bool = Field(True, description="Whether the template is active")
+    
+    # Image combination settings
+    combine_images: bool = Field(False, description="Combine all product images into one image")
+    
+    # Image optimization settings  
+    optimize_images: bool = Field(True, description="Enable image optimization (compression/resizing)")
+    max_file_size_kb: int = Field(500, ge=50, le=5000, description="Maximum file size in KB (50-5000)")
+    max_width: int = Field(1920, ge=200, le=4000, description="Maximum image width in pixels (200-4000)")
+    max_height: int = Field(1080, ge=200, le=4000, description="Maximum image height in pixels (200-4000)")
+    compression_quality: int = Field(80, ge=10, le=100, description="JPEG compression quality percentage (10-100)")
 
 
 class MessageTemplateCreate(MessageTemplateBase):
@@ -19,6 +29,16 @@ class MessageTemplateUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500, description="Template description")
     template_content: Optional[str] = Field(None, min_length=1, description="Template content with placeholders")
     is_active: Optional[bool] = Field(None, description="Whether the template is active")
+    
+    # Image combination settings
+    combine_images: Optional[bool] = Field(None, description="Combine all product images into one image")
+    
+    # Image optimization settings  
+    optimize_images: Optional[bool] = Field(None, description="Enable image optimization (compression/resizing)")
+    max_file_size_kb: Optional[int] = Field(None, ge=50, le=5000, description="Maximum file size in KB (50-5000)")
+    max_width: Optional[int] = Field(None, ge=200, le=4000, description="Maximum image width in pixels (200-4000)")
+    max_height: Optional[int] = Field(None, ge=200, le=4000, description="Maximum image height in pixels (200-4000)")
+    compression_quality: Optional[int] = Field(None, ge=10, le=100, description="JPEG compression quality percentage (10-100)")
 
 
 class MessageTemplate(MessageTemplateBase):

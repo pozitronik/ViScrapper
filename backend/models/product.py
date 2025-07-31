@@ -75,12 +75,23 @@ class MessageTemplate(Base):
     description = Column(String, nullable=True)
     template_content = Column(Text, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Image combination settings
+    combine_images = Column(Boolean, default=False, nullable=False)
+    
+    # Image optimization settings
+    optimize_images = Column(Boolean, default=True, nullable=False)
+    max_file_size_kb = Column(Integer, default=500, nullable=False)
+    max_width = Column(Integer, default=1920, nullable=False)
+    max_height = Column(Integer, default=1080, nullable=False)
+    compression_quality = Column(Integer, default=80, nullable=False)  # 1-100 percentage
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     def __repr__(self) -> str:
-        return f"<MessageTemplate(id={self.id}, name='{self.name}', active={self.is_active})>"
+        return f"<MessageTemplate(id={self.id}, name='{self.name}', active={self.is_active}, combine={self.combine_images}, optimize={self.optimize_images})>"
 
 
 class TelegramChannel(Base):

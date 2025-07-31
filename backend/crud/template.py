@@ -174,7 +174,14 @@ def create_template(db: Session, template: MessageTemplateCreate) -> MessageTemp
                 name=template.name,
                 description=template.description,
                 template_content=template.template_content,
-                is_active=template.is_active
+                is_active=template.is_active,
+                # Image processing settings
+                combine_images=template.combine_images,
+                optimize_images=template.optimize_images,
+                max_file_size_kb=template.max_file_size_kb,
+                max_width=template.max_width,
+                max_height=template.max_height,
+                compression_quality=template.compression_quality
             )
 
             db.add(db_template)
