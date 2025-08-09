@@ -19,7 +19,18 @@ class VIParserEvents {
       if (request.action === 'productChanged') {
         this.core.handleProductChangedNotification(request.reason);
       } else if (request.action === 'updateColorInPopup') {
+        // Legacy Carter's color update (only color)
         this.core.handleColorUpdate(request.color);
+      } else if (request.action === 'colorUpdated') {
+        // New format supporting both color and images (Tommy Hilfiger + Carter's)
+        const update = {
+          color: request.color
+        };
+        if (request.images && request.images.length > 0) {
+          update.images = request.images;
+          update.source = request.source;
+        }
+        this.core.handleColorUpdate(update);
       } else if (request.action === 'autoRefreshPanel') {
         this.handleAutoRefresh(request.url);
       }
@@ -188,28 +199,40 @@ class VIParserEvents {
         return;
       }
       
-      // Check if this is Carter's
-      if (!tab.url.includes('carters.com')) {
-        console.log('Not Carter\'s site, skipping color observer');
+      // Check if this is a site that supports color observer
+      if (!tab.url.includes('carters.com') && !tab.url.includes('usa.tommy.com')) {
+        console.log('Site does not support color observer, skipping');
         return;
       }
       
-      // Check if observer is needed (if color is missing)
-      const colorValueElement = document.querySelector('[data-field="color"] .data-value');
-      if (colorValueElement) {
-        const colorText = colorValueElement.textContent.trim();
-        if (colorText === 'Отсутствует' || colorText === '' || colorValueElement.classList.contains('missing')) {
-          console.log('Color is missing, starting observer...');
-          
-          const response = await this.core.startColorObserver();
-          
-          if (response.success) {
-            console.log('Color observer started successfully');
+      // Determine if observer should start based on site
+      let shouldStartObserver = false;
+      
+      if (tab.url.includes('carters.com')) {
+        // Carter's: Start observer only if color is missing
+        const colorValueElement = document.querySelector('[data-field="color"] .data-value');
+        if (colorValueElement) {
+          const colorText = colorValueElement.textContent.trim();
+          if (colorText === 'Отсутствует' || colorText === '' || colorValueElement.classList.contains('missing')) {
+            console.log('Carter\'s: Color is missing, starting observer...');
+            shouldStartObserver = true;
           } else {
-            console.log('Failed to start color observer:', response.error);
+            console.log('Carter\'s: Color already available:', colorText);
           }
+        }
+      } else if (tab.url.includes('usa.tommy.com')) {
+        // Tommy Hilfiger: Always start observer to track image changes on color switch
+        console.log('Tommy Hilfiger: Starting color observer to track image changes...');
+        shouldStartObserver = true;
+      }
+      
+      if (shouldStartObserver) {
+        const response = await this.core.startColorObserver();
+        
+        if (response.success) {
+          console.log('Color observer started successfully');
         } else {
-          console.log('Color already available:', colorText);
+          console.log('Failed to start color observer:', response.error);
         }
       }
       

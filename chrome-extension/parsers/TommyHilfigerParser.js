@@ -141,13 +141,23 @@ class TommyHilfigerParser extends BaseParser {
   }
 
   /**
-   * Извлечение изображений из JSON-LD
+   * Извлечение изображений - приоритет DOM над JSON-LD для актуальных данных
    */
   async extractImages() {
+    console.log('TH extractImages: Starting image extraction...');
+    
+    // Приоритет 1: Извлекаем из DOM (актуальные изображения для текущего цвета)
+    const domImages = await this.extractImagesFromDOM();
+    if (domImages.length > 0) {
+      console.log(`TH extractImages: Found ${domImages.length} images from DOM`);
+      return domImages;
+    }
+    
+    // Приоритет 2: Fallback к JSON-LD (может быть устаревшим)
+    console.log('TH extractImages: No DOM images found, falling back to JSON-LD...');
     const jsonData = this.getJsonLdData();
     const imageUrls = [];
     
-    // Tommy Hilfiger использует JSON-LD с массивом изображений
     if (jsonData && jsonData.image && Array.isArray(jsonData.image)) {
       jsonData.image.forEach((url) => {
         if (url && typeof url === 'string') {
@@ -157,7 +167,179 @@ class TommyHilfigerParser extends BaseParser {
       });
     }
     
+    console.log(`TH extractImages: Found ${imageUrls.length} images from JSON-LD fallback`);
     return imageUrls;
+  }
+
+  /**
+   * Извлечение изображений из DOM (актуальные данные)
+   * Парсит структуру: [data-comp="ProductImage"] > .product-image.swiper-slide > img
+   */
+  async extractImagesFromDOM() {
+    try {
+      console.log('TH extractImagesFromDOM: Starting DOM extraction...');
+      
+      // Находим основной контейнер с изображениями
+      const productImageContainer = document.querySelector('[data-comp="ProductImage"]');
+      if (!productImageContainer) {
+        console.log('TH extractImagesFromDOM: ProductImage container not found');
+        return [];
+      }
+      
+      // Находим все слайды с изображениями
+      const imageSlides = productImageContainer.querySelectorAll('.product-image.swiper-slide');
+      if (imageSlides.length === 0) {
+        console.log('TH extractImagesFromDOM: No image slides found');
+        return [];
+      }
+      
+      console.log(`TH extractImagesFromDOM: Found ${imageSlides.length} image slides`);
+      
+      const imageUrls = [];
+      
+      imageSlides.forEach((slide, index) => {
+        const img = slide.querySelector('img');
+        if (!img) {
+          console.log(`TH extractImagesFromDOM: No img tag found in slide ${index}`);
+          return;
+        }
+        
+        let imageUrl = null;
+        
+        // Приоритет 1: Загруженное изображение (src атрибут)
+        const src = img.getAttribute('src');
+        if (src && src.startsWith('http') && !src.includes('data:image')) {
+          imageUrl = src;
+          console.log(`TH extractImagesFromDOM: Found loaded image in slide ${index}: ${imageUrl}`);
+        }
+        
+        // Приоритет 2: Lazy-loaded изображения (источники в picture > source)
+        if (!imageUrl) {
+          const picture = slide.querySelector('picture');
+          if (picture) {
+            const sources = picture.querySelectorAll('source');
+            for (const source of sources) {
+              // Проверяем srcset или data-srcset
+              let srcset = source.getAttribute('srcset') || source.getAttribute('data-srcset');
+              if (srcset) {
+                // Извлекаем первый URL из srcset (до первого пробела)
+                const firstUrl = srcset.split(' ')[0];
+                if (firstUrl && firstUrl.startsWith('http')) {
+                  imageUrl = firstUrl;
+                  console.log(`TH extractImagesFromDOM: Found lazy image in slide ${index}: ${imageUrl}`);
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        if (imageUrl) {
+          // Применяем улучшение качества (поддерживает Tommy Hilfiger CDN)
+          const enhancedUrl = this.enhanceImageQuality(imageUrl);
+          imageUrls.push(enhancedUrl);
+          console.log(`TH extractImagesFromDOM: Added enhanced image: ${enhancedUrl}`);
+        } else {
+          console.log(`TH extractImagesFromDOM: No valid image URL found in slide ${index}`);
+        }
+      });
+      
+      console.log(`TH extractImagesFromDOM: Extracted ${imageUrls.length} images from DOM`);
+      return imageUrls;
+      
+    } catch (error) {
+      console.error('TH extractImagesFromDOM: Error extracting images from DOM:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Настройка наблюдателя для отслеживания изменений цвета и обновления изображений
+   */
+  setupColorObserver(callback) {
+    console.log('TH setupColorObserver: Setting up Tommy Hilfiger color observer...');
+    
+    // Создаем MutationObserver для отслеживания изменений
+    const observer = new MutationObserver(async (mutations) => {
+      let shouldUpdateImages = false;
+      
+      for (const mutation of mutations) {
+        // Отслеживаем изменения атрибутов у radio inputs (checked/aria-checked)
+        if (mutation.type === 'attributes' && 
+            (mutation.attributeName === 'checked' || mutation.attributeName === 'aria-checked')) {
+          const target = mutation.target;
+          if (target.type === 'radio' && target.closest('[data-display-id="colorCode"]')) {
+            console.log('TH setupColorObserver: Color radio change detected:', target.id);
+            shouldUpdateImages = true;
+            break;
+          }
+        }
+        
+        // Также отслеживаем добавление/удаление узлов в изображениях (динамические обновления)
+        if (mutation.type === 'childList') {
+          const addedNodes = Array.from(mutation.addedNodes);
+          const hasImageChanges = addedNodes.some(node => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              return node.matches && (
+                node.matches('[data-comp="ProductImage"]') ||
+                node.matches('.product-image.swiper-slide') ||
+                node.querySelector && (
+                  node.querySelector('[data-comp="ProductImage"]') ||
+                  node.querySelector('.product-image.swiper-slide')
+                )
+              );
+            }
+            return false;
+          });
+          
+          if (hasImageChanges) {
+            console.log('TH setupColorObserver: Image container changes detected');
+            shouldUpdateImages = true;
+            break;
+          }
+        }
+      }
+      
+      if (shouldUpdateImages) {
+        console.log('TH setupColorObserver: Updating images after color change...');
+        
+        // Небольшая задержка для завершения DOM обновлений
+        await this.wait(300);
+        
+        try {
+          // Извлекаем новые изображения из обновленного DOM
+          const updatedImages = await this.extractImagesFromDOM();
+          console.log(`TH setupColorObserver: Found ${updatedImages.length} updated images`);
+          
+          // Извлекаем обновленный цвет
+          const updatedColor = this.extractColor();
+          console.log('TH setupColorObserver: Updated color:', updatedColor);
+          
+          // Уведомляем callback о изменениях
+          if (callback) {
+            callback({
+              color: updatedColor,
+              images: updatedImages,
+              source: 'tommy-hilfiger-color-change'
+            });
+          }
+          
+        } catch (error) {
+          console.error('TH setupColorObserver: Error updating images:', error);
+        }
+      }
+    });
+    
+    // Настраиваем наблюдение за всем документом
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['checked', 'aria-checked']
+    });
+    
+    console.log('TH setupColorObserver: Tommy Hilfiger color observer set up');
+    return observer;
   }
 
   /**

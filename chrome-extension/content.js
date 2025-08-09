@@ -393,22 +393,54 @@ function handleStartColorObserver(sendResponse) {
     }
     
     // Создаем callback для обновления popup
-    const colorUpdateCallback = (color) => {
-      console.log('Color detected by observer:', color);
+    const colorUpdateCallback = (update) => {
+      console.log('Update detected by observer:', update);
+      
+      // Обрабатываем разные форматы обновлений
+      let color, images, source;
+      
+      if (typeof update === 'string') {
+        // Carter's format: только строка цвета
+        color = update;
+        source = 'carters';
+        console.log('Carter\'s color update:', color);
+      } else if (typeof update === 'object' && update !== null) {
+        // Tommy Hilfiger format: объект с цветом, изображениями и источником
+        color = update.color;
+        images = update.images;
+        source = update.source || 'tommy-hilfiger';
+        console.log(`${source} update:`, { color, imageCount: images?.length || 0 });
+      } else {
+        console.warn('Unknown update format:', update);
+        return;
+      }
       
       // Обновляем сохраненные данные
       if (currentProductData) {
         currentProductData.color = color;
+        if (images && images.length > 0) {
+          currentProductData.all_image_urls = images;
+        }
       }
       
-      // Отправляем обновление в popup
+      // Отправляем обновление в popup/sidepanel
       try {
-        chrome.runtime.sendMessage({
+        const message = {
           action: 'colorUpdated',
           color: color
-        });
+        };
+        
+        // Добавляем изображения если есть (Tommy Hilfiger)
+        if (images && images.length > 0) {
+          message.images = images;
+          message.source = source;
+        }
+        
+        chrome.runtime.sendMessage(message);
+        console.log('Sent update message to extension UI:', message.action);
+        
       } catch (error) {
-        console.log('Could not send color update to popup (probably closed)');
+        console.log('Could not send update to extension UI (probably closed)');
       }
     };
     

@@ -410,14 +410,32 @@ class VIParserCore {
   }
 
   /**
-   * Обработка обновления цвета в реальном времени
+   * Обработка обновления цвета и изображений в реальном времени
    */
-  handleColorUpdate(color) {
-    console.log('Received color update:', color);
+  handleColorUpdate(update) {
+    console.log('Received color/image update:', update);
+    
+    // Поддерживаем обратную совместимость: строка = только цвет (Carter's)
+    let color, images;
+    if (typeof update === 'string') {
+      color = update;
+    } else if (typeof update === 'object' && update !== null) {
+      color = update.color;
+      images = update.images;
+    } else {
+      console.warn('Invalid update format:', update);
+      return;
+    }
     
     // Обновляем данные в состоянии приложения
     if (this.appState.productData) {
       this.appState.productData.color = color;
+      
+      // Обновляем изображения если они предоставлены (Tommy Hilfiger)
+      if (images && Array.isArray(images) && images.length > 0) {
+        this.appState.productData.all_image_urls = images;
+        console.log(`Updated ${images.length} images in product data`);
+      }
     }
     
     // Находим элемент цвета в превью и обновляем его
@@ -426,6 +444,62 @@ class VIParserCore {
       colorValueElement.textContent = color;
       colorValueElement.classList.remove('missing');
       console.log('Updated color in preview:', color);
+    }
+    
+    // Если обновились изображения, обновляем превью изображений
+    if (images && Array.isArray(images) && images.length > 0) {
+      this.updateImagePreview(images);
+    }
+  }
+
+  /**
+   * Обновление превью изображений (для Tommy Hilfiger)
+   */
+  updateImagePreview(images) {
+    try {
+      console.log('Updating image preview with', images.length, 'images');
+      
+      // Находим контейнер с изображениями
+      const imageContainer = document.querySelector('.image-selection');
+      if (!imageContainer) {
+        console.log('Image container not found, skipping image preview update');
+        return;
+      }
+      
+      // Очищаем старые изображения
+      const oldImageSelectors = imageContainer.querySelectorAll('.image-selector');
+      oldImageSelectors.forEach(selector => selector.remove());
+      
+      // Создаем новые элементы изображений
+      images.forEach((imageUrl, index) => {
+        const imageSelector = document.createElement('div');
+        imageSelector.className = 'image-selector';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'image-checkbox';
+        checkbox.dataset.index = index;
+        checkbox.checked = true; // По умолчанию выбираем все новые изображения
+        
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = `Product image ${index + 1}`;
+        img.style.maxWidth = '100px';
+        img.style.maxHeight = '100px';
+        img.style.objectFit = 'cover';
+        
+        imageSelector.appendChild(checkbox);
+        imageSelector.appendChild(img);
+        imageContainer.appendChild(imageSelector);
+      });
+      
+      // Повторно настраиваем обработчики выбора изображений
+      this.setupImageSelection();
+      
+      console.log('Image preview updated successfully');
+      
+    } catch (error) {
+      console.error('Error updating image preview:', error);
     }
   }
 
