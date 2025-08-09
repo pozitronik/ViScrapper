@@ -109,26 +109,67 @@ class TommyHilfigerParser extends BaseParser {
 
   /**
    * Извлечение кода выбранного цвета
+   * Поддерживает как обычную структуру, так и grouped-by-price структуру
    */
   extractSelectedColorCode() {
+    // Ищем выбранный цвет в различных возможных контейнерах
+    let selectedColor = null;
+    
+    // Вариант 1: Обычная структура с одним colorsList
     const colorsList = document.querySelector(this.config.selectors.colorsList);
-    if (!colorsList) {
-      return null;
+    if (colorsList) {
+      selectedColor = colorsList.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
+      if (selectedColor) {
+        console.log('TH extractSelectedColorCode: Found selected color in main colorsList');
+      }
     }
     
-    // Ищем выбранный (checked) цвет
-    const selectedColor = colorsList.querySelector('input[type="radio"]:checked');
+    // Вариант 2: Grouped-by-price структура - ищем во всех видимых colorGroup
     if (!selectedColor) {
-      // Попробуем найти по aria-checked="true"
-      const ariaCheckedColor = colorsList.querySelector('input[type="radio"][aria-checked="true"]');
-      if (ariaCheckedColor) {
-        return this.extractColorCodeFromId(ariaCheckedColor.getAttribute('id'));
+      const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
+      console.log(`TH extractSelectedColorCode: Searching in ${colorGroups.length} visible color groups`);
+      
+      for (const group of colorGroups) {
+        selectedColor = group.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
+        if (selectedColor) {
+          console.log('TH extractSelectedColorCode: Found selected color in color group:', group.className);
+          break;
+        }
+      }
+    }
+    
+    // Вариант 3: Поиск по всему документу как fallback
+    if (!selectedColor) {
+      selectedColor = document.querySelector('input[type="radio"].variant-colorCode:checked, input[type="radio"].variant-colorCode[aria-checked="true"]');
+      if (selectedColor) {
+        console.log('TH extractSelectedColorCode: Found selected color via fallback selector');
+      }
+    }
+    
+    if (!selectedColor) {
+      console.log('TH extractSelectedColorCode: No selected color found, looking for first available color');
+      
+      // Fallback: берем первый доступный цвет
+      let firstColor = null;
+      
+      if (colorsList) {
+        firstColor = colorsList.querySelector('input[type="radio"]');
       }
       
-      // Fallback: берем первый цвет
-      const firstColor = colorsList.querySelector('input[type="radio"]');
+      if (!firstColor) {
+        const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
+        for (const group of colorGroups) {
+          firstColor = group.querySelector('input[type="radio"]');
+          if (firstColor) break;
+        }
+      }
+      
+      if (!firstColor) {
+        firstColor = document.querySelector('input[type="radio"].variant-colorCode');
+      }
+      
       if (firstColor) {
-        console.log('TH extractSelectedColorCode: No selected color found, using first color as fallback');
+        console.log('TH extractSelectedColorCode: Using first color as fallback');
         return this.extractColorCodeFromId(firstColor.getAttribute('id'));
       }
       
@@ -287,7 +328,18 @@ class TommyHilfigerParser extends BaseParser {
         if (mutation.type === 'attributes' && 
             (mutation.attributeName === 'checked' || mutation.attributeName === 'aria-checked')) {
           const target = mutation.target;
-          if (target.type === 'radio' && target.closest('[data-display-id="colorCode"]')) {
+          
+          // Проверяем различные возможные контейнеры для цветов
+          const isColorRadio = target.type === 'radio' && (
+            // Обычная структура
+            target.closest('[data-display-id="colorCode"]') ||
+            // Grouped-by-price структура
+            target.closest('.colors-variant-list') ||
+            // Fallback по классу
+            target.classList.contains('variant-colorCode')
+          );
+          
+          if (isColorRadio) {
             console.log('TH setupColorObserver: Color radio change detected:', target.id);
             shouldUpdateImages = true;
             break;
@@ -363,21 +415,42 @@ class TommyHilfigerParser extends BaseParser {
 
   /**
    * Извлечение цвета из выбранного элемента
+   * Поддерживает как обычную структуру, так и grouped-by-price структуру
    */
   extractColor() {
+    // Ищем выбранный цвет в различных возможных контейнерах
+    let selectedColor = null;
+    
+    // Вариант 1: Обычная структура с одним colorsList
     const colorsList = document.querySelector(this.config.selectors.colorsList);
-    if (!colorsList) {
-      return null;
+    if (colorsList) {
+      selectedColor = colorsList.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
+      if (selectedColor) {
+        console.log('TH extractColor: Found selected color in main colorsList');
+      }
     }
     
-    // Ищем выбранный (checked) цвет
-    const selectedColor = colorsList.querySelector('input[type="radio"]:checked');
+    // Вариант 2: Grouped-by-price структура - ищем во всех видимых colorGroup
     if (!selectedColor) {
-      // Попробуем найти по aria-checked="true"
-      const ariaCheckedColor = colorsList.querySelector('input[type="radio"][aria-checked="true"]');
-      if (ariaCheckedColor) {
-        return this.extractColorNameFromInput(ariaCheckedColor);
+      const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
+      for (const group of colorGroups) {
+        selectedColor = group.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
+        if (selectedColor) {
+          console.log('TH extractColor: Found selected color in color group:', group.className);
+          break;
+        }
       }
+    }
+    
+    // Вариант 3: Поиск по всему документу как fallback
+    if (!selectedColor) {
+      selectedColor = document.querySelector('input[type="radio"].variant-colorCode:checked, input[type="radio"].variant-colorCode[aria-checked="true"]');
+      if (selectedColor) {
+        console.log('TH extractColor: Found selected color via fallback selector');
+      }
+    }
+    
+    if (!selectedColor) {
       return null;
     }
     
@@ -412,30 +485,75 @@ class TommyHilfigerParser extends BaseParser {
 
   /**
    * Извлечение размеров для текущего выбранного цвета
+   * Поддерживает как обычные размеры (S, M, L), так и "ONE SIZE"
    */
   async extractSizes() {
     try {
-      const sizesList = document.querySelector(this.config.selectors.sizesList);
-      if (!sizesList) {
-        return [];
-      }
-      
-      // Tommy Hilfiger имеет простую структуру размеров
-      const sizeInputs = sizesList.querySelectorAll('input[type="radio"]');
       const availableSizes = [];
       
-      sizeInputs.forEach(input => {
-        const inputId = input.getAttribute('id');
-        const label = document.querySelector(`label[for="${inputId}"]`);
-        const sizeLabel = label?.textContent?.trim();
-        const dataValue = input.getAttribute('data-attr-value');
+      // Вариант 1: Обычная структура с размерными input'ами
+      const sizesList = document.querySelector(this.config.selectors.sizesList);
+      if (sizesList) {
+        const sizeInputs = sizesList.querySelectorAll('input[type="radio"]');
+        console.log(`TH extractSizes: Found ${sizeInputs.length} size radio inputs`);
         
-        const sizeValue = sizeLabel || dataValue;
-        if (sizeValue) {
-          availableSizes.push(sizeValue);
+        sizeInputs.forEach(input => {
+          const inputId = input.getAttribute('id');
+          const label = document.querySelector(`label[for="${inputId}"]`);
+          const sizeLabel = label?.textContent?.trim();
+          const dataValue = input.getAttribute('data-attr-value');
+          
+          const sizeValue = sizeLabel || dataValue;
+          if (sizeValue) {
+            availableSizes.push(sizeValue);
+          }
+        });
+        
+        if (availableSizes.length > 0) {
+          console.log(`TH extractSizes: Found ${availableSizes.length} sizes from radio inputs:`, availableSizes);
+          return availableSizes;
         }
-      });
+      }
       
+      // Вариант 2: "ONE SIZE" структура - ищем в тексте заголовка
+      const sizeHeader = document.querySelector('#pdp-attr-size');
+      if (sizeHeader) {
+        const sizeValueSpan = sizeHeader.querySelector('.variation__attr--value');
+        if (sizeValueSpan) {
+          const sizeText = sizeValueSpan.textContent?.trim();
+          console.log(`TH extractSizes: Found size from header:`, sizeText);
+          
+          if (sizeText && sizeText !== '') {
+            availableSizes.push(sizeText);
+            return availableSizes;
+          }
+        }
+      }
+      
+      // Вариант 3: Альтернативный поиск размера в заголовке
+      const altSizeHeader = document.querySelector('.size.attribute-label');
+      if (altSizeHeader) {
+        const sizeValueSpan = altSizeHeader.querySelector('.variation__attr--value');
+        if (sizeValueSpan) {
+          const sizeText = sizeValueSpan.textContent?.trim();
+          console.log(`TH extractSizes: Found size from alternative header:`, sizeText);
+          
+          if (sizeText && sizeText !== '') {
+            availableSizes.push(sizeText);
+            return availableSizes;
+          }
+        }
+      }
+      
+      // Вариант 4: Поиск по всему документу для "ONE SIZE" или других размеров
+      const oneSize = document.querySelector('[data-testid="size-onesize"], .size-one-size');
+      if (oneSize) {
+        console.log('TH extractSizes: Found ONE SIZE indicator');
+        availableSizes.push('ONE SIZE');
+        return availableSizes;
+      }
+      
+      console.log('TH extractSizes: No sizes found');
       return availableSizes;
       
     } catch (error) {
@@ -447,20 +565,54 @@ class TommyHilfigerParser extends BaseParser {
   /**
    * Извлечение всех доступных цветов
    * Извлекает цветовые коды из radio ID формата: MW41326-HGF_colorCodeitem-DW5
+   * Поддерживает как обычную структуру, так и grouped-by-price структуру
    */
   extractAllColors() {
     const colors = [];
-    const colorsList = document.querySelector(this.config.selectors.colorsList);
+    let colorInputs = [];
     
-    if (!colorsList) {
-      console.log('TH extractAllColors: No colorsList found');
-      return colors;
+    // Вариант 1: Обычная структура с одним colorsList
+    const colorsList = document.querySelector(this.config.selectors.colorsList);
+    if (colorsList) {
+      const inputs = colorsList.querySelectorAll('input[type="radio"]');
+      colorInputs = colorInputs.concat(Array.from(inputs));
+      console.log(`TH extractAllColors: Found ${inputs.length} color inputs in main colorsList`);
     }
     
-    const colorInputs = colorsList.querySelectorAll('input[type="radio"]');
-    console.log(`TH extractAllColors: Found ${colorInputs.length} color radio inputs`);
+    // Вариант 2: Grouped-by-price структура - собираем из всех видимых colorGroup
+    const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
+    console.log(`TH extractAllColors: Found ${colorGroups.length} visible color groups`);
+    
+    colorGroups.forEach((group, index) => {
+      const inputs = group.querySelectorAll('input[type="radio"]');
+      colorInputs = colorInputs.concat(Array.from(inputs));
+      console.log(`TH extractAllColors: Found ${inputs.length} color inputs in color group ${index}: ${group.className}`);
+    });
+    
+    // Вариант 3: Fallback - поиск по всему документу
+    if (colorInputs.length === 0) {
+      const fallbackInputs = document.querySelectorAll('input[type="radio"].variant-colorCode');
+      colorInputs = colorInputs.concat(Array.from(fallbackInputs));
+      console.log(`TH extractAllColors: Found ${fallbackInputs.length} color inputs via fallback selector`);
+    }
+    
+    console.log(`TH extractAllColors: Total found ${colorInputs.length} color radio inputs`);
+    
+    // Удаляем дубликаты по ID
+    const uniqueInputs = [];
+    const seenIds = new Set();
     
     colorInputs.forEach(input => {
+      const inputId = input.getAttribute('id');
+      if (inputId && !seenIds.has(inputId)) {
+        uniqueInputs.push(input);
+        seenIds.add(inputId);
+      }
+    });
+    
+    console.log(`TH extractAllColors: After deduplication: ${uniqueInputs.length} unique color inputs`);
+    
+    uniqueInputs.forEach(input => {
       const inputId = input.getAttribute('id');
       if (!inputId) {
         console.log('TH extractAllColors: Skipping input without ID');
@@ -494,15 +646,44 @@ class TommyHilfigerParser extends BaseParser {
   /**
    * Извлечение уникального идентификатора продукта из radio ID
    * Парсит ID формата: MW41326-HGF_colorCodeitem-DW5 -> MW41326-HGF
+   * Поддерживает как обычную структуру, так и grouped-by-price структуру
    */
   extractUniqueProductId() {
+    // Ищем color inputs в различных возможных контейнерах
+    let firstColorInput = null;
+    
+    // Вариант 1: Обычная структура с одним colorsList
     const colorsList = document.querySelector(this.config.selectors.colorsList);
-    if (!colorsList) {
-      console.log('TH extractUniqueProductId: No colorsList found');
-      return null;
+    if (colorsList) {
+      firstColorInput = colorsList.querySelector('input[type="radio"]');
+      if (firstColorInput) {
+        console.log('TH extractUniqueProductId: Found color input in main colorsList');
+      }
     }
     
-    const firstColorInput = colorsList.querySelector('input[type="radio"]');
+    // Вариант 2: Grouped-by-price структура - ищем во всех colorGroup
+    if (!firstColorInput) {
+      const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
+      console.log(`TH extractUniqueProductId: Found ${colorGroups.length} visible color groups`);
+      
+      for (const group of colorGroups) {
+        const input = group.querySelector('input[type="radio"]');
+        if (input) {
+          firstColorInput = input;
+          console.log('TH extractUniqueProductId: Found color input in color group:', group.className);
+          break;
+        }
+      }
+    }
+    
+    // Вариант 3: Поиск по всему документу как fallback
+    if (!firstColorInput) {
+      firstColorInput = document.querySelector('input[type="radio"].variant-colorCode');
+      if (firstColorInput) {
+        console.log('TH extractUniqueProductId: Found color input via fallback selector');
+      }
+    }
+    
     if (!firstColorInput) {
       console.log('TH extractUniqueProductId: No color radio inputs found');
       return null;
@@ -514,15 +695,24 @@ class TommyHilfigerParser extends BaseParser {
       return null;
     }
     
-    // Парсим ID формата: MW41326-HGF_colorCodeitem-DW5
-    const match = inputId.match(/^([^_]+)_colorCodeitem-/);
+    // Парсим ID формата: XM05531-DW6_colorCodeitem-DW6 -> XM05531
+    // Новая логика: извлекаем только базовый код продукта (до первого дефиса после букв)
+    let match = inputId.match(/^([A-Z]+\d+)(-[A-Z0-9]+)?_colorCodeitem-/);
+    if (match) {
+      const uniqueProductId = match[1]; // XM05531 (только базовый код)
+      console.log(`TH extractUniqueProductId: Extracted base code "${uniqueProductId}" from "${inputId}"`);
+      return uniqueProductId;
+    }
+    
+    // Fallback к старому формату: MW41326-HGF_colorCodeitem-DW5 -> MW41326-HGF
+    match = inputId.match(/^([^_]+)_colorCodeitem-/);
     if (!match) {
-      console.log('TH extractUniqueProductId: ID format does not match expected pattern:', inputId);
+      console.log('TH extractUniqueProductId: ID format does not match any expected pattern:', inputId);
       return null;
     }
     
     const uniqueProductId = match[1]; // MW41326-HGF
-    console.log(`TH extractUniqueProductId: Extracted "${uniqueProductId}" from "${inputId}"`);
+    console.log(`TH extractUniqueProductId: Extracted (fallback) "${uniqueProductId}" from "${inputId}"`);
     return uniqueProductId;
   }
 
