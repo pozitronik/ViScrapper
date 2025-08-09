@@ -437,7 +437,17 @@ function handleStartColorObserver(sendResponse) {
         }
         
         chrome.runtime.sendMessage(message);
-        console.log('Sent update message to extension UI:', message.action);
+        console.log('Sent update message to extension UI:', message.action, 'Data:', message);
+        
+        // For Tommy Hilfiger, trigger direct panel data refresh (SPA behavior, no URL change)
+        if (source === 'tommy-hilfiger-color-change') {
+          console.log('Tommy Hilfiger SPA color change - triggering direct panel data refresh');
+          chrome.runtime.sendMessage({
+            action: 'spaPanelRefresh',
+            source: 'tommy-spa-color-change',
+            reason: 'Color changed in SPA (no URL change)'
+          });
+        }
         
       } catch (error) {
         console.log('Could not send update to extension UI (probably closed)');

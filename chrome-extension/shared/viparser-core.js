@@ -446,10 +446,8 @@ class VIParserCore {
       console.log('Updated color in preview:', color);
     }
     
-    // Если обновились изображения, обновляем превью изображений
-    if (images && Array.isArray(images) && images.length > 0) {
-      this.updateImagePreview(images);
-    }
+    // Note: Full data preview refresh is handled by VIParserEvents.refreshPreviewAfterColorChange()
+    // for Tommy Hilfiger when images are included
   }
 
   /**

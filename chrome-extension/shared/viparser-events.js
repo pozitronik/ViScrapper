@@ -30,9 +30,16 @@ class VIParserEvents {
           update.images = request.images;
           update.source = request.source;
         }
+        
+        // Handle the color/image update
         this.core.handleColorUpdate(update);
+        
+        // Note: Full panel refresh for Tommy Hilfiger is handled by separate spaPanelRefresh message
+        // This is different from Carter's URL-based autoRefreshPanel mechanism
       } else if (request.action === 'autoRefreshPanel') {
         this.handleAutoRefresh(request.url);
+      } else if (request.action === 'spaPanelRefresh') {
+        this.handleSpaRefresh(request.source, request.reason);
       }
     });
   }
@@ -42,13 +49,41 @@ class VIParserEvents {
    */
   handleAutoRefresh(newUrl) {
     console.log('Auto-refresh triggered for URL:', newUrl);
+    console.log('Full refresh starting using proven Carter\'s mechanism...');
     
     // Show refresh indication
     this.ui.showRefreshIndication('Обновление данных...');
     
-    // Reload data
+    // Reload data using the same mechanism as Carter's
     if (typeof refreshPanelData === 'function') {
+      console.log('Calling refreshPanelData() for full sidepanel refresh');
       refreshPanelData();
+    } else {
+      console.log('refreshPanelData not available (popup context), triggering manual reload...');
+      // For popup, do a lighter refresh by reloading product data
+      this.loadProductData();
+    }
+  }
+
+  /**
+   * Обработка обновления для SPA сайтов (без смены URL)
+   * Используется для Tommy Hilfiger когда контент меняется но URL остается тот же
+   */
+  handleSpaRefresh(source, reason) {
+    console.log('SPA refresh triggered:', source, reason);
+    console.log('Full refresh for SPA content change (no URL change)');
+    
+    // Show refresh indication
+    this.ui.showRefreshIndication('Обновление после смены цвета...');
+    
+    // Direct refresh - same logic as handleAutoRefresh but for SPA
+    if (typeof refreshPanelData === 'function') {
+      console.log('Calling refreshPanelData() for SPA content refresh');
+      refreshPanelData();
+    } else {
+      console.log('refreshPanelData not available (popup context), doing direct data reload...');
+      // For popup, reload product data directly
+      this.loadProductData();
     }
   }
 
@@ -452,6 +487,9 @@ class VIParserEvents {
       this.core.updateProductStatusUI({ status: 'error', message: 'Не удалось проверить статус' });
     }
   }
+
+  // Note: refreshPreviewAfterColorChange() method removed
+  // Tommy Hilfiger now uses the same autoRefreshPanel mechanism as Carter's
 
   /**
    * Setup cleanup handlers

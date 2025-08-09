@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadSettings: false, // Already loaded above
     checkBackend: true,
     loadProductData: true,
-    startColorObserver: false, // Side panel doesn't auto-start color observer
+    startColorObserver: true, // Side panel needs color observer for Tommy Hilfiger image updates
     closeOnSubmit: false, // Side panel-specific: don't close after submit
     onManualRefresh: refreshPanelData // Side panel-specific refresh function
   });
