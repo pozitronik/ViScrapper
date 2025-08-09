@@ -238,6 +238,244 @@ class VIParserCore {
       return 'Отправить данные';
     }
   }
+
+  /**
+   * Настройка обработчиков для селекции изображений
+   */
+  setupImageSelection() {
+    const checkboxes = document.querySelectorAll('.image-checkbox');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deselectAllBtn = document.getElementById('deselectAllBtn');
+    const imageSelectors = document.querySelectorAll('.image-selector');
+    
+    if (checkboxes.length === 0) {
+      return;
+    }
+    
+    // Обработчики для чекбоксов
+    checkboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', () => this.handleImageSelectionChange());
+    });
+    
+    // Обработчики для кликов по изображениям
+    imageSelectors.forEach(selector => {
+      selector.addEventListener('click', (e) => {
+        if (e.target.type !== 'checkbox') {
+          const checkbox = selector.querySelector('.image-checkbox');
+          checkbox.checked = !checkbox.checked;
+          this.handleImageSelectionChange();
+        }
+      });
+    });
+    
+    // Обработчики для кнопок
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', () => this.selectAllImages());
+    }
+    
+    if (deselectAllBtn) {
+      deselectAllBtn.addEventListener('click', () => this.deselectAllImages());
+    }
+    
+    // Обновляем начальное состояние
+    this.updateImageSelectionUI();
+  }
+
+  /**
+   * Обработка изменения выбора изображения
+   */
+  handleImageSelectionChange() {
+    this.updateImageSelectionUI();
+  }
+
+  /**
+   * Обновление интерфейса селекции изображений
+   */
+  updateImageSelectionUI() {
+    const checkboxes = document.querySelectorAll('.image-checkbox');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const imageSelectors = document.querySelectorAll('.image-selector');
+    
+    let selectedCount = 0;
+    
+    checkboxes.forEach((checkbox, index) => {
+      const selector = imageSelectors[index];
+      if (checkbox.checked) {
+        selectedCount++;
+        selector?.classList.add('selected');
+      } else {
+        selector?.classList.remove('selected');
+      }
+    });
+    
+    if (selectedCountSpan) {
+      selectedCountSpan.textContent = selectedCount;
+    }
+  }
+
+  /**
+   * Выбрать все изображения
+   */
+  selectAllImages() {
+    const checkboxes = document.querySelectorAll('.image-checkbox');
+    checkboxes.forEach(checkbox => {
+      checkbox.checked = true;
+    });
+    this.updateImageSelectionUI();
+  }
+
+  /**
+   * Снять выбор со всех изображений
+   */
+  deselectAllImages() {
+    const checkboxes = document.querySelectorAll('.image-checkbox');
+    checkboxes.forEach(checkbox => {
+      checkbox.checked = false;
+    });
+    this.updateImageSelectionUI();
+  }
+
+  /**
+   * Обновление статуса продукта в UI
+   */
+  updateProductStatusUI(statusResponse) {
+    const statusCard = document.getElementById('productStatus');
+    if (!statusCard) return;
+    
+    // Удаляем старые классы
+    statusCard.classList.remove('new', 'existing', 'unavailable', 'warning');
+    
+    if (!statusResponse) {
+      statusCard.innerHTML = '<div class="status-text">Проверяется...</div>';
+      statusCard.classList.add('warning');
+      return;
+    }
+    
+    const { statusText, statusClass } = this.formatStatusResponse(statusResponse);
+    statusCard.innerHTML = `<div class="status-text">${statusText}</div>`;
+    statusCard.classList.add(statusClass);
+    
+    // Специальная обработка для случая изменения продукта
+    if (statusResponse && statusResponse.status === 'changed') {
+      const refreshBtn = document.getElementById('refreshBtn');
+      const submitBtn = document.getElementById('submitBtn');
+      
+      if (refreshBtn) refreshBtn.style.display = 'block';
+      if (submitBtn) submitBtn.style.display = 'none';
+    }
+  }
+
+  /**
+   * Форматирование ответа статуса для отображения
+   */
+  formatStatusResponse(statusResponse) {
+    let statusText = '';
+    let statusClass = '';
+    
+    switch (statusResponse.status) {
+      case 'new':
+        statusText = statusResponse.message || '🆕 Новый продукт';
+        statusClass = 'new';
+        break;
+      case 'existing':
+        statusClass = 'existing';
+        
+        if (statusResponse.productUrl) {
+          statusText = `<a href="${statusResponse.productUrl}" target="_blank" style="color: #4ade80; text-decoration: underline;">${statusResponse.message || '✅ Продукт уже существует'}</a>`;
+        } else {
+          statusText = statusResponse.message || '✅ Уже существует';
+        }
+        break;
+      case 'unavailable':
+        statusText = statusResponse.message || '❌ Бэкенд недоступен';
+        statusClass = 'unavailable';
+        break;
+      case 'error':
+        statusText = statusResponse.message || '⚠️ Не удалось проверить';
+        statusClass = 'warning';
+        break;
+      case 'changed':
+        statusText = statusResponse.message || '🔄 Нужно обновить страницу';
+        statusClass = 'warning';
+        break;
+      default:
+        statusText = statusResponse.message || '❓ Неизвестно';
+        statusClass = 'warning';
+    }
+    
+    return { statusText, statusClass };
+  }
+
+  /**
+   * Обработка обновления цвета в реальном времени
+   */
+  handleColorUpdate(color) {
+    console.log('Received color update:', color);
+    
+    // Обновляем данные в состоянии приложения
+    if (this.appState.productData) {
+      this.appState.productData.color = color;
+    }
+    
+    // Находим элемент цвета в превью и обновляем его
+    const colorValueElement = document.querySelector('[data-field="color"] .data-value');
+    if (colorValueElement) {
+      colorValueElement.textContent = color;
+      colorValueElement.classList.remove('missing');
+      console.log('Updated color in preview:', color);
+    }
+  }
+
+  /**
+   * Обработка уведомления о смене продукта
+   */
+  handleProductChangedNotification(reason) {
+    console.log('Product changed notification received:', reason);
+    
+    // Показываем статус в блоке статуса
+    this.updateProductStatusUI({ 
+      status: 'changed', 
+      message: 'Нужно обновить страницу' 
+    });
+    
+    // Показываем кнопку обновления, скрываем кнопку отправки
+    const refreshBtn = document.getElementById('refreshBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    if (refreshBtn) refreshBtn.style.display = 'block';
+    if (submitBtn) submitBtn.style.display = 'none';
+    
+    // Скрываем превью данных
+    const previewContainer = document.getElementById('dataPreview');
+    if (previewContainer) previewContainer.style.display = 'none';
+    
+    // Скрываем поле комментария
+    const commentContainer = document.querySelector('.comment-container');
+    if (commentContainer) commentContainer.style.display = 'none';
+  }
+
+  /**
+   * Обновление состояния кнопок
+   */
+  updateButtonsState() {
+    const submitBtn = document.getElementById('submitBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    
+    if (!submitBtn) return;
+    
+    // Если показывается кнопка обновления, не трогаем состояние
+    if (refreshBtn && refreshBtn.style.display !== 'none') {
+      return;
+    }
+    
+    // Показываем кнопку отправки, скрываем кнопку обновления
+    submitBtn.style.display = 'block';
+    if (refreshBtn) refreshBtn.style.display = 'none';
+    
+    const canSubmit = this.canSubmitData();
+    submitBtn.disabled = !canSubmit;
+    submitBtn.textContent = this.getSubmitButtonText();
+  }
 }
 
 // Export for use in other modules
