@@ -12,7 +12,7 @@ class TommyHilfigerParser extends BaseParser {
         productName: '.product-name, h1.product-name',
         priceValue: '.sales .value[content]',
         priceContainer: '.buy-box__prices.product-detail__prices',
-        colorsList: '#colorscolorCode',
+        colorsList: '[data-display-id="colorCode"]',
         sizesList: '#sizessize',
         jsonLdScript: 'script[type="application/ld+json"]'
       }
@@ -58,20 +58,65 @@ class TommyHilfigerParser extends BaseParser {
   }
 
   /**
-   * Извлечение SKU из JSON-LD
+   * Извлечение SKU - генерирует уникальный SKU на основе продукта и выбранного цвета
+   * Формат: {baseProductCode}-{colorCode} (например: MW41326-HGF-DW5)
    */
   extractSku(jsonData) {
-    if (jsonData && jsonData.sku) {
-      return jsonData.sku;
+    // Извлекаем базовый код продукта из radio ID
+    const baseProductCode = this.extractUniqueProductId();
+    if (!baseProductCode) {
+      console.log('TH extractSku: No base product code found, trying fallbacks');
+      
+      // Fallback 1: JSON-LD SKU
+      if (jsonData && jsonData.sku) {
+        return jsonData.sku;
+      }
+      
+      // Fallback 2: URL pattern
+      const urlMatch = window.location.pathname.match(/\/([A-Z0-9]+-[A-Z0-9]+)\.html$/i);
+      if (urlMatch) {
+        return urlMatch[1];
+      }
+      
+      return null;
     }
     
-    // Fallback: try to extract from URL pattern
-    const urlMatch = window.location.pathname.match(/\/([A-Z0-9]+-[A-Z0-9]+)\.html$/i);
-    if (urlMatch) {
-      return urlMatch[1];
+    // Определяем выбранный цвет
+    const selectedColorCode = this.extractSelectedColorCode();
+    
+    // Генерируем уникальный SKU
+    return this.generateColorSpecificSku(baseProductCode, selectedColorCode);
+  }
+
+  /**
+   * Извлечение кода выбранного цвета
+   */
+  extractSelectedColorCode() {
+    const colorsList = document.querySelector(this.config.selectors.colorsList);
+    if (!colorsList) {
+      return null;
     }
     
-    return null;
+    // Ищем выбранный (checked) цвет
+    const selectedColor = colorsList.querySelector('input[type="radio"]:checked');
+    if (!selectedColor) {
+      // Попробуем найти по aria-checked="true"
+      const ariaCheckedColor = colorsList.querySelector('input[type="radio"][aria-checked="true"]');
+      if (ariaCheckedColor) {
+        return this.extractColorCodeFromId(ariaCheckedColor.getAttribute('id'));
+      }
+      
+      // Fallback: берем первый цвет
+      const firstColor = colorsList.querySelector('input[type="radio"]');
+      if (firstColor) {
+        console.log('TH extractSelectedColorCode: No selected color found, using first color as fallback');
+        return this.extractColorCodeFromId(firstColor.getAttribute('id'));
+      }
+      
+      return null;
+    }
+    
+    return this.extractColorCodeFromId(selectedColor.getAttribute('id'));
   }
 
   /**
@@ -200,30 +245,126 @@ class TommyHilfigerParser extends BaseParser {
 
   /**
    * Извлечение всех доступных цветов
+   * Извлекает цветовые коды из radio ID формата: MW41326-HGF_colorCodeitem-DW5
    */
   extractAllColors() {
     const colors = [];
     const colorsList = document.querySelector(this.config.selectors.colorsList);
     
     if (!colorsList) {
+      console.log('TH extractAllColors: No colorsList found');
       return colors;
     }
     
     const colorInputs = colorsList.querySelectorAll('input[type="radio"]');
+    console.log(`TH extractAllColors: Found ${colorInputs.length} color radio inputs`);
+    
     colorInputs.forEach(input => {
-      const colorCode = input.getAttribute('data-attr-value');
+      const inputId = input.getAttribute('id');
+      if (!inputId) {
+        console.log('TH extractAllColors: Skipping input without ID');
+        return;
+      }
+      
+      // Извлекаем цветовой код из ID
+      const colorCode = this.extractColorCodeFromId(inputId);
+      if (!colorCode) {
+        console.log('TH extractAllColors: No color code found for input ID:', inputId);
+        return;
+      }
+      
+      // Извлекаем название цвета (для отображения)
       const colorName = this.extractColorNameFromInput(input);
       
-      if (colorCode || colorName) {
-        colors.push({
-          code: colorCode,
-          name: colorName || colorCode,
-          isSelected: input.checked || input.getAttribute('aria-checked') === 'true'
-        });
-      }
+      colors.push({
+        code: colorCode,
+        name: colorName || colorCode,
+        isSelected: input.checked || input.getAttribute('aria-checked') === 'true',
+        inputId: inputId  // Сохраняем ID для удобства отладки
+      });
+      
+      console.log(`TH extractAllColors: Added color - Code: "${colorCode}", Name: "${colorName}", Selected: ${input.checked || input.getAttribute('aria-checked') === 'true'}`);
     });
     
+    console.log(`TH extractAllColors: Extracted ${colors.length} colors`);
     return colors;
+  }
+
+  /**
+   * Извлечение уникального идентификатора продукта из radio ID
+   * Парсит ID формата: MW41326-HGF_colorCodeitem-DW5 -> MW41326-HGF
+   */
+  extractUniqueProductId() {
+    const colorsList = document.querySelector(this.config.selectors.colorsList);
+    if (!colorsList) {
+      console.log('TH extractUniqueProductId: No colorsList found');
+      return null;
+    }
+    
+    const firstColorInput = colorsList.querySelector('input[type="radio"]');
+    if (!firstColorInput) {
+      console.log('TH extractUniqueProductId: No color radio inputs found');
+      return null;
+    }
+    
+    const inputId = firstColorInput.getAttribute('id');
+    if (!inputId) {
+      console.log('TH extractUniqueProductId: No ID found on color input');
+      return null;
+    }
+    
+    // Парсим ID формата: MW41326-HGF_colorCodeitem-DW5
+    const match = inputId.match(/^([^_]+)_colorCodeitem-/);
+    if (!match) {
+      console.log('TH extractUniqueProductId: ID format does not match expected pattern:', inputId);
+      return null;
+    }
+    
+    const uniqueProductId = match[1]; // MW41326-HGF
+    console.log(`TH extractUniqueProductId: Extracted "${uniqueProductId}" from "${inputId}"`);
+    return uniqueProductId;
+  }
+
+  /**
+   * Извлечение цветового кода из radio ID
+   * Парсит ID формата: MW41326-HGF_colorCodeitem-DW5 -> DW5
+   */
+  extractColorCodeFromId(inputId) {
+    if (!inputId) {
+      return null;
+    }
+    
+    // Парсим ID формата: MW41326-HGF_colorCodeitem-DW5
+    const match = inputId.match(/_colorCodeitem-(.+)$/);
+    if (!match) {
+      console.log('TH extractColorCodeFromId: ID format does not match expected pattern:', inputId);
+      return null;
+    }
+    
+    const colorCode = match[1]; // DW5
+    console.log(`TH extractColorCodeFromId: Extracted color code "${colorCode}" from "${inputId}"`);
+    return colorCode;
+  }
+
+  /**
+   * Генерация уникального SKU для конкретного цвета
+   * Формат: {baseProductCode}-{colorCode} (например: MW41326-HGF-DW5)
+   */
+  generateColorSpecificSku(baseProductCode, colorCode) {
+    if (!baseProductCode) {
+      console.warn('TH generateColorSpecificSku: No base product code provided');
+      return null;
+    }
+
+    if (!colorCode) {
+      console.log('TH generateColorSpecificSku: No color code, returning base product code');
+      return baseProductCode;
+    }
+
+    const colorSpecificSku = `${baseProductCode}-${colorCode}`;
+    console.log(`TH generateColorSpecificSku: Generated ${colorSpecificSku} from base ${baseProductCode} and color ${colorCode}`);
+    
+    return colorSpecificSku;
   }
 
   /**
@@ -304,6 +445,21 @@ class TommyHilfigerParser extends BaseParser {
     // Fallback: USD для Tommy Hilfiger US
     return 'USD';
   }
+
+  /**
+   * Извлечение артикула продукта (базовый код продукта)
+   * Возвращает базовый код продукта как артикул (например: MW41326-HGF)
+   */
+  extractItem() {
+    const baseProductCode = this.extractUniqueProductId();
+    if (baseProductCode) {
+      console.log('TH extractItem: Using base product code as item:', baseProductCode);
+      return baseProductCode;
+    }
+    
+    console.log('TH extractItem: No base product code found');
+    return null;
+  }
   
   /**
    * Извлечение доступности товара
@@ -365,21 +521,22 @@ class TommyHilfigerParser extends BaseParser {
 
   /**
    * Извлечение всех вариантов (цвет + размеры) для создания отдельных продуктов
+   * Генерирует уникальные SKU в формате: {baseProductCode}-{colorCode}
+   * Каждый цвет = отдельный продукт с массивом доступных размеров
    */
   async extractAllVariants() {
     try {
       console.log('Starting TH variant extraction...');
       
       const baseJsonData = this.getJsonLdData();
-      const baseSku = this.extractSku(baseJsonData);
+      const baseProductCode = this.extractUniqueProductId();
       const baseName = this.extractName();
       const basePrice = this.extractPrice(baseJsonData);
       const baseCurrency = this.extractCurrency(baseJsonData);
       const baseAvailability = this.extractAvailability(baseJsonData);
-      const baseImages = await this.extractImages();
       
-      if (!baseSku) {
-        console.error('TH extractAllVariants: No base SKU found, cannot create variants');
+      if (!baseProductCode) {
+        console.error('TH extractAllVariants: No base product code found, cannot create variants');
         return [];
       }
       
@@ -389,11 +546,48 @@ class TommyHilfigerParser extends BaseParser {
       if (colors.length === 0) {
         console.log('TH extractAllVariants: No colors found, creating single variant with current state');
         const sizes = await this.extractSizes();
-        const currentColor = this.extractColor();
+        const currentColorCode = this.extractSelectedColorCode();
+        const currentColorName = this.extractColor();
+        const baseImages = await this.extractImages();
         
-        // Создаем варианты для каждого размера
-        sizes.forEach(size => {
-          const variantSku = `${baseSku}-${size}`;
+        // Создаем один вариант с текущим цветом и всеми размерами
+        const variantSku = `${baseProductCode}-${currentColorCode || 'default'}`;
+        
+        variants.push({
+          sku: variantSku,
+          name: baseName,
+          price: basePrice,
+          currency: baseCurrency,
+          availability: baseAvailability,
+          color: currentColorName,
+          available_sizes: sizes, // Все размеры для этого цвета
+          all_image_urls: baseImages,
+          item: baseProductCode, // Добавляем артикул
+          product_url: this.sanitizeUrl(window.location.href)
+        });
+      } else {
+        // Для каждого цвета создаем один вариант с всеми размерами
+        for (const color of colors) {
+          console.log(`TH extractAllVariants: Processing color: ${color.name} (${color.code})`);
+          
+          // Кликаем на цвет если он не выбран
+          if (!color.isSelected) {
+            // Используем ID для поиска radio input вместо data-attr-value
+            const colorInput = document.querySelector(`#${color.inputId}`);
+            if (colorInput) {
+              console.log(`TH extractAllVariants: Clicking color input with ID: ${color.inputId}`);
+              colorInput.click();
+              await this.wait(500); // Ждем обновления размеров и изображений
+            } else {
+              console.warn(`TH extractAllVariants: Could not find color input with ID: ${color.inputId}`);
+            }
+          }
+          
+          const sizes = await this.extractSizes();
+          const colorImages = await this.extractImages();
+          
+          // Создаем один вариант для этого цвета со всеми размерами
+          const variantSku = `${baseProductCode}-${color.code}`;
           
           variants.push({
             sku: variantSku,
@@ -401,45 +595,11 @@ class TommyHilfigerParser extends BaseParser {
             price: basePrice,
             currency: baseCurrency,
             availability: baseAvailability,
-            color: currentColor,
-            size: size,
-            all_image_urls: baseImages,
+            color: color.name,
+            available_sizes: sizes, // Все размеры для этого цвета
+            all_image_urls: colorImages,
+            item: baseProductCode, // Добавляем артикул
             product_url: this.sanitizeUrl(window.location.href)
-          });
-        });
-      } else {
-        // Для каждого цвета извлекаем размеры и создаем варианты
-        for (const color of colors) {
-          console.log(`TH extractAllVariants: Processing color: ${color.name} (${color.code})`);
-          
-          // Кликаем на цвет если он не выбран
-          if (!color.isSelected) {
-            const colorInput = document.querySelector(`${this.config.selectors.colorsList} input[data-attr-value="${color.code}"]`);
-            if (colorInput) {
-              colorInput.click();
-              await this.wait(500); // Ждем обновления размеров и изображений
-            }
-          }
-          
-          const sizes = await this.extractSizes();
-          const colorImages = await this.extractImages();
-          
-          // Создаем варианты для каждого размера этого цвета
-          sizes.forEach(size => {
-            // Создаем SKU в формате: базовыйSKU-размер (цвет уже в базовом SKU)
-            const variantSku = `${baseSku}-${size}`;
-            
-            variants.push({
-              sku: variantSku,
-              name: baseName,
-              price: basePrice,
-              currency: baseCurrency,
-              availability: baseAvailability,
-              color: color.name,
-              size: size,
-              all_image_urls: colorImages,
-              product_url: this.sanitizeUrl(window.location.href)
-            });
           });
         }
       }
