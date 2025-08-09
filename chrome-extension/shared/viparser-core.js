@@ -13,6 +13,8 @@ class VIParserCore {
     };
   }
 
+  // Note: Availability constants are defined in BaseParser and referenced here
+
   /**
    * Определение текущего сайта и получение информации о брендинге
    */
@@ -178,9 +180,10 @@ class VIParserCore {
    * Форматирование доступности для отображения
    */
   formatAvailability(value) {
+    // Constants defined in BaseParser - using string literals to avoid circular dependency
     const availabilityMap = {
       'InStock': '✅ В наличии',
-      'OutOfStock': '❌ Нет в наличии', 
+      'OutOfStock': '❌ Нет в наличии',
       'SoldOut': '❌ Распродано',
       'PreOrder': '⏰ Предзаказ',
       'PreSale': '⏰ Предпродажа',

@@ -180,9 +180,9 @@ class CartersParser extends BaseParser {
     if (availabilityElement) {
       const availabilityText = availabilityElement.textContent.trim().toLowerCase();
       if (availabilityText.includes('in stock') || availabilityText.includes('available')) {
-        return 'InStock';
+        return BaseParser.AVAILABILITY.IN_STOCK;
       } else if (availabilityText.includes('out of stock') || availabilityText.includes('unavailable')) {
-        return 'OutOfStock';
+        return BaseParser.AVAILABILITY.OUT_OF_STOCK;
       }
     }
     
@@ -200,7 +200,7 @@ class CartersParser extends BaseParser {
     }
     
     // Default to InStock for Carter's
-    return 'InStock';
+    return BaseParser.AVAILABILITY.IN_STOCK;
   }
 
   /**

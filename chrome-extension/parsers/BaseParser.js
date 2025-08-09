@@ -10,6 +10,22 @@ class BaseParser {
     this.selectors = config.selectors || {};
   }
 
+  // Standard availability constants - all parsers should use these
+  static AVAILABILITY = {
+    IN_STOCK: 'InStock',
+    OUT_OF_STOCK: 'OutOfStock',
+    SOLD_OUT: 'SoldOut',
+    PRE_ORDER: 'PreOrder',
+    PRE_SALE: 'PreSale',
+    BACK_ORDER: 'BackOrder',
+    MADE_TO_ORDER: 'MadeToOrder',
+    DISCONTINUED: 'Discontinued',
+    IN_STORE_ONLY: 'InStoreOnly',
+    ONLINE_ONLY: 'OnlineOnly',
+    LIMITED_AVAILABILITY: 'LimitedAvailability',
+    RESERVED: 'Reserved'
+  };
+
   // Абстрактные методы - должны быть переопределены в наследниках
   isValidProductPage() { 
     throw new Error('Must implement isValidProductPage'); 
@@ -137,7 +153,7 @@ class BaseParser {
       return availabilityUrl;
     }
     
-    return 'InStock';
+    return BaseParser.AVAILABILITY.IN_STOCK;
   }
 
   /**

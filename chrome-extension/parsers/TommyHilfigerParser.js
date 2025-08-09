@@ -318,27 +318,27 @@ class TommyHilfigerParser extends BaseParser {
       const buttonText = addToCartButton.textContent.toLowerCase();
       
       if (isDisabled || buttonText.includes('out of stock') || buttonText.includes('sold out') || buttonText.includes('unavailable')) {
-        return 'out_of_stock';
+        return BaseParser.AVAILABILITY.OUT_OF_STOCK;
       }
     }
     
     // 2. Проверка явных сообщений о недоступности
     const outOfStockMessage = document.querySelector('.out-of-stock, .sold-out, .unavailable, [data-out-of-stock="true"]');
     if (outOfStockMessage) {
-      return 'out_of_stock';
+      return BaseParser.AVAILABILITY.OUT_OF_STOCK;
     }
     
     // 3. Проверка JSON-LD только для явной недоступности
     if (jsonData && jsonData.offers && jsonData.offers.availability) {
       const availability = jsonData.offers.availability.toLowerCase();
       if (availability.includes('outofstock') || availability.includes('soldout') || availability.includes('discontinued')) {
-        return 'out_of_stock';
+        return BaseParser.AVAILABILITY.OUT_OF_STOCK;
       }
     }
     
     // По умолчанию считаем товар доступным, если он есть на странице
     // Даже если есть предупреждения типа "Only 3 left in Stock"
-    return 'in_stock';
+    return BaseParser.AVAILABILITY.IN_STOCK;
   }
 
   /**
