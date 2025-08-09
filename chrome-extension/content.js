@@ -41,6 +41,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleStopColorObserver(sendResponse);
       return true;
       
+    case 'detectMultiColorProduct':
+      handleDetectMultiColorProduct(sendResponse);
+      return true;
+      
+    case 'getAllAvailableColors':
+      handleGetAllAvailableColors(sendResponse);
+      return true;
+      
+    case 'scrapeColorVariant':
+      handleScrapeColorVariant(request.color, sendResponse);
+      return true;
+      
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -800,4 +812,208 @@ function resetProductChangeFlag() {
   initialPageLoadComplete = false;
   pageInitializedTime = null;
   changeTrackingStartTime = null;
+}
+
+/**
+ * Определение мульти-цветного продукта
+ */
+function handleDetectMultiColorProduct(sendResponse) {
+  try {
+    console.log('Detecting multi-color product...');
+    
+    // Инициализируем парсер если еще не инициализирован
+    if (!currentParser) {
+      if (!initializeParser()) {
+        sendResponse({ hasMultipleColors: false, colors: [], error: 'Парсер не инициализирован' });
+        return;
+      }
+    }
+    
+    // Проверяем, поддерживает ли парсер извлечение всех цветов
+    if (typeof currentParser.extractAllColors === 'function') {
+      const colors = currentParser.extractAllColors();
+      const hasMultipleColors = colors && colors.length > 1;
+      
+      console.log(`Multi-color detection: ${hasMultipleColors ? 'YES' : 'NO'}, found ${colors ? colors.length : 0} colors`);
+      
+      sendResponse({ 
+        hasMultipleColors: hasMultipleColors,
+        colors: colors || [],
+        siteName: currentParser.siteName
+      });
+    } else {
+      console.log('Parser does not support multi-color detection');
+      sendResponse({ 
+        hasMultipleColors: false, 
+        colors: [], 
+        error: 'Parser does not support multi-color detection'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error detecting multi-color product:', error);
+    sendResponse({ 
+      hasMultipleColors: false, 
+      colors: [], 
+      error: error.message 
+    });
+  }
+}
+
+/**
+ * Получение всех доступных цветов продукта
+ */
+function handleGetAllAvailableColors(sendResponse) {
+  try {
+    console.log('Getting all available colors...');
+    
+    // Инициализируем парсер если еще не инициализирован
+    if (!currentParser) {
+      if (!initializeParser()) {
+        sendResponse({ colors: [], error: 'Парсер не инициализирован' });
+        return;
+      }
+    }
+    
+    // Проверяем, поддерживает ли парсер извлечение всех цветов
+    if (typeof currentParser.extractAllColors === 'function') {
+      const colors = currentParser.extractAllColors();
+      
+      console.log(`Found ${colors ? colors.length : 0} available colors`);
+      
+      sendResponse({ 
+        colors: colors || [],
+        siteName: currentParser.siteName
+      });
+    } else {
+      console.log('Parser does not support color extraction');
+      sendResponse({ 
+        colors: [], 
+        error: 'Parser does not support color extraction'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error getting available colors:', error);
+    sendResponse({ 
+      colors: [], 
+      error: error.message 
+    });
+  }
+}
+
+/**
+ * Скрапинг конкретного цветового варианта
+ */
+async function handleScrapeColorVariant(color, sendResponse) {
+  try {
+    console.log(`[Content] Starting scrape for color variant: ${color.name} (${color.code})`);
+    
+    // Инициализируем парсер если еще не инициализирован
+    if (!currentParser) {
+      console.log(`[Content] Initializing parser for ${color.name}`);
+      if (!initializeParser()) {
+        console.error(`[Content] Parser initialization failed for ${color.name}`);
+        sendResponse({ error: 'Парсер не инициализирован' });
+        return;
+      }
+    }
+    
+    // Проверяем, поддерживает ли парсер переключение цветов
+    if (typeof currentParser.switchToColor !== 'function') {
+      console.error(`[Content] Parser does not support color switching for ${color.name}`);
+      sendResponse({ error: 'Parser does not support color switching' });
+      return;
+    }
+    
+    // Переключаемся на нужный цвет
+    console.log(`[Content] Switching to color: ${color.name}`);
+    const switchResult = await currentParser.switchToColor(color);
+    
+    if (!switchResult.success) {
+      console.error(`[Content] Failed to switch to color ${color.name}:`, switchResult.error);
+      sendResponse({ error: `Failed to switch to color: ${switchResult.error}` });
+      return;
+    }
+    
+    console.log(`[Content] Successfully switched to ${color.name}, waiting for page update...`);
+    
+    // Ждем пока страница обновится и проверяем что цвет действительно переключился
+    let attempts = 0;
+    const maxAttempts = 10; // 5 секунд максимум
+    let colorSwitchVerified = false;
+    
+    while (attempts < maxAttempts && !colorSwitchVerified) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Проверяем, что текущий выбранный цвет соответствует ожидаемому
+      if (typeof currentParser.extractSelectedColorCode === 'function') {
+        const currentColorCode = currentParser.extractSelectedColorCode();
+        const currentColorName = currentParser.extractColor();
+        
+        console.log(`[Content] Attempt ${attempts + 1}: Current color code "${currentColorCode}", name "${currentColorName}", expected code "${color.code}"`);
+        
+        if (currentColorCode === color.code || currentColorName === color.name) {
+          console.log(`[Content] Color switch verified for ${color.name} after ${attempts + 1} attempts`);
+          colorSwitchVerified = true;
+          break;
+        }
+      }
+      
+      attempts++;
+    }
+    
+    if (!colorSwitchVerified) {
+      console.warn(`[Content] Could not verify color switch to ${color.name} after ${maxAttempts} attempts, proceeding anyway...`);
+    }
+    
+    // Дополнительное ожидание для полного обновления изображений и размеров
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Извлекаем данные для ТЕКУЩЕГО выбранного цвета (не все варианты)
+    console.log(`[Content] Extracting current variant data for color ${color.name}...`);
+    let variantData = null;
+    
+    // Используем специальный метод для извлечения текущего варианта
+    if (typeof currentParser.extractCurrentVariant === 'function') {
+      console.log(`[Content] Using extractCurrentVariant method for ${color.name}...`);
+      variantData = await currentParser.extractCurrentVariant();
+    } else {
+      console.log(`[Content] Fallback to parseProduct method for ${color.name}...`);
+      const productData = await currentParser.parseProduct();
+      if (productData && productData.length > 0) {
+        variantData = productData[0];
+      }
+    }
+    
+    if (!variantData) {
+      console.error(`[Content] No variant data extracted for color ${color.name}`);
+      sendResponse({ error: `No product data found after color switch for ${color.name}` });
+      return;
+    }
+    
+    console.log(`[Content] Successfully extracted data for color ${color.name}:`, {
+      sku: variantData.sku,
+      color: variantData.color,
+      price: variantData.price,
+      imageCount: variantData.all_image_urls ? variantData.all_image_urls.length : 0
+    });
+    
+    // Validate that we got the correct color
+    if (variantData.color !== color.name && !variantData.sku.includes(color.code)) {
+      console.warn(`[Content] Color mismatch for ${color.name}: got ${variantData.color}, SKU ${variantData.sku}`);
+      // Still continue - might be a naming difference
+    }
+    
+    sendResponse({ 
+      success: true,
+      data: variantData
+    });
+    
+  } catch (error) {
+    console.error(`[Content] Error scraping color variant ${color.name}:`, error);
+    sendResponse({ 
+      error: `Error scraping color variant ${color.name}: ${error.message}` 
+    });
+  }
 }

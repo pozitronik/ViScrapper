@@ -970,8 +970,8 @@ class TommyHilfigerParser extends BaseParser {
           
           // Кликаем на цвет если он не выбран
           if (!color.isSelected) {
-            // Используем ID для поиска radio input вместо data-attr-value
-            const colorInput = document.querySelector(`#${color.inputId}`);
+            // Используем getElementById для поиска radio input (не требует экранирования)
+            const colorInput = document.getElementById(color.inputId);
             if (colorInput) {
               console.log(`TH extractAllVariants: Clicking color input with ID: ${color.inputId}`);
               colorInput.click();
@@ -1011,6 +1011,208 @@ class TommyHilfigerParser extends BaseParser {
     }
   }
 
+
+  /**
+   * Переключение на конкретный цвет
+   */
+  async switchToColor(color) {
+    try {
+      console.log(`TH switchToColor: Switching to color ${color.name} (${color.code})`);
+      
+      // Найти input элемент для этого цвета
+      let colorInput = null;
+      
+      // Способ 1: Прямой поиск по document.getElementById (самый надежный, не требует экранирования)
+      if (color.inputId) {
+        colorInput = document.getElementById(color.inputId);
+        console.log(`TH switchToColor: Found via getElementById for ${color.inputId}:`, !!colorInput);
+      }
+      
+      // Способ 2: Поиск по коду цвета в ID (с атрибутными селекторами)
+      if (!colorInput && color.code) {
+        const possibleSelectors = [
+          `input[id*="${color.code}"]`,
+          `input[id*="colorCodeitem-${color.code}"]`,
+          `input[data-attr-value="${color.code}"]`
+        ];
+        
+        for (const selector of possibleSelectors) {
+          try {
+            colorInput = document.querySelector(selector);
+            if (colorInput) {
+              console.log(`TH switchToColor: Found input with selector ${selector}`);
+              break;
+            }
+          } catch (e) {
+            console.log(`TH switchToColor: Selector failed: ${selector}`, e.message);
+          }
+        }
+      }
+      
+      // Способ 3: Поиск среди всех цветовых input-ов
+      if (!colorInput) {
+        console.log('TH switchToColor: Searching among all color inputs...');
+        try {
+          const allColors = this.extractAllColors();
+          const targetColor = allColors.find(c => c.code === color.code || c.name === color.name);
+          
+          if (targetColor && targetColor.inputId) {
+            colorInput = document.getElementById(targetColor.inputId);
+            console.log(`TH switchToColor: Found via extractAllColors search:`, !!colorInput);
+          }
+        } catch (e) {
+          console.log(`TH switchToColor: extractAllColors failed:`, e.message);
+        }
+      }
+      
+      // Способ 4: Поиск по всем radio input на странице
+      if (!colorInput) {
+        console.log('TH switchToColor: Searching all radio inputs on page...');
+        const allRadios = document.querySelectorAll('input[type="radio"]');
+        console.log(`TH switchToColor: Found ${allRadios.length} radio inputs total`);
+        
+        for (const radio of allRadios) {
+          const radioId = radio.getAttribute('id');
+          if (radioId && (
+            radioId.includes(color.code) || 
+            radioId === color.inputId ||
+            radioId.includes(`colorCodeitem-${color.code}`)
+          )) {
+            colorInput = radio;
+            console.log(`TH switchToColor: Found via radio search - ID: ${radioId}`);
+            break;
+          }
+        }
+      }
+      
+      if (!colorInput) {
+        console.error(`TH switchToColor: Could not find input for color ${color.name} (${color.code})`);
+        console.log(`TH switchToColor: Debug info - inputId: ${color.inputId}`);
+        
+        // Debug: показать первые несколько radio inputs на странице
+        const debugRadios = document.querySelectorAll('input[type="radio"]');
+        console.log(`TH switchToColor: Available radio IDs:`, Array.from(debugRadios).slice(0, 5).map(r => r.id));
+        
+        return { success: false, error: `Color input not found for ${color.name}` };
+      }
+      
+      console.log(`TH switchToColor: Found color input:`, colorInput.id, colorInput.type, colorInput.tagName);
+      
+      // Проверяем, не выбран ли уже этот цвет
+      if (colorInput.checked || colorInput.getAttribute('aria-checked') === 'true') {
+        console.log(`TH switchToColor: Color ${color.name} is already selected`);
+        return { success: true, message: 'Color already selected' };
+      }
+      
+      // Кликаем на input для выбора цвета
+      console.log(`TH switchToColor: Clicking color input for ${color.name}`);
+      colorInput.click();
+      
+      // Даем время на обновление DOM
+      await this.wait(1000);
+      
+      // Проверяем, что цвет успешно выбран
+      const isNowSelected = colorInput.checked || colorInput.getAttribute('aria-checked') === 'true';
+      
+      if (!isNowSelected) {
+        console.error(`TH switchToColor: Color ${color.name} was not selected after click`);
+        return { success: false, error: `Failed to select color ${color.name}` };
+      }
+      
+      console.log(`TH switchToColor: Successfully switched to color ${color.name}`);
+      
+      // Дополнительное время для обновления изображений и размеров
+      await this.wait(1500);
+      
+      return { success: true, message: `Successfully switched to ${color.name}` };
+      
+    } catch (error) {
+      console.error(`TH switchToColor: Error switching to color ${color.name}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Экранирование специальных символов для CSS селекторов
+   */
+  escapeCssSelector(selector) {
+    // Экранируем специальные символы в CSS селекторе
+    // Символы, которые нужно экранировать: !"#$%&'()*+,./:;<=>?@[\]^`{|}~
+    return selector.replace(/([!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~-])/g, '\\$1');
+  }
+
+  /**
+   * Извлечение данных для ТЕКУЩЕГО выбранного цвета (после переключения)
+   * Используется при скрапинге конкретного цветового варианта
+   */
+  async extractCurrentVariant() {
+    try {
+      console.log('TH extractCurrentVariant: Starting extraction for current page state...');
+      
+      const baseJsonData = this.getJsonLdData();
+      const baseProductCode = this.extractUniqueProductId();
+      const currentName = this.extractName();
+      const currentPrice = this.extractPrice(baseJsonData);
+      const currentCurrency = this.extractCurrency(baseJsonData);
+      const currentAvailability = this.extractAvailability(baseJsonData);
+      
+      // Извлекаем данные текущего выбранного цвета
+      const currentColorCode = this.extractSelectedColorCode();
+      const currentColorName = this.extractColor();
+      
+      console.log(`TH extractCurrentVariant: Current color - Code: "${currentColorCode}", Name: "${currentColorName}"`);
+      
+      if (!baseProductCode) {
+        console.error('TH extractCurrentVariant: No base product code found');
+        return null;
+      }
+      
+      if (!currentColorCode) {
+        console.error('TH extractCurrentVariant: No current color code found');
+        return null;
+      }
+      
+      // Генерируем SKU для текущего цвета
+      const currentSku = this.generateColorSpecificSku(baseProductCode, currentColorCode);
+      console.log(`TH extractCurrentVariant: Generated SKU: ${currentSku}`);
+      
+      // Извлекаем размеры и изображения для текущего состояния
+      const currentSizes = await this.extractSizes();
+      const currentImages = await this.extractImages();
+      
+      console.log(`TH extractCurrentVariant: Found ${currentSizes.length} sizes and ${currentImages.length} images`);
+      
+      const variant = {
+        sku: currentSku,
+        name: currentName,
+        price: currentPrice,
+        currency: currentCurrency,
+        availability: currentAvailability,
+        color: currentColorName,
+        available_sizes: currentSizes,
+        all_image_urls: currentImages,
+        main_image_url: currentImages.length > 0 ? currentImages[0] : null,
+        item: baseProductCode,
+        product_url: this.sanitizeUrl(window.location.href),
+        store: this.config.siteName,
+        comment: ''
+      };
+      
+      console.log('TH extractCurrentVariant: Created variant:', {
+        sku: variant.sku,
+        color: variant.color,
+        price: variant.price,
+        sizeCount: variant.available_sizes.length,
+        imageCount: variant.all_image_urls.length
+      });
+      
+      return variant;
+      
+    } catch (error) {
+      console.error('TH extractCurrentVariant: Error extracting current variant:', error);
+      return null;
+    }
+  }
 
   /**
    * Основной метод парсинга
