@@ -21,6 +21,7 @@ class TommyHilfigerParser extends BaseParser {
 
   /**
    * Проверка, что мы на странице товара Tommy Hilfiger
+   * Использует JSON-LD + DOM элементы, не полагается на URL паттерны
    */
   isValidProductPage() {
     const url = window.location.href;
@@ -31,21 +32,39 @@ class TommyHilfigerParser extends BaseParser {
       return false;
     }
     
-    // Проверяем наличие основных элементов продукта
+    // Приоритет 1: Проверяем JSON-LD на наличие Product
+    const jsonData = this.getJsonLdData();
+    if (jsonData && jsonData['@type'] === 'Product') {
+      console.log('Valid TH product page: JSON-LD Product found');
+      return true;
+    }
+    
+    // Приоритет 2: Проверяем основные элементы продукта
     const productName = document.querySelector(this.config.selectors.productName);
     const buyBox = document.querySelector(this.config.selectors.buyBox);
     
     console.log('ProductName element:', productName);
     console.log('BuyBox element:', buyBox);
     
-    // Проверяем URL паттерн для продукта (более надежно чем JSON-LD на начальной стадии)
-    const hasProductUrl = /\/[A-Z0-9]+-[A-Z0-9]+\.html$/i.test(url);
-    console.log('Has product URL pattern:', hasProductUrl);
+    if (!productName || !buyBox) {
+      console.log('Missing core product elements');
+      return false;
+    }
     
-    // Не требуем JSON-LD для первичной валидации, так как он может загружаться асинхронно
-    const isValid = !!(productName && buyBox && hasProductUrl);
+    // Приоритет 3: Проверяем наличие характерных функций продукта
+    const hasColorSelector = !!document.querySelector(this.config.selectors.colorsList);
+    const hasProductImages = !!document.querySelector('[data-comp="ProductImage"]');
+    const hasPriceElement = !!document.querySelector('.sales .value[content]');
+    
+    console.log('Color selector found:', hasColorSelector);
+    console.log('Product images found:', hasProductImages);
+    console.log('Price element found:', hasPriceElement);
+    
+    // Если есть базовые элементы + любая из характерных функций = валидная страница
+    const hasProductFeatures = hasColorSelector || hasProductImages || hasPriceElement;
+    const isValid = hasProductFeatures;
+    
     console.log('Page is valid TH product page:', isValid);
-    
     return isValid;
   }
 
