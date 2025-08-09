@@ -579,6 +579,10 @@ class VIParserEvents {
     let failureCount = 0;
     const failedColors = [];
 
+    // Get selected images before starting bulk scraping
+    const selectedImages = this.core.getSelectedImages();
+    console.log(`[Bulk Scraping] Using ${selectedImages.length} selected images for all colors`);
+
     try {
       // Show initial progress
       if (statusCard) {
@@ -601,7 +605,7 @@ class VIParserEvents {
           submitBtn.textContent = `Отправка: ${color.name} (${i + 1}/${colors.length})`;
           
           // Send scrape request for this color and wait for completion
-          const result = await this.scrapeColorVariant(color);
+          const result = await this.scrapeColorVariant(color, selectedImages);
           
           if (result.success) {
             successCount++;
@@ -689,9 +693,9 @@ class VIParserEvents {
   /**
    * Скрапинг конкретного цветового варианта с повышенным таймаутом
    */
-  async scrapeColorVariant(color) {
+  async scrapeColorVariant(color, selectedImages = null) {
     try {
-      console.log(`[ColorScraper] Starting scrape for ${color.name} (${color.code})`);
+      console.log(`[ColorScraper] Starting scrape for ${color.name} (${color.code}) with ${selectedImages?.length || 'all'} images`);
       
       const response = await new Promise((resolve, reject) => {
         // Set a timeout for the scraping operation
@@ -702,7 +706,8 @@ class VIParserEvents {
         chrome.runtime.sendMessage(
           { 
             action: 'scrapeColorVariant',
-            color: color
+            color: color,
+            selectedImages: selectedImages
           },
           (response) => {
             clearTimeout(timeout);

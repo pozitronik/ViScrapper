@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
       
     case 'scrapeColorVariant':
-      handleScrapeColorVariant(request.color, sendResponse);
+      handleScrapeColorVariant(request.color, sendResponse, request.selectedImages);
       return true;
       
     default:
@@ -924,16 +924,16 @@ function handleGetAllAvailableColors(sendResponse) {
 /**
  * Скрапинг конкретного цветового варианта
  */
-async function handleScrapeColorVariant(color, sendResponse) {
+async function handleScrapeColorVariant(color, sendResponse, selectedImages) {
   try {
-    console.log(`[Content] Starting scrape for color variant: ${color.name} (${color.code})`);
+    console.log(`[Content] Starting scrape for color variant: ${color.name} (${color.code}) with ${selectedImages?.length || 'all'} images`);
     
     // Инициализируем парсер если еще не инициализирован
     if (!currentParser) {
       console.log(`[Content] Initializing parser for ${color.name}`);
       if (!initializeParser()) {
         console.error(`[Content] Parser initialization failed for ${color.name}`);
-        sendResponse({ error: 'Парсер не инициализирован' });
+        sendResponse({ success: false, error: 'Парсер не инициализирован' });
         return;
       }
     }
@@ -941,7 +941,7 @@ async function handleScrapeColorVariant(color, sendResponse) {
     // Проверяем, поддерживает ли парсер переключение цветов
     if (typeof currentParser.switchToColor !== 'function') {
       console.error(`[Content] Parser does not support color switching for ${color.name}`);
-      sendResponse({ error: 'Parser does not support color switching' });
+      sendResponse({ success: false, error: 'Parser does not support color switching' });
       return;
     }
     
@@ -949,9 +949,17 @@ async function handleScrapeColorVariant(color, sendResponse) {
     console.log(`[Content] Switching to color: ${color.name}`);
     const switchResult = await currentParser.switchToColor(color);
     
+    // Ensure switchResult has proper structure
+    if (!switchResult || typeof switchResult !== 'object') {
+      console.error(`[Content] Invalid switch result for ${color.name}:`, switchResult);
+      sendResponse({ success: false, error: `Invalid switch result for color ${color.name}` });
+      return;
+    }
+    
     if (!switchResult.success) {
-      console.error(`[Content] Failed to switch to color ${color.name}:`, switchResult.error);
-      sendResponse({ error: `Failed to switch to color: ${switchResult.error}` });
+      const errorMsg = switchResult.error || 'Unknown switch error';
+      console.error(`[Content] Failed to switch to color ${color.name}:`, errorMsg);
+      sendResponse({ success: false, error: `Failed to switch to color: ${errorMsg}` });
       return;
     }
     
@@ -959,11 +967,11 @@ async function handleScrapeColorVariant(color, sendResponse) {
     
     // Ждем пока страница обновится и проверяем что цвет действительно переключился
     let attempts = 0;
-    const maxAttempts = 10; // 5 секунд максимум
+    const maxAttempts = 3; // Quick verification - 1.5 seconds maximum
     let colorSwitchVerified = false;
     
     while (attempts < maxAttempts && !colorSwitchVerified) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300)); // Reduced wait time
       
       // Проверяем, что текущий выбранный цвет соответствует ожидаемому
       if (typeof currentParser.extractSelectedColorCode === 'function') {
@@ -987,7 +995,7 @@ async function handleScrapeColorVariant(color, sendResponse) {
     }
     
     // Дополнительное ожидание для полного обновления изображений и размеров
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced from 1500ms
     
     // Извлекаем данные для ТЕКУЩЕГО выбранного цвета (не все варианты)
     console.log(`[Content] Extracting current variant data for color ${color.name}...`);
@@ -1007,8 +1015,15 @@ async function handleScrapeColorVariant(color, sendResponse) {
     
     if (!variantData) {
       console.error(`[Content] No variant data extracted for color ${color.name}`);
-      sendResponse({ error: `No product data found after color switch for ${color.name}` });
+      sendResponse({ success: false, error: `No product data found after color switch for ${color.name}` });
       return;
+    }
+    
+    // Use selected images if provided, otherwise use extracted images
+    if (selectedImages && selectedImages.length > 0) {
+      console.log(`[Content] Using ${selectedImages.length} selected images for color ${color.name} instead of ${variantData.all_image_urls?.length || 0} extracted images`);
+      variantData.all_image_urls = selectedImages;
+      variantData.main_image_url = selectedImages[0];
     }
     
     console.log(`[Content] Successfully extracted data for color ${color.name}:`, {
@@ -1030,9 +1045,7 @@ async function handleScrapeColorVariant(color, sendResponse) {
     });
     
   } catch (error) {
-    console.error(`[Content] Error scraping color variant ${color.name}:`, error);
-    sendResponse({ 
-      error: `Error scraping color variant ${color.name}: ${error.message}` 
-    });
+    console.error(`[Content] Error in handleScrapeColorVariant for ${color.name}:`, error);
+    sendResponse({ success: false, error: `Error scraping color variant: ${error.message}` });
   }
 }
