@@ -50,6 +50,10 @@ body.site-carters h1 {
   color: #179DCA; /* Carter's blue */
 }
 
+body.site-tommy h1 {
+  color: #DC143C; /* Tommy Hilfiger red */
+}
+
 body.site-victoriassecret .btn-primary {
   background-color: #FF69B4;
   border-color: #FF69B4;
@@ -65,6 +69,11 @@ body.site-carters .btn-primary {
   border-color: #179DCA;
 }
 
+body.site-tommy .btn-primary {
+  background-color: #DC143C;
+  border-color: #DC143C;
+}
+
 body.site-victoriassecret .btn-primary:hover {
   background-color: #E05A9B;
   border-color: #E05A9B;
@@ -78,6 +87,11 @@ body.site-calvinklein .btn-primary:hover {
 body.site-carters .btn-primary:hover {
   background-color: #1489B8;
   border-color: #1489B8;
+}
+
+body.site-tommy .btn-primary:hover {
+  background-color: #B22222;
+  border-color: #B22222;
 }
 
 .status-indicator {
@@ -320,6 +334,28 @@ body.site-calvinklein .image-selection-btn:hover {
   background-color: rgba(210, 180, 140, 0.1);
 }
 
+/* Tommy Hilfiger image selection colors */
+body.site-tommy .image-selector input[type="checkbox"] {
+  accent-color: #DC143C;
+}
+
+body.site-tommy .image-selector.selected .image-thumbnail {
+  border-color: #DC143C;
+  box-shadow: 0 0 0 1px rgba(220, 20, 60, 0.3);
+}
+
+body.site-tommy .image-selector.selected::after {
+  background: rgba(220, 20, 60, 0.1);
+}
+
+body.site-tommy .image-selection-btn {
+  color: #DC143C;
+}
+
+body.site-tommy .image-selection-btn:hover {
+  background-color: rgba(220, 20, 60, 0.1);
+}
+
 /* Comment textarea */
 .comment-container {
   position: relative;
@@ -340,6 +376,19 @@ textarea {
 textarea:focus {
   outline: none;
   border-color: #FF69B4;
+}
+
+/* Site-specific textarea focus colors */
+body.site-calvinklein textarea:focus {
+  border-color: #D2B48C;
+}
+
+body.site-carters textarea:focus {
+  border-color: #179DCA;
+}
+
+body.site-tommy textarea:focus {
+  border-color: #DC143C;
 }
 
 .char-counter {

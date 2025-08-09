@@ -25,6 +25,10 @@ if (typeof CartersParser === 'undefined') {
   console.error('CartersParser not loaded!');
 }
 
+if (typeof TommyHilfigerParser === 'undefined') {
+  console.error('TommyHilfigerParser not loaded!');
+}
+
 if (typeof ParserFactory === 'undefined') {
   console.error('ParserFactory not loaded!');
 }
@@ -38,6 +42,7 @@ if (typeof module !== 'undefined' && module.exports) {
     VictoriasSecretParser,
     CalvinKleinParser,
     CartersParser,
+    TommyHilfigerParser,
     ParserFactory
   };
 }

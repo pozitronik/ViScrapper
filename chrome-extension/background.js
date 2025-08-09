@@ -43,7 +43,8 @@ function createContextMenu() {
       documentUrlPatterns: [
         'https://www.victoriassecret.com/*',
         'https://www.calvinklein.us/*',
-        'https://www.carters.com/*'
+        'https://www.carters.com/*',
+        'https://usa.tommy.com/*'
       ]
     });
     
@@ -54,7 +55,8 @@ function createContextMenu() {
       documentUrlPatterns: [
         'https://www.victoriassecret.com/*',
         'https://www.calvinklein.us/*',
-        'https://www.carters.com/*'
+        'https://www.carters.com/*',
+        'https://usa.tommy.com/*'
       ]
     });
     
@@ -65,7 +67,8 @@ function createContextMenu() {
       documentUrlPatterns: [
         'https://www.victoriassecret.com/*',
         'https://www.calvinklein.us/*',
-        'https://www.carters.com/*'
+        'https://www.carters.com/*',
+        'https://usa.tommy.com/*'
       ]
     });
   });
@@ -94,7 +97,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 chrome.commands.onCommand.addListener((command) => {
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
     // Проверяем, что мы на поддерживаемом сайте
-    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
+    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com'];
     const isSupportedSite = supportedSites.some(site => tab.url && tab.url.includes(site));
     
     if (!isSupportedSite) {
@@ -127,7 +130,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   console.log('URL changed to:', changeInfo.url);
   
   // Проверяем, что это поддерживаемый сайт
-  const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
+  const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com'];
   const isSupportedSite = supportedSites.some(site => changeInfo.url.includes(site));
   
   // Отправляем сообщение в side panel о смене URL (независимо от поддержки)
@@ -199,7 +202,7 @@ async function handleGetTabData(sendResponse) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
     // Проверяем, поддерживается ли сайт
-    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com'];
+    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com'];
     const isSupportedSite = supportedSites.some(site => tab.url.includes(site));
     
     if (!isSupportedSite) {

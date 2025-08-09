@@ -91,6 +91,11 @@ function detectSite(url) {
       id: 'carters',
       name: "Carter's"
     };
+  } else if (url.includes('usa.tommy.com')) {
+    return {
+      id: 'tommy',
+      name: 'Tommy Hilfiger'
+    };
   } else {
     // Дефолтный сайт
     return {

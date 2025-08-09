@@ -136,7 +136,7 @@ async function handleExtractData(sendResponse) {
     // Если нет SKU - не отправляем данные на бэкенд
     if (!validation.isValid) {
       sendResponse({
-        error: 'Продукт не может быть отправлен на сервер: отсутствует SKU',
+        error: 'Продукт не может быть отправлен на сервер: ' + (validation.warnings.join(', ') || 'отсутствует SKU'),
         isValid: false,
         warnings: validation.warnings,
         needsRefresh: false

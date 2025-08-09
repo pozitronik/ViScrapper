@@ -33,6 +33,8 @@ class VIParserCore {
         return { id: 'calvinklein', name: 'Calvin Klein', supported: true };
       } else if (tab.url.includes('carters.com')) {
         return { id: 'carters', name: "Carter's", supported: true };
+      } else if (tab.url.includes('usa.tommy.com')) {
+        return { id: 'tommy', name: 'Tommy Hilfiger', supported: true };
       } else {
         console.log('Unsupported site detected:', tab.url);
         return { id: 'unsupported', name: 'VIParser', supported: false };
