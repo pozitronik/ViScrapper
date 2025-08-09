@@ -550,6 +550,86 @@ class VIParserCore {
     const canSubmit = this.canSubmitData();
     submitBtn.disabled = !canSubmit;
     submitBtn.textContent = this.getSubmitButtonText();
+    
+    // Check for multi-color support and update dropdown
+    this.updateSubmitButtonForMultiColor();
+  }
+
+  /**
+   * Проверка, поддерживает ли текущий продукт несколько цветов
+   */
+  async detectMultiColorProduct() {
+    try {
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { action: 'detectMultiColorProduct' },
+          resolve
+        );
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Error detecting multi-color product:', error);
+      return { hasMultipleColors: false, colors: [], error: error.message };
+    }
+  }
+
+  /**
+   * Получение всех доступных цветов продукта
+   */
+  async getAllAvailableColors() {
+    try {
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { action: 'getAllAvailableColors' },
+          resolve
+        );
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Error getting available colors:', error);
+      return { colors: [], error: error.message };
+    }
+  }
+
+  /**
+   * Обновление кнопки отправки для поддержки мульти-цветов
+   */
+  async updateSubmitButtonForMultiColor() {
+    const dropdownContainer = document.getElementById('dropdownContainer');
+    const dropdownContent = document.getElementById('dropdownContent');
+    
+    if (!dropdownContainer || !dropdownContent) {
+      return; // Not a page with dropdown support
+    }
+
+    try {
+      // Check if current product has multiple colors
+      const multiColorResult = await this.detectMultiColorProduct();
+      
+      if (multiColorResult.hasMultipleColors && multiColorResult.colors && multiColorResult.colors.length > 1) {
+        // Show dropdown container
+        dropdownContainer.style.display = 'block';
+        console.log(`Multi-color product detected with ${multiColorResult.colors.length} colors:`, multiColorResult.colors);
+        
+        // Update dropdown with color count
+        const submitAllColorsBtn = document.getElementById('submitAllColorsBtn');
+        if (submitAllColorsBtn) {
+          submitAllColorsBtn.textContent = `Все цвета (${multiColorResult.colors.length})`;
+        }
+        
+        // Store colors for later use
+        this.appState.availableColors = multiColorResult.colors;
+      } else {
+        // Hide dropdown container
+        dropdownContainer.style.display = 'none';
+        this.appState.availableColors = null;
+        console.log('Single color product or no colors detected');
+      }
+    } catch (error) {
+      console.error('Error updating submit button for multi-color:', error);
+    }
   }
 }
 

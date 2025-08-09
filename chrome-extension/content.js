@@ -829,8 +829,13 @@ function handleDetectMultiColorProduct(sendResponse) {
       }
     }
     
-    // Проверяем, поддерживает ли парсер извлечение всех цветов
-    if (typeof currentParser.extractAllColors === 'function') {
+    // Проверяем, поддерживает ли парсер И извлечение всех цветов И переключение цветов
+    const hasExtractAllColors = typeof currentParser.extractAllColors === 'function';
+    const hasSwitchToColor = typeof currentParser.switchToColor === 'function';
+    
+    console.log(`Multi-color support check: extractAllColors=${hasExtractAllColors}, switchToColor=${hasSwitchToColor}`);
+    
+    if (hasExtractAllColors && hasSwitchToColor) {
       const colors = currentParser.extractAllColors();
       const hasMultipleColors = colors && colors.length > 1;
       
@@ -842,11 +847,11 @@ function handleDetectMultiColorProduct(sendResponse) {
         siteName: currentParser.siteName
       });
     } else {
-      console.log('Parser does not support multi-color detection');
+      console.log(`Parser does not support multi-color feature - extractAllColors: ${hasExtractAllColors}, switchToColor: ${hasSwitchToColor}`);
       sendResponse({ 
         hasMultipleColors: false, 
         colors: [], 
-        error: 'Parser does not support multi-color detection'
+        error: 'Parser does not support multi-color feature'
       });
     }
     
