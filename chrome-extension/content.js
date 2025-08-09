@@ -461,6 +461,20 @@ function handleStartColorObserver(sendResponse) {
           });
         }
         
+        // For Calvin Klein, trigger direct panel data refresh (SPA behavior, no URL change)
+        if (source === 'calvin-klein-color-change') {
+          console.log('Calvin Klein SPA color change - waiting before panel refresh to allow DOM updates...');
+          // Calvin Klein needs extra time for DOM updates before we refresh the panel
+          setTimeout(() => {
+            console.log('Calvin Klein SPA color change - triggering delayed panel data refresh');
+            chrome.runtime.sendMessage({
+              action: 'spaPanelRefresh',
+              source: 'calvin-klein-spa-color-change',
+              reason: 'Color changed in Calvin Klein SPA (no URL change)'
+            });
+          }, 1500); // 1.5 second delay to ensure DOM is fully updated
+        }
+        
       } catch (error) {
         console.log('Could not send update to extension UI (probably closed)');
       }

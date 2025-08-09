@@ -264,7 +264,7 @@ class VIParserEvents {
       }
       
       // Check if this is a site that supports color observer
-      if (!tab.url.includes('carters.com') && !tab.url.includes('usa.tommy.com')) {
+      if (!tab.url.includes('carters.com') && !tab.url.includes('usa.tommy.com') && !tab.url.includes('calvinklein.us')) {
         console.log('Site does not support color observer, skipping');
         return;
       }
@@ -287,6 +287,10 @@ class VIParserEvents {
       } else if (tab.url.includes('usa.tommy.com')) {
         // Tommy Hilfiger: Always start observer to track image changes on color switch
         console.log('Tommy Hilfiger: Starting color observer to track image changes...');
+        shouldStartObserver = true;
+      } else if (tab.url.includes('calvinklein.us')) {
+        // Calvin Klein: Always start observer to track panel refresh on color switch
+        console.log('Calvin Klein: Starting color observer to track data refresh...');
         shouldStartObserver = true;
       }
       
@@ -443,6 +447,14 @@ class VIParserEvents {
       // Request data through core
       const response = await this.core.loadProductData();
       
+      // Debug: Log the response to understand what's happening
+      console.log('VIParserEvents.loadProductData: Response received:', {
+        hasError: !!response.error,
+        hasData: !!response.data,
+        dataKeys: response.data ? Object.keys(response.data) : null,
+        error: response.error
+      });
+      
       if (response.error) {
         // Hide data preview on error
         if (previewContainer) {
@@ -472,6 +484,13 @@ class VIParserEvents {
       }
       
       // Update interface
+      console.log('VIParserEvents.loadProductData: Updating data preview with:', {
+        sku: response.data?.sku,
+        color: response.data?.color,
+        name: response.data?.name,
+        price: response.data?.price,
+        imageCount: response.data?.all_image_urls?.length
+      });
       this.ui.updateDataPreview(response.data);
       
       // Check product status on backend
