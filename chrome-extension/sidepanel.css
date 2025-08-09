@@ -483,14 +483,39 @@ body.site-carters .image-selection-btn:hover {
   background-color: rgba(23, 157, 202, 0.1);
 }
 
+/* Tommy Hilfiger enhanced styling with black borders and shadows */
+body.site-tommy .preview-container {
+  border: 2px solid #333;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+body.site-tommy .status-card {
+  border: 2px solid #333;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+body.site-tommy .btn-primary {
+  border: 2px solid #333;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+}
+
+body.site-tommy .btn-primary:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+}
+
 /* Tommy Hilfiger image selection colors */
 body.site-tommy .image-selector input[type="checkbox"] {
   accent-color: #DC143C;
 }
 
+body.site-tommy .image-selector .image-thumbnail {
+  border: 2px solid #333;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
 body.site-tommy .image-selector.selected .image-thumbnail {
   border-color: #DC143C;
-  box-shadow: 0 0 0 2px rgba(220, 20, 60, 0.3);
+  box-shadow: 0 0 0 2px rgba(220, 20, 60, 0.3), 0 4px 10px rgba(0,0,0,0.2);
 }
 
 body.site-tommy .image-selector.selected::after {
@@ -499,10 +524,12 @@ body.site-tommy .image-selector.selected::after {
 
 body.site-tommy .image-selection-btn {
   color: #DC143C;
+  border: 1px solid #333;
 }
 
 body.site-tommy .image-selection-btn:hover {
   background-color: rgba(220, 20, 60, 0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 /* Comment section - Enhanced for side panel */
@@ -551,7 +578,8 @@ body.site-carters textarea:focus {
 }
 
 body.site-tommy textarea:focus {
-  border-color: #DC143C;
+  border: 2px solid #DC143C;
+  box-shadow: 0 0 0 1px #333;
 }
 
 .char-counter {
