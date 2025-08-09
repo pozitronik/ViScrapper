@@ -500,6 +500,13 @@ class TommyHilfigerParser extends BaseParser {
         sizeInputs.forEach(input => {
           const inputId = input.getAttribute('id');
           const label = document.querySelector(`label[for="${inputId}"]`);
+          
+          // Проверяем, что размер не отключен (не имеет класс size-disabled)
+          if (label && label.classList.contains('size-disabled')) {
+            console.log(`TH extractSizes: Skipping disabled size for input ${inputId}`);
+            return;
+          }
+          
           const sizeLabel = label?.textContent?.trim();
           const dataValue = input.getAttribute('data-attr-value');
           
