@@ -4,10 +4,26 @@
  * Поддерживает двойной режим работы (popup + side panel)
  */
 
+// Поддерживаемые сайты - единый источник истины
+const SUPPORTED_SITES = {
+  domains: ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com'],
+  urlPatterns: [
+    'https://www.victoriassecret.com/*',
+    'https://www.calvinklein.us/*',
+    'https://www.carters.com/*',
+    'https://usa.tommy.com/*'
+  ]
+};
+
 // Глобальные настройки расширения
 let extensionSettings = {
   defaultMode: 'sidepanel'
 };
+
+// Вспомогательная функция для проверки поддержки сайта
+function isSiteSupported(url) {
+  return SUPPORTED_SITES.domains.some(site => url && url.includes(site));
+}
 
 // Обработка установки расширения
 chrome.runtime.onInstalled.addListener(async () => {
@@ -40,36 +56,21 @@ function createContextMenu() {
       id: 'openVIParser',
       title: 'Открыть VIParser',
       contexts: ['page'],
-      documentUrlPatterns: [
-        'https://www.victoriassecret.com/*',
-        'https://www.calvinklein.us/*',
-        'https://www.carters.com/*',
-        'https://usa.tommy.com/*'
-      ]
+      documentUrlPatterns: SUPPORTED_SITES.urlPatterns
     });
     
     chrome.contextMenus.create({
       id: 'openSidePanel',
       title: 'Открыть боковую панель',
       contexts: ['page'],
-      documentUrlPatterns: [
-        'https://www.victoriassecret.com/*',
-        'https://www.calvinklein.us/*',
-        'https://www.carters.com/*',
-        'https://usa.tommy.com/*'
-      ]
+      documentUrlPatterns: SUPPORTED_SITES.urlPatterns
     });
     
     chrome.contextMenus.create({
       id: 'openPopup',
       title: 'Открыть popup',
       contexts: ['page'],
-      documentUrlPatterns: [
-        'https://www.victoriassecret.com/*',
-        'https://www.calvinklein.us/*',
-        'https://www.carters.com/*',
-        'https://usa.tommy.com/*'
-      ]
+      documentUrlPatterns: SUPPORTED_SITES.urlPatterns
     });
   });
 }
@@ -97,8 +98,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 chrome.commands.onCommand.addListener((command) => {
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
     // Проверяем, что мы на поддерживаемом сайте
-    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com'];
-    const isSupportedSite = supportedSites.some(site => tab.url && tab.url.includes(site));
+    const isSupportedSite = isSiteSupported(tab.url);
     
     if (!isSupportedSite) {
       console.log('Keyboard shortcut ignored - not on supported site');
@@ -130,8 +130,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   console.log('URL changed to:', changeInfo.url);
   
   // Проверяем, что это поддерживаемый сайт
-  const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com'];
-  const isSupportedSite = supportedSites.some(site => changeInfo.url.includes(site));
+  const isSupportedSite = isSiteSupported(changeInfo.url);
   
   // Отправляем сообщение в side panel о смене URL (независимо от поддержки)
   // Панель сама решит, что делать с неподдерживаемыми сайтами
@@ -202,11 +201,10 @@ async function handleGetTabData(sendResponse) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
     // Проверяем, поддерживается ли сайт
-    const supportedSites = ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com'];
-    const isSupportedSite = supportedSites.some(site => tab.url.includes(site));
+    const isSupportedSite = isSiteSupported(tab.url);
     
     if (!isSupportedSite) {
-      sendResponse({ error: 'Расширение работает только на поддерживаемых сайтах: ' + supportedSites.join(', ') });
+      sendResponse({ error: 'Расширение работает только на поддерживаемых сайтах: ' + SUPPORTED_SITES.domains.join(', ') });
       return;
     }
     
