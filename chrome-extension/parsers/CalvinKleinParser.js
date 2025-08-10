@@ -4,9 +4,24 @@
  */
 class CalvinKleinParser extends BaseParser {
   constructor() {
+    // Define capabilities for Calvin Klein
+    const capabilities = {
+      ...window.DEFAULT_CAPABILITIES,
+      [window.JSON_LD_MUTATION_OBSERVER]: true,
+      [window.JSON_LD_TRACKING]: true,
+      [window.URL_CHANGE_TRACKING]: true,
+      [window.URL_NAVIGATION_TYPE]: window.NAV_TYPE_SPA,
+      [window.COLOR_OBSERVER_MODE]: window.COLOR_MODE_EXTERNAL,
+      [window.PRODUCT_CHANGE_DETECTION]: window.CHANGE_DETECTION_STANDARD,
+      [window.SUPPORTS_MULTI_COLOR]: true,  // Supports multi-color bulk posting
+      [window.SUPPORTS_MULTI_SIZE]: true,
+      [window.NEEDS_IMAGE_LAZY_LOADING]: true  // Needs aggressive image lazy-loading
+    };
+    
     super({
       siteName: 'Calvin Klein',
       domain: 'calvinklein.us',
+      capabilities: capabilities,
       selectors: {
         buyBox: '[data-comp="BuyBox"]',
         productName: '.product-name',

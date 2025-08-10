@@ -4,9 +4,24 @@
  */
 class CartersParser extends BaseParser {
   constructor() {
+    // Define capabilities for Carter's
+    const capabilities = {
+      ...window.DEFAULT_CAPABILITIES,
+      [window.JSON_LD_MUTATION_OBSERVER]: false,  // URL-based navigation
+      [window.JSON_LD_TRACKING]: true,
+      [window.URL_CHANGE_TRACKING]: false,  // Special URL handling
+      [window.URL_NAVIGATION_TYPE]: window.NAV_TYPE_URL_BASED,
+      [window.COLOR_OBSERVER_MODE]: window.COLOR_MODE_EXTERNAL,
+      [window.PRODUCT_CHANGE_DETECTION]: window.CHANGE_DETECTION_URL_SKU,  // Can extract SKU from URL
+      [window.SUPPORTS_MULTI_COLOR]: true,  // Supports multi-color bulk posting
+      [window.SUPPORTS_MULTI_SIZE]: false,
+      [window.NEEDS_IMAGE_LAZY_LOADING]: false
+    };
+    
     super({
       siteName: "Carter's",
       domain: 'carters.com',
+      capabilities: capabilities,
       selectors: {
         // JSON-LD script tag
         jsonLdScript: 'script[type="application/ld+json"]',

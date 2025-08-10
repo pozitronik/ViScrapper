@@ -394,7 +394,19 @@ function handleStartColorObserver(sendResponse) {
   try {
     console.log('Starting color observer...');
     
-    if (!currentParser || !currentParser.setupColorObserver) {
+    // Проверяем capability для color observer mode
+    const colorObserverMode = currentParser && currentParser.capabilities && 
+      currentParser.capabilities[window.COLOR_OBSERVER_MODE];
+    
+    // Если parser управляет observer самостоятельно, не запускаем внешний
+    if (colorObserverMode === window.COLOR_MODE_SELF_MANAGED) {
+      console.log(`${currentParser.siteName} - self-managed color observer, skipping external observer`);
+      sendResponse({ success: true, mode: 'self-managed' });
+      return;
+    }
+    
+    // Если нет поддержки color observer
+    if (colorObserverMode === window.COLOR_MODE_NONE || !currentParser.setupColorObserver) {
       sendResponse({ error: 'Parser does not support color observation' });
       return;
     }
@@ -631,18 +643,24 @@ function startChangeTracking() {
   
   // 1. Отслеживание изменений JSON-LD (если поддерживается и необходимо)
   if (currentParser && typeof currentParser.waitForJsonLd === 'function') {
-    // Для Carter's отключаем mutation observer - используем URL-based navigation
-    if (currentParser.config && currentParser.config.domain === 'carters.com') {
-      console.log('Carter\'s detected - skipping JSON-LD mutation observer (URL-based navigation)');
+    // Проверяем capability для JSON-LD mutation observer
+    const useJsonLdMutationObserver = currentParser.capabilities && 
+      currentParser.capabilities[window.JSON_LD_MUTATION_OBSERVER] !== false;
+    
+    if (!useJsonLdMutationObserver) {
+      console.log(`${currentParser.siteName} - skipping JSON-LD mutation observer (capability disabled)`);
     } else {
       setupJsonLdTracking();
     }
   }
   
   // 2. Отслеживание изменений URL
-  // Для Carter's URL изменения нормальны (смена стилей), для других сайтов могут означать проблему
-  if (currentParser.config && currentParser.config.domain === 'carters.com') {
-    console.log('Carter\'s detected - URL changes are normal, minimal URL tracking');
+  // Проверяем capability для URL tracking
+  const useUrlTracking = !currentParser.capabilities || 
+    currentParser.capabilities[window.URL_CHANGE_TRACKING] !== false;
+  
+  if (!useUrlTracking) {
+    console.log(`${currentParser.siteName} - URL changes are handled internally, minimal URL tracking`);
   } else {
     setupUrlTracking();
   }
@@ -786,14 +804,25 @@ function handleProductChange(reason) {
     return;
   }
   
-  // Для Carter's: если можем извлечь SKU из URL, не требуем обновления страницы
-  if (currentParser && currentParser.config && currentParser.config.domain === 'carters.com') {
-    const url = window.location.href;
-    const urlMatch = url.match(/\/V_([A-Z0-9]+)$/i);
-    if (urlMatch) {
-      console.log('Carter\'s detected with valid URL SKU pattern - no refresh needed');
-      console.log(`Reason for change: ${reason}, but URL SKU is available`);
-      return; // Не устанавливаем флаг изменения
+  // Проверяем capability для product change detection
+  if (currentParser && currentParser.capabilities) {
+    const changeDetection = currentParser.capabilities[window.PRODUCT_CHANGE_DETECTION];
+    
+    // Если парсер может извлечь SKU из URL для валидации
+    if (changeDetection === window.CHANGE_DETECTION_URL_SKU) {
+      const url = window.location.href;
+      const urlMatch = url.match(/\/V_([A-Z0-9]+)$/i);
+      if (urlMatch) {
+        console.log(`${currentParser.siteName} - valid URL SKU pattern detected - no refresh needed`);
+        console.log(`Reason for change: ${reason}, but URL SKU is available`);
+        return; // Не устанавливаем флаг изменения
+      }
+    }
+    
+    // Если парсер сам управляет обнаружением изменений
+    if (changeDetection === window.CHANGE_DETECTION_CUSTOM || changeDetection === window.CHANGE_DETECTION_NONE) {
+      console.log(`${currentParser.siteName} - custom change detection, ignoring automatic change`);
+      return;
     }
   }
   
@@ -850,13 +879,17 @@ function handleDetectMultiColorProduct(sendResponse) {
       }
     }
     
-    // Проверяем, поддерживает ли парсер И извлечение всех цветов И переключение цветов
+    // Проверяем capability для multi-color support
+    const supportsMultiColor = currentParser.capabilities && 
+      currentParser.capabilities[window.SUPPORTS_MULTI_COLOR] === true;
+    
+    // Также проверяем наличие методов для обратной совместимости
     const hasExtractAllColors = typeof currentParser.extractAllColors === 'function';
     const hasSwitchToColor = typeof currentParser.switchToColor === 'function';
     
-    console.log(`Multi-color support check: extractAllColors=${hasExtractAllColors}, switchToColor=${hasSwitchToColor}`);
+    console.log(`Multi-color support check: capability=${supportsMultiColor}, extractAllColors=${hasExtractAllColors}, switchToColor=${hasSwitchToColor}`);
     
-    if (hasExtractAllColors && hasSwitchToColor) {
+    if (supportsMultiColor && hasExtractAllColors && hasSwitchToColor) {
       const colors = currentParser.extractAllColors();
       const hasMultipleColors = colors && colors.length > 1;
       

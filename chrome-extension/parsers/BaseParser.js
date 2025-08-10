@@ -8,6 +8,8 @@ class BaseParser {
     this.siteName = config.siteName;
     this.domain = config.domain;
     this.selectors = config.selectors || {};
+    // Merge capabilities with defaults if provided
+    this.capabilities = config.capabilities || {};
   }
 
   // Standard availability constants - all parsers should use these

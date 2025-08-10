@@ -5,9 +5,24 @@
  */
 class TommyHilfigerParser extends BaseParser {
   constructor() {
+    // Define capabilities for Tommy Hilfiger
+    const capabilities = {
+      ...window.DEFAULT_CAPABILITIES,
+      [window.JSON_LD_MUTATION_OBSERVER]: false,  // Self-managed updates
+      [window.JSON_LD_TRACKING]: true,
+      [window.URL_CHANGE_TRACKING]: false,  // SPA with internal handling
+      [window.URL_NAVIGATION_TYPE]: window.NAV_TYPE_SPA,
+      [window.COLOR_OBSERVER_MODE]: window.COLOR_MODE_SELF_MANAGED,  // Has own observer
+      [window.PRODUCT_CHANGE_DETECTION]: window.CHANGE_DETECTION_STANDARD,
+      [window.SUPPORTS_MULTI_COLOR]: true,  // Supports multi-color bulk posting
+      [window.SUPPORTS_MULTI_SIZE]: true,  // Supports multi-size combinations
+      [window.NEEDS_IMAGE_LAZY_LOADING]: false
+    };
+    
     super({
       siteName: 'Tommy Hilfiger',
       domain: 'usa.tommy.com',
+      capabilities: capabilities,
       selectors: {
         buyBox: '.buy-box[data-comp="BuyBox"]',
         productName: '.product-name, h1.product-name',
