@@ -778,15 +778,21 @@ class TommyHilfigerParser extends BaseParser {
       return uniqueProductId;
     }
     
-    // Fallback к старому формату: MW41326-HGF_colorCodeitem-DW5 -> MW41326-HGF
+    // Fallback logic - consistent with Calvin Klein approach
     match = inputId.match(/^([^_]+)_colorCodeitem-/);
     if (!match) {
       console.log('TH extractUniqueProductId: ID format does not match any expected pattern:', inputId);
       return null;
     }
     
-    const uniqueProductId = match[1]; // MW41326-HGF
-    console.log(`TH extractUniqueProductId: Extracted (fallback) "${uniqueProductId}" from "${inputId}"`);
+    let fullPart = match[1]; // e.g., MW41326-HGF
+    
+    // CONSISTENT WITH CALVIN KLEIN: Always take only the first part before first dash
+    // This ensures we never get double color codes
+    const parts = fullPart.split('-');
+    const uniqueProductId = parts[0]; // MW41326-HGF -> MW41326
+    
+    console.log(`TH extractUniqueProductId: Extracted (fallback) "${uniqueProductId}" from "${fullPart}" using first-part-only rule (consistent with CK)`);
     return uniqueProductId;
   }
 
