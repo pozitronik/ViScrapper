@@ -16,7 +16,8 @@ class TommyHilfigerParser extends BaseParser {
       [window.PRODUCT_CHANGE_DETECTION]: window.CHANGE_DETECTION_STANDARD,
       [window.SUPPORTS_MULTI_COLOR]: true,  // Supports multi-color bulk posting
       [window.SUPPORTS_MULTI_SIZE]: true,  // Supports multi-size combinations
-      [window.NEEDS_IMAGE_LAZY_LOADING]: false
+      [window.NEEDS_IMAGE_LAZY_LOADING]: false,
+      [window.SPA_REFRESH_DELAY]: 0  // Immediate refresh on color change
     };
     
     super({
@@ -1068,22 +1069,27 @@ class TommyHilfigerParser extends BaseParser {
   }
   
   /**
-   * Отправка сообщения об изменении цвета - триггерит ПОЛНОЕ обновление данных
-   * Поскольку смена цвета на TH = совершенно новый продукт (SKU, изображения, размеры)
+   * Отправка сообщения об изменении цвета
+   * Sends color update message that will trigger SPA refresh based on parser capabilities
    */
   async sendColorUpdateMessage() {
     try {
-      console.log('TH sendColorUpdateMessage: Color changed - triggering FULL data refresh...');
+      console.log('TH sendColorUpdateMessage: Color changed - sending update...');
       
-      // Для Tommy Hilfiger смена цвета = новый продукт, нужно полное обновление
-      // Используем существующую систему SPA refresh из viparser-events.js
+      // Get current color and images
+      const currentColor = this.extractColor();
+      const currentImages = this.extractImages();
+      
+      // Send color update message
+      // Content.js will handle SPA refresh based on SPA_REFRESH_DELAY capability
       chrome.runtime.sendMessage({
-        action: 'spaPanelRefresh',
-        source: 'tommy-hilfiger-color-change',
-        reason: 'Color changed - new product variant with different SKU/images/sizes'
+        action: 'colorUpdated',
+        color: currentColor,
+        images: currentImages,
+        source: 'tommy-hilfiger'
       });
       
-      console.log('TH sendColorUpdateMessage: Full data refresh message sent');
+      console.log('TH sendColorUpdateMessage: Color update message sent');
       
     } catch (error) {
       console.error('TH sendColorUpdateMessage: Error sending color update message:', error);

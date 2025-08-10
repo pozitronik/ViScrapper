@@ -442,28 +442,26 @@ function handleStartColorObserver(sendResponse) {
         chrome.runtime.sendMessage(message);
         console.log('Sent update message to extension UI:', message.action, 'Data:', message);
         
-        // For Tommy Hilfiger, trigger direct panel data refresh (SPA behavior, no URL change)
-        if (source === 'tommy-hilfiger-color-change') {
-          console.log('Tommy Hilfiger SPA color change - triggering direct panel data refresh');
-          chrome.runtime.sendMessage({
-            action: 'spaPanelRefresh',
-            source: 'tommy-spa-color-change',
-            reason: 'Color changed in SPA (no URL change)'
-          });
-        }
-        
-        // For Calvin Klein, trigger direct panel data refresh (SPA behavior, no URL change)
-        if (source === 'calvin-klein-color-change') {
-          console.log('Calvin Klein SPA color change - waiting before panel refresh to allow DOM updates...');
-          // Calvin Klein needs extra time for DOM updates before we refresh the panel
-          setTimeout(() => {
-            console.log('Calvin Klein SPA color change - triggering delayed panel data refresh');
+        // Check if parser requires SPA panel refresh after color change
+        const spaRefreshDelay = currentParser.capabilities?.[SPA_REFRESH_DELAY];
+        if (spaRefreshDelay !== null && spaRefreshDelay !== undefined) {
+          const refreshAction = () => {
+            console.log(`SPA color change - triggering panel data refresh (delay: ${spaRefreshDelay}ms)`);
             chrome.runtime.sendMessage({
               action: 'spaPanelRefresh',
-              source: 'calvin-klein-spa-color-change',
-              reason: 'Color changed in Calvin Klein SPA (no URL change)'
+              source: source || 'spa-color-change',
+              reason: 'Color changed in SPA (no URL change)'
             });
-          }, 1500); // 1.5 second delay to ensure DOM is fully updated
+          };
+          
+          if (spaRefreshDelay > 0) {
+            // Delayed refresh for parsers that need DOM update time
+            console.log(`SPA color change - waiting ${spaRefreshDelay}ms before panel refresh to allow DOM updates...`);
+            setTimeout(refreshAction, spaRefreshDelay);
+          } else {
+            // Immediate refresh
+            refreshAction();
+          }
         }
         
       } catch (error) {

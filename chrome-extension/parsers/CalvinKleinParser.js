@@ -15,7 +15,8 @@ class CalvinKleinParser extends BaseParser {
       [window.PRODUCT_CHANGE_DETECTION]: window.CHANGE_DETECTION_STANDARD,
       [window.SUPPORTS_MULTI_COLOR]: true,  // Supports multi-color bulk posting
       [window.SUPPORTS_MULTI_SIZE]: true,
-      [window.NEEDS_IMAGE_LAZY_LOADING]: true  // Needs aggressive image lazy-loading
+      [window.NEEDS_IMAGE_LAZY_LOADING]: true,  // Needs aggressive image lazy-loading
+      [window.SPA_REFRESH_DELAY]: 1500  // 1.5 second delay for DOM updates
     };
     
     super({
@@ -1819,7 +1820,7 @@ class CalvinKleinParser extends BaseParser {
               callback({
                 color: updatedColor,
                 images: updatedImages,
-                source: 'calvin-klein-color-change'
+                source: 'calvin-klein'
               });
             }
           } else {

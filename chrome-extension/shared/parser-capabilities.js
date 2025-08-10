@@ -103,6 +103,20 @@ const CHANGE_DETECTION_NONE = 'none';
 const SUPPORTS_MULTI_COLOR = 'supportsMultiColor';
 
 // ============================================================================
+// SPA REFRESH CAPABILITIES
+// ============================================================================
+
+/**
+ * Delay in milliseconds before triggering SPA panel refresh after color change
+ * Values:
+ * - 0: No delay, refresh immediately
+ * - null/undefined: No SPA refresh on color change
+ * - number: Delay in milliseconds before refresh
+ * Used by: Tommy Hilfiger (0), Calvin Klein (1500), others (null)
+ */
+const SPA_REFRESH_DELAY = 'spaRefreshDelay';
+
+// ============================================================================
 // DATA EXTRACTION CAPABILITIES
 // ============================================================================
 
@@ -139,7 +153,8 @@ const DEFAULT_CAPABILITIES = {
   [PRODUCT_CHANGE_DETECTION]: CHANGE_DETECTION_STANDARD,
   [SUPPORTS_MULTI_COLOR]: false,
   [SUPPORTS_MULTI_SIZE]: false,
-  [NEEDS_IMAGE_LAZY_LOADING]: false
+  [NEEDS_IMAGE_LAZY_LOADING]: false,
+  [SPA_REFRESH_DELAY]: null // No SPA refresh by default
 };
 
 
@@ -159,6 +174,7 @@ if (typeof window !== 'undefined') {
   window.SUPPORTS_MULTI_COLOR = SUPPORTS_MULTI_COLOR;
   window.SUPPORTS_MULTI_SIZE = SUPPORTS_MULTI_SIZE;
   window.NEEDS_IMAGE_LAZY_LOADING = NEEDS_IMAGE_LAZY_LOADING;
+  window.SPA_REFRESH_DELAY = SPA_REFRESH_DELAY;
   
   // Navigation type values
   window.NAV_TYPE_FULL = NAV_TYPE_FULL;
@@ -194,6 +210,7 @@ if (typeof module !== 'undefined' && module.exports) {
     SUPPORTS_MULTI_COLOR,
     SUPPORTS_MULTI_SIZE,
     NEEDS_IMAGE_LAZY_LOADING,
+    SPA_REFRESH_DELAY,
     
     // Navigation type values
     NAV_TYPE_FULL,
