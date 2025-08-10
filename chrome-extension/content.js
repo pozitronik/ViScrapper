@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
       
     case 'scrapeColorVariant':
-      handleScrapeColorVariant(request.color, sendResponse, request.selectedImages);
+      handleScrapeColorVariant(request.color, sendResponse, request.selectedIndices);
       return true;
       
     default:
@@ -924,9 +924,9 @@ function handleGetAllAvailableColors(sendResponse) {
 /**
  * Скрапинг конкретного цветового варианта
  */
-async function handleScrapeColorVariant(color, sendResponse, selectedImages) {
+async function handleScrapeColorVariant(color, sendResponse, selectedIndices) {
   try {
-    console.log(`[Content] Starting scrape for color variant: ${color.name} (${color.code}) with ${selectedImages?.length || 'all'} images`);
+    console.log(`[Content] Starting scrape for color variant: ${color.name} (${color.code}) with selection pattern:`, selectedIndices);
     
     // Инициализируем парсер если еще не инициализирован
     if (!currentParser) {
@@ -1019,11 +1019,28 @@ async function handleScrapeColorVariant(color, sendResponse, selectedImages) {
       return;
     }
     
-    // Use selected images if provided, otherwise use extracted images
-    if (selectedImages && selectedImages.length > 0) {
-      console.log(`[Content] Using ${selectedImages.length} selected images for color ${color.name} instead of ${variantData.all_image_urls?.length || 0} extracted images`);
-      variantData.all_image_urls = selectedImages;
-      variantData.main_image_url = selectedImages[0];
+    // Apply user's selection pattern to this color's extracted images
+    if (selectedIndices && selectedIndices.length > 0 && variantData.all_image_urls) {
+      const originalImageCount = variantData.all_image_urls.length;
+      const selectedImages = [];
+      
+      // Apply the same selection pattern to this color's images
+      selectedIndices.forEach(index => {
+        if (index < variantData.all_image_urls.length) {
+          selectedImages.push(variantData.all_image_urls[index]);
+        }
+      });
+      
+      if (selectedImages.length > 0) {
+        console.log(`[Content] Applied selection pattern to ${color.name}: ${originalImageCount} → ${selectedImages.length} images (indices: ${selectedIndices.join(',')})`);
+        variantData.all_image_urls = selectedImages;
+        variantData.main_image_url = selectedImages[0];
+      } else {
+        console.warn(`[Content] No images matched selection pattern for ${color.name}, using all images`);
+      }
+    } else {
+      // No selection pattern provided, use all images (current default behavior)
+      console.log(`[Content] No image selection pattern for ${color.name}, using all ${variantData.all_image_urls?.length || 0} images`);
     }
     
     console.log(`[Content] Successfully extracted data for color ${color.name}:`, {

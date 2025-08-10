@@ -203,7 +203,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     case 'scrapeColorVariant':
       // Скрапинг конкретного цветового варианта
-      handleScrapeColorVariant(request.color, sendResponse, request.selectedImages);
+      handleScrapeColorVariant(request.color, sendResponse, request.selectedIndices);
       return true; // Асинхронный ответ
   }
 });
@@ -508,10 +508,10 @@ let isProcessingColorQueue = false;
 /**
  * Скрапинг конкретного цветового варианта с очередью
  */
-async function handleScrapeColorVariant(color, sendResponse, selectedImages) {
+async function handleScrapeColorVariant(color, sendResponse, selectedIndices) {
   // Add to queue and process sequentially
-  colorScrapeQueue.push({ color, sendResponse, selectedImages });
-  console.log(`[Background] Added ${color.name} to queue with ${selectedImages?.length || 'all'} images. Queue length: ${colorScrapeQueue.length}`);
+  colorScrapeQueue.push({ color, sendResponse, selectedIndices });
+  console.log(`[Background] Added ${color.name} to queue with indices ${selectedIndices?.join(',') || 'none'}. Queue length: ${colorScrapeQueue.length}`);
   
   // Start processing if not already running
   if (!isProcessingColorQueue) {
@@ -531,10 +531,10 @@ async function processColorScrapeQueue() {
   console.log(`[Background] Starting color scrape queue processing...`);
   
   while (colorScrapeQueue.length > 0) {
-    const { color, sendResponse, selectedImages } = colorScrapeQueue.shift();
+    const { color, sendResponse, selectedIndices } = colorScrapeQueue.shift();
     console.log(`[Background] Processing ${color.name} from queue. Remaining: ${colorScrapeQueue.length}`);
     
-    await scrapeColorVariantInternal(color, sendResponse, selectedImages);
+    await scrapeColorVariantInternal(color, sendResponse, selectedIndices);
     
     // Small delay between requests to prevent overwhelming the system
     if (colorScrapeQueue.length > 0) {
@@ -549,7 +549,7 @@ async function processColorScrapeQueue() {
 /**
  * Внутренняя функция скрапинга конкретного цветового варианта
  */
-async function scrapeColorVariantInternal(color, sendResponse, selectedImages) {
+async function scrapeColorVariantInternal(color, sendResponse, selectedIndices) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
@@ -557,14 +557,14 @@ async function scrapeColorVariantInternal(color, sendResponse, selectedImages) {
     // при инициализации multi-color процесса. Сайт не может стать "неподдерживаемым" 
     // в середине обработки цветов на той же странице.
     
-    console.log(`[Background] Starting scrape for color variant: ${color.name} (${color.code}) with ${selectedImages?.length || 'all'} images`);
+    console.log(`[Background] Starting scrape for color variant: ${color.name} (${color.code}) with indices: ${selectedIndices?.join(',') || 'none'}`);
     
     // Отправка запроса к content script для смены цвета и скрапинга
     const response = await new Promise((resolve) => {
       chrome.tabs.sendMessage(tab.id, { 
         action: 'scrapeColorVariant', 
         color: color,
-        selectedImages: selectedImages
+        selectedIndices: selectedIndices
       }, resolve);
     });
     

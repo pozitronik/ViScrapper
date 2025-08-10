@@ -579,9 +579,14 @@ class VIParserEvents {
     let failureCount = 0;
     const failedColors = [];
 
-    // Get selected images before starting bulk scraping
-    const selectedImages = this.core.getSelectedImages();
-    console.log(`[Bulk Scraping] Using ${selectedImages.length} selected images for all colors`);
+    // Capture user's selection pattern before starting bulk scraping
+    const selectedIndices = this.core.getSelectedIndices();
+    
+    if (selectedIndices.length > 0) {
+      console.log(`[Bulk Scraping] Using image selection pattern: indices [${selectedIndices.join(',')}] will be applied to each color`);
+    } else {
+      console.log(`[Bulk Scraping] No specific image selection - using all images for each color`);
+    }
 
     try {
       // Show initial progress
@@ -605,7 +610,7 @@ class VIParserEvents {
           submitBtn.textContent = `Отправка: ${color.name} (${i + 1}/${colors.length})`;
           
           // Send scrape request for this color and wait for completion
-          const result = await this.scrapeColorVariant(color, selectedImages);
+          const result = await this.scrapeColorVariant(color, selectedIndices);
           
           if (result.success) {
             successCount++;
@@ -693,9 +698,9 @@ class VIParserEvents {
   /**
    * Скрапинг конкретного цветового варианта с повышенным таймаутом
    */
-  async scrapeColorVariant(color, selectedImages = null) {
+  async scrapeColorVariant(color, selectedIndices = []) {
     try {
-      console.log(`[ColorScraper] Starting scrape for ${color.name} (${color.code}) with ${selectedImages?.length || 'all'} images`);
+      console.log(`[ColorScraper] Starting scrape for ${color.name} (${color.code}) with selection indices:`, selectedIndices);
       
       const response = await new Promise((resolve, reject) => {
         // Set a timeout for the scraping operation
@@ -707,7 +712,7 @@ class VIParserEvents {
           { 
             action: 'scrapeColorVariant',
             color: color,
-            selectedImages: selectedImages
+            selectedIndices: selectedIndices
           },
           (response) => {
             clearTimeout(timeout);
