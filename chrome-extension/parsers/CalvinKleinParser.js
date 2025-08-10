@@ -91,20 +91,37 @@ class CalvinKleinParser extends BaseParser {
   extractSku(jsonData) {
     console.log('CK extractSku called with jsonData:', jsonData);
     
+    // Get base SKU from JSON-LD or URL
+    let baseSku = null;
+    
     if (jsonData && jsonData.sku) {
       console.log('CK extractSku from JSON-LD:', jsonData.sku);
-      return jsonData.sku;
+      baseSku = jsonData.sku;
+    } else {
+      // Fallback: try to extract from URL
+      const urlMatch = window.location.pathname.match(/\/([A-Z0-9]+-[0-9]+)\.html$/i);
+      if (urlMatch) {
+        console.log('CK extractSku from URL:', urlMatch[1]);
+        baseSku = urlMatch[1];
+      }
     }
     
-    // Fallback: try to extract from URL
-    const urlMatch = window.location.pathname.match(/\/([A-Z0-9]+-[0-9]+)\.html$/i);
-    if (urlMatch) {
-      console.log('CK extractSku from URL:', urlMatch[1]);
-      return urlMatch[1];
+    if (!baseSku) {
+      console.log('CK extractSku: No base SKU found');
+      return null;
     }
     
-    console.log('CK extractSku: No SKU found');
-    return null;
+    // Extract selected color code and generate complete SKU
+    const colorCode = this.extractColorCodeFromSelection();
+    if (colorCode) {
+      const finalSku = this.generateColorSpecificSku(baseSku, colorCode);
+      console.log(`CK extractSku: Generated color-specific SKU: ${finalSku} (base: ${baseSku}, color: ${colorCode})`);
+      return finalSku;
+    }
+    
+    // No color code available, return base SKU
+    console.log('CK extractSku: No color code found, returning base SKU:', baseSku);
+    return baseSku;
   }
 
   /**
