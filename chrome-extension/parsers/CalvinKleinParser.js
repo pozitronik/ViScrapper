@@ -1888,6 +1888,21 @@ class CalvinKleinParser extends BaseParser {
   }
 }
 
+// Register with SiteRegistry
+if (typeof SiteRegistry !== 'undefined') {
+  SiteRegistry.register({
+    domain: 'calvinklein.us',
+    siteId: 'calvinklein',
+    siteName: 'Calvin Klein',
+    parserClass: CalvinKleinParser,
+    urlPatterns: ['calvinklein.us'],
+    metadata: {
+      country: 'US',
+      currency: 'USD'
+    }
+  });
+}
+
 // Экспортируем для использования в других файлах
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CalvinKleinParser;

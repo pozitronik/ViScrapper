@@ -29,18 +29,28 @@ class VIParserCore {
       
       console.log('Detecting site for URL:', tab.url);
       
-      if (tab.url.includes('victoriassecret.com')) {
-        return { id: 'victoriassecret', name: "Victoria's Secret", supported: true };
-      } else if (tab.url.includes('calvinklein.us')) {
-        return { id: 'calvinklein', name: 'Calvin Klein', supported: true };
-      } else if (tab.url.includes('carters.com')) {
-        return { id: 'carters', name: "Carter's", supported: true };
-      } else if (tab.url.includes('usa.tommy.com')) {
-        return { id: 'tommy', name: 'Tommy Hilfiger', supported: true };
-      } else {
-        console.log('Unsupported site detected:', tab.url);
-        return { id: 'unsupported', name: 'VIParser', supported: false };
+      // Try to load SiteRegistry if not already loaded
+      if (typeof SiteRegistry === 'undefined') {
+        // In popup/sidepanel context, we need to load the registry
+        // Send message to background script to get site info
+        return new Promise((resolve) => {
+          chrome.runtime.sendMessage(
+            { action: 'detectSite', url: tab.url },
+            (response) => {
+              if (response && response.siteInfo) {
+                resolve(response.siteInfo);
+              } else {
+                resolve({ id: 'unsupported', name: 'VIParser', supported: false });
+              }
+            }
+          );
+        });
       }
+      
+      // Use SiteRegistry for detection
+      const siteInfo = SiteRegistry.detectSite(tab.url);
+      return siteInfo;
+      
     } catch (error) {
       console.error('Error detecting site:', error);
       return { id: 'unsupported', name: 'VIParser', supported: false };

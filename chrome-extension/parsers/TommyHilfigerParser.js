@@ -1423,6 +1423,21 @@ class TommyHilfigerParser extends BaseParser {
   }
 }
 
+// Register with SiteRegistry
+if (typeof SiteRegistry !== 'undefined') {
+  SiteRegistry.register({
+    domain: 'usa.tommy.com',
+    siteId: 'tommy',
+    siteName: 'Tommy Hilfiger',
+    parserClass: TommyHilfigerParser,
+    urlPatterns: ['usa.tommy.com', 'tommy.com'],
+    metadata: {
+      country: 'US',
+      currency: 'USD'
+    }
+  });
+}
+
 // Экспортируем для использования в других файлах
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = TommyHilfigerParser;

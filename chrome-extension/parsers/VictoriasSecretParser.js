@@ -758,6 +758,21 @@ class VictoriasSecretParser extends BaseParser {
   }
 }
 
+// Register with SiteRegistry
+if (typeof SiteRegistry !== 'undefined') {
+  SiteRegistry.register({
+    domain: 'victoriassecret.com',
+    siteId: 'victoriassecret',
+    siteName: "Victoria's Secret",
+    parserClass: VictoriasSecretParser,
+    urlPatterns: ['victoriassecret.com'],
+    metadata: {
+      country: 'US',
+      currency: 'USD'
+    }
+  });
+}
+
 // Экспортируем для использования в других файлах
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = VictoriasSecretParser;

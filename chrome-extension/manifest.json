@@ -29,6 +29,7 @@
       ],
       "js": [
         "shared/parser-capabilities.js",
+        "shared/site-registry.js",
         "parsers/BaseParser.js",
         "parsers/VictoriasSecretParser.js",
         "parsers/CalvinKleinParser.js",

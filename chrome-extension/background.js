@@ -4,16 +4,38 @@
  * Поддерживает двойной режим работы (popup + side panel)
  */
 
-// Поддерживаемые сайты - единый источник истины
-const SUPPORTED_SITES = {
-  domains: ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com'],
-  urlPatterns: [
-    'https://www.victoriassecret.com/*',
-    'https://www.calvinklein.us/*',
-    'https://www.carters.com/*',
-    'https://usa.tommy.com/*'
-  ]
+// Import site registry and parser classes for background script
+try {
+  importScripts(
+    'shared/parser-capabilities.js',
+    'shared/site-registry.js',
+    'parsers/BaseParser.js',
+    'parsers/VictoriasSecretParser.js',
+    'parsers/CalvinKleinParser.js',
+    'parsers/CartersParser.js',
+    'parsers/TommyHilfigerParser.js'
+  );
+  console.log('Background: Site registry and parsers loaded');
+} catch (error) {
+  console.error('Background: Failed to load site registry or parsers:', error);
+}
+
+// Get supported sites from registry
+const getSupportedSites = () => {
+  if (typeof SiteRegistry !== 'undefined') {
+    return {
+      domains: SiteRegistry.getSupportedDomains(),
+      urlPatterns: SiteRegistry.getSupportedUrlPatterns()
+    };
+  }
+  // Fallback (should not happen if registry loads correctly)
+  return {
+    domains: [],
+    urlPatterns: []
+  };
 };
+
+const SUPPORTED_SITES = getSupportedSites();
 
 // Глобальные настройки расширения
 let extensionSettings = {
@@ -151,6 +173,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Background received message:', request);
   
   switch (request.action) {
+    case 'detectSite':
+      // Detect site using SiteRegistry
+      if (request.url && typeof SiteRegistry !== 'undefined') {
+        const siteInfo = SiteRegistry.detectSite(request.url);
+        sendResponse({ siteInfo: siteInfo });
+      } else {
+        sendResponse({ siteInfo: { id: 'unsupported', name: 'VIParser', supported: false } });
+      }
+      return true; // Асинхронный ответ
+      
     case 'getTabData':
       // Получение данных из активной вкладки
       handleGetTabData(sendResponse);

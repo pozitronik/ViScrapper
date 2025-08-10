@@ -689,6 +689,21 @@ class CartersParser extends BaseParser {
   }
 }
 
+// Register with SiteRegistry
+if (typeof SiteRegistry !== 'undefined') {
+  SiteRegistry.register({
+    domain: 'carters.com',
+    siteId: 'carters',
+    siteName: "Carter's",
+    parserClass: CartersParser,
+    urlPatterns: ['carters.com'],
+    metadata: {
+      country: 'US',
+      currency: 'USD'
+    }
+  });
+}
+
 // Экспортируем для использования в других файлах
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CartersParser;
