@@ -257,51 +257,13 @@ class VIParserEvents {
   async startColorObserverIfNeeded() {
     try {
       // Get information about current active tab
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      // Let the content script decide if color observer is needed based on parser capabilities
+      const response = await this.core.startColorObserver();
       
-      if (!tab || !tab.url) {
-        return;
-      }
-      
-      // Check if this is a site that supports color observer
-      if (!tab.url.includes('carters.com') && !tab.url.includes('usa.tommy.com') && !tab.url.includes('calvinklein.us')) {
-        console.log('Site does not support color observer, skipping');
-        return;
-      }
-      
-      // Determine if observer should start based on site
-      let shouldStartObserver = false;
-      
-      if (tab.url.includes('carters.com')) {
-        // Carter's: Start observer only if color is missing
-        const colorValueElement = document.querySelector('[data-field="color"] .data-value');
-        if (colorValueElement) {
-          const colorText = colorValueElement.textContent.trim();
-          if (colorText === 'Отсутствует' || colorText === '' || colorValueElement.classList.contains('missing')) {
-            console.log('Carter\'s: Color is missing, starting observer...');
-            shouldStartObserver = true;
-          } else {
-            console.log('Carter\'s: Color already available:', colorText);
-          }
-        }
-      } else if (tab.url.includes('usa.tommy.com')) {
-        // Tommy Hilfiger: Always start observer to track image changes on color switch
-        console.log('Tommy Hilfiger: Starting color observer to track image changes...');
-        shouldStartObserver = true;
-      } else if (tab.url.includes('calvinklein.us')) {
-        // Calvin Klein: Always start observer to track panel refresh on color switch
-        console.log('Calvin Klein: Starting color observer to track data refresh...');
-        shouldStartObserver = true;
-      }
-      
-      if (shouldStartObserver) {
-        const response = await this.core.startColorObserver();
-        
-        if (response.success) {
-          console.log('Color observer started successfully');
-        } else {
-          console.log('Failed to start color observer:', response.error);
-        }
+      if (response.success) {
+        console.log('Color observer started successfully');
+      } else if (response.error) {
+        console.log('Color observer not needed or failed:', response.error);
       }
       
     } catch (error) {
