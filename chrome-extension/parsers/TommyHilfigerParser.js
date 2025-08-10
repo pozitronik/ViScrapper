@@ -18,6 +18,34 @@ class TommyHilfigerParser extends BaseParser {
         jsonLdScript: 'script[type="application/ld+json"]'
       }
     });
+    
+    // SELF-INITIALIZATION: Setup color observer immediately when parser is created
+    console.log('TH Parser: Self-initializing color change observer...');
+    this.initializeColorObserver();
+  }
+  
+  /**
+   * Self-initialization of color observer - called from constructor
+   */
+  initializeColorObserver() {
+    // Try immediate setup
+    const immediateResult = this.setupColorChangeObserver();
+    
+    if (immediateResult.success && immediateResult.listeners > 0) {
+      console.log(`TH Parser: Color observer self-initialized: ${immediateResult.listeners} listeners`);
+    } else {
+      // Fallback: DOM might not be ready yet
+      console.log('TH Parser: DOM not ready, scheduling delayed color observer setup...');
+      
+      setTimeout(() => {
+        const delayedResult = this.setupColorChangeObserver();
+        if (delayedResult.success) {
+          console.log(`TH Parser: Color observer setup successful after delay: ${delayedResult.listeners} listeners`);
+        } else {
+          console.warn('TH Parser: Color observer setup failed even after delay');
+        }
+      }, 1000);
+    }
   }
 
   /**
@@ -953,6 +981,262 @@ class TommyHilfigerParser extends BaseParser {
     } catch (error) {
       console.error('TH getJsonLdData: Error getting JSON-LD data:', error);
       return null;
+    }
+  }
+
+  /**
+   * Настройка наблюдателя за изменением цвета (только для Tommy Hilfiger)
+   * Устанавливается сразу при загрузке страницы для отслеживания ранних изменений
+   */
+  setupColorChangeObserver() {
+    try {
+      console.log('TH setupColorChangeObserver: Setting up color change detection...');
+      
+      // Очистка предыдущих слушателей если есть
+      if (this.colorListeners && this.colorListeners.length > 0) {
+        console.log(`TH setupColorChangeObserver: Cleaning up ${this.colorListeners.length} existing listeners first...`);
+        this.cleanup();
+      }
+      
+      // Сохраняем текущий цвет для сравнения
+      this.currentColorCode = this.extractSelectedColorCode();
+      this.colorListeners = []; // Массив для очистки
+      
+      console.log(`TH setupColorChangeObserver: Initial color code: ${this.currentColorCode}`);
+      
+      // Проверяем, есть ли нужные элементы на странице
+      if (!document.querySelector(this.config.selectors.colorsList) && 
+          !document.querySelector('.colors-variant-list:not(.d-none)') &&
+          !document.querySelector('input[type="radio"].variant-colorCode')) {
+        console.warn('TH setupColorChangeObserver: No color elements found on page yet');
+        return { success: false, error: 'No color elements found', listeners: 0 };
+      }
+      
+      // Находим все цветовые элементы
+      const colorInputs = this.getAllColorInputs();
+      const colorLabels = this.getAllColorLabels(colorInputs);
+      
+      console.log(`TH setupColorChangeObserver: Found ${colorInputs.length} color inputs and ${colorLabels.length} color labels`);
+      
+      if (colorInputs.length === 0) {
+        console.warn('TH setupColorChangeObserver: No color inputs found, setup failed');
+        return { success: false, error: 'No color inputs found', listeners: 0 };
+      }
+      
+      // Устанавливаем слушатели на radio inputs
+      colorInputs.forEach((input, index) => {
+        const handler = this.handleColorChange.bind(this);
+        input.addEventListener('change', handler);
+        this.colorListeners.push({ element: input, type: 'change', handler });
+        console.log(`TH setupColorChangeObserver: Added change listener to color input ${index}: ${input.id}`);
+      });
+      
+      // Устанавливаем слушатели на labels (иногда более надежно)
+      colorLabels.forEach((label, index) => {
+        const handler = this.handleColorLabelClick.bind(this);
+        label.addEventListener('click', handler);
+        this.colorListeners.push({ element: label, type: 'click', handler });
+        console.log(`TH setupColorChangeObserver: Added click listener to color label ${index}: ${label.getAttribute('for')}`);
+      });
+      
+      // Автоматическая очистка при уходе со страницы
+      const cleanupHandler = this.cleanup.bind(this);
+      window.addEventListener('beforeunload', cleanupHandler);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) this.cleanup();
+      });
+      
+      console.log('TH setupColorChangeObserver: Color change observer setup complete');
+      return { success: true, listeners: this.colorListeners.length };
+      
+    } catch (error) {
+      console.error('TH setupColorChangeObserver: Error setting up color observer:', error);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  /**
+   * Находит все цветовые radio inputs в различных структурах TH
+   */
+  getAllColorInputs() {
+    const colorInputs = [];
+    
+    // Структура 1: Основной colorsList
+    const mainColorsList = document.querySelector(this.config.selectors.colorsList);
+    if (mainColorsList) {
+      const inputs = mainColorsList.querySelectorAll('input[type="radio"]');
+      colorInputs.push(...inputs);
+      console.log(`TH getAllColorInputs: Found ${inputs.length} inputs in main colorsList`);
+    }
+    
+    // Структура 2: Grouped-by-price структура
+    const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
+    colorGroups.forEach((group, groupIndex) => {
+      const inputs = group.querySelectorAll('input[type="radio"]');
+      colorInputs.push(...inputs);
+      console.log(`TH getAllColorInputs: Found ${inputs.length} inputs in color group ${groupIndex}`);
+    });
+    
+    // Структура 3: Fallback - поиск по классу
+    const fallbackInputs = document.querySelectorAll('input[type="radio"].variant-colorCode');
+    // Добавляем только те, которых еще нет в массиве
+    fallbackInputs.forEach(input => {
+      if (!colorInputs.includes(input)) {
+        colorInputs.push(input);
+      }
+    });
+    
+    console.log(`TH getAllColorInputs: Total unique color inputs found: ${colorInputs.length}`);
+    return colorInputs;
+  }
+  
+  /**
+   * Находит все labels для цветовых inputs
+   */
+  getAllColorLabels(colorInputs) {
+    const colorLabels = [];
+    
+    colorInputs.forEach(input => {
+      const inputId = input.getAttribute('id');
+      if (inputId) {
+        const label = document.querySelector(`label[for="${inputId}"]`);
+        if (label) {
+          colorLabels.push(label);
+        }
+      }
+    });
+    
+    console.log(`TH getAllColorLabels: Found ${colorLabels.length} labels for color inputs`);
+    return colorLabels;
+  }
+  
+  /**
+   * Обработчик изменения цвета через radio input
+   */
+  async handleColorChange(event) {
+    try {
+      console.log('TH handleColorChange: Color input change detected');
+      
+      // Небольшая задержка для стабилизации DOM
+      await this.wait(100);
+      
+      const newColorCode = this.extractSelectedColorCode();
+      console.log(`TH handleColorChange: New color code detected: ${newColorCode}`);
+      
+      // Проверяем, действительно ли цвет изменился
+      if (newColorCode && newColorCode !== this.currentColorCode) {
+        console.log(`TH handleColorChange: Color actually changed from ${this.currentColorCode} to ${newColorCode}`);
+        
+        this.currentColorCode = newColorCode;
+        await this.sendColorUpdateMessage();
+      } else {
+        console.log('TH handleColorChange: Color did not actually change, ignoring');
+      }
+      
+    } catch (error) {
+      console.error('TH handleColorChange: Error handling color change:', error);
+    }
+  }
+  
+  /**
+   * Обработчик клика по label (альтернативный способ)
+   */
+  async handleColorLabelClick(event) {
+    try {
+      console.log('TH handleColorLabelClick: Color label click detected');
+      
+      // Store color BEFORE click to compare properly
+      const colorBeforeClick = this.extractSelectedColorCode();
+      console.log(`TH handleColorLabelClick: Color before click: ${colorBeforeClick}`);
+      
+      // Progressive timeout approach for slow connections
+      let newColorCode = null;
+      const timeouts = [800, 1500]; // Try 800ms, then 1500ms if needed
+      
+      for (let i = 0; i < timeouts.length; i++) {
+        console.log(`TH handleColorLabelClick: Waiting ${timeouts[i]}ms for DOM update (attempt ${i + 1}/${timeouts.length})...`);
+        await this.wait(timeouts[i]);
+        
+        newColorCode = this.extractSelectedColorCode();
+        console.log(`TH handleColorLabelClick: Color after ${timeouts[i]}ms wait: ${newColorCode}`);
+        
+        // If color changed from before, we're good
+        if (newColorCode !== colorBeforeClick) {
+          console.log(`TH handleColorLabelClick: ✓ Color change detected after ${timeouts[i]}ms`);
+          break;
+        }
+        
+        // If this was the last attempt, we'll proceed anyway
+        if (i === timeouts.length - 1) {
+          console.warn('TH handleColorLabelClick: ⚠️ DOM update took longer than expected, proceeding anyway');
+        }
+      }
+      
+      console.log(`TH handleColorLabelClick: Final color code: ${newColorCode}`);
+      console.log(`TH handleColorLabelClick: Current stored color code: ${this.currentColorCode}`);
+      
+      // Compare with BOTH stored color AND pre-click color
+      const changedFromStored = newColorCode !== this.currentColorCode;
+      const changedFromBefore = newColorCode !== colorBeforeClick;
+      
+      console.log(`TH handleColorLabelClick: Changed from stored? ${changedFromStored}`);
+      console.log(`TH handleColorLabelClick: Changed from before click? ${changedFromBefore}`);
+      
+      // Trigger refresh if color changed from either reference
+      if (newColorCode && (changedFromStored || changedFromBefore)) {
+        console.log(`TH handleColorLabelClick: ✓ Color change detected: ${this.currentColorCode} → ${newColorCode}`);
+        
+        this.currentColorCode = newColorCode;
+        await this.sendColorUpdateMessage();
+      } else {
+        console.log(`TH handleColorLabelClick: ✗ No color change detected (stored: ${this.currentColorCode}, before: ${colorBeforeClick}, after: ${newColorCode})`);
+      }
+      
+    } catch (error) {
+      console.error('TH handleColorLabelClick: Error handling label click:', error);
+    }
+  }
+  
+  /**
+   * Отправка сообщения об изменении цвета - триггерит ПОЛНОЕ обновление данных
+   * Поскольку смена цвета на TH = совершенно новый продукт (SKU, изображения, размеры)
+   */
+  async sendColorUpdateMessage() {
+    try {
+      console.log('TH sendColorUpdateMessage: Color changed - triggering FULL data refresh...');
+      
+      // Для Tommy Hilfiger смена цвета = новый продукт, нужно полное обновление
+      // Используем существующую систему SPA refresh из viparser-events.js
+      chrome.runtime.sendMessage({
+        action: 'spaPanelRefresh',
+        source: 'tommy-hilfiger-color-change',
+        reason: 'Color changed - new product variant with different SKU/images/sizes'
+      });
+      
+      console.log('TH sendColorUpdateMessage: Full data refresh message sent');
+      
+    } catch (error) {
+      console.error('TH sendColorUpdateMessage: Error sending color update message:', error);
+    }
+  }
+  
+  /**
+   * Очистка слушателей событий
+   */
+  cleanup() {
+    try {
+      if (this.colorListeners && this.colorListeners.length > 0) {
+        console.log(`TH cleanup: Removing ${this.colorListeners.length} color change listeners...`);
+        
+        this.colorListeners.forEach(({ element, type, handler }) => {
+          element.removeEventListener(type, handler);
+        });
+        
+        this.colorListeners = [];
+        console.log('TH cleanup: All color listeners removed');
+      }
+    } catch (error) {
+      console.error('TH cleanup: Error during cleanup:', error);
     }
   }
 

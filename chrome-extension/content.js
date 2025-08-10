@@ -499,10 +499,17 @@ function handleStopColorObserver(sendResponse) {
   try {
     console.log('Stopping color observer...');
     
+    // Old system - MutationObserver based color observer
     if (colorObserver) {
       colorObserver.disconnect();
       colorObserver = null;
-      console.log('Color observer stopped');
+      console.log('Old color observer stopped');
+    }
+    
+    // Generic parser cleanup - any parser can implement cleanup() method
+    if (currentParser && typeof currentParser.cleanup === 'function') {
+      console.log(`Cleaning up parser resources for ${currentParser.siteName}...`);
+      currentParser.cleanup();
     }
     
     sendResponse({ success: true });
