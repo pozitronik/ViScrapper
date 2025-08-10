@@ -217,6 +217,24 @@ class VIParserCore {
   }
 
   /**
+   * Получение индексов выбранных изображений (для применения паттерна к другим цветам)
+   */
+  getSelectedIndices() {
+    const checkboxes = document.querySelectorAll('.image-checkbox:checked');
+    const selectedIndices = [];
+    
+    checkboxes.forEach(checkbox => {
+      const index = parseInt(checkbox.dataset.index);
+      if (!isNaN(index)) {
+        selectedIndices.push(index);
+      }
+    });
+    
+    // Если ничего не выбрано, возвращаем пустой массив (использовать все изображения)
+    return selectedIndices;
+  }
+
+  /**
    * Проверка возможности отправки данных
    */
   canSubmitData() {
