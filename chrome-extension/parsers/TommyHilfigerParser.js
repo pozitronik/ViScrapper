@@ -35,7 +35,6 @@ class TommyHilfigerParser extends BaseParser {
     });
     
     // SELF-INITIALIZATION: Setup color observer immediately when parser is created
-    console.log('TH Parser: Self-initializing color change observer...');
     this.initializeColorObserver();
   }
   
@@ -46,18 +45,12 @@ class TommyHilfigerParser extends BaseParser {
     // Try immediate setup
     const immediateResult = this.setupColorChangeObserver();
     
-    if (immediateResult.success && immediateResult.listeners > 0) {
-      console.log(`TH Parser: Color observer self-initialized: ${immediateResult.listeners} listeners`);
-    } else {
+    if (!immediateResult.success || immediateResult.listeners === 0) {
       // Fallback: DOM might not be ready yet
-      console.log('TH Parser: DOM not ready, scheduling delayed color observer setup...');
-      
       setTimeout(() => {
         const delayedResult = this.setupColorChangeObserver();
-        if (delayedResult.success) {
-          console.log(`TH Parser: Color observer setup successful after delay: ${delayedResult.listeners} listeners`);
-        } else {
-          console.warn('TH Parser: Color observer setup failed even after delay');
+        if (!delayedResult.success) {
+          console.warn('TH Parser: Color observer setup failed');
         }
       }, 1000);
     }
@@ -69,17 +62,14 @@ class TommyHilfigerParser extends BaseParser {
    */
   isValidProductPage() {
     const url = window.location.href;
-    console.log('Checking TH page validity, URL:', url);
     
     if (!url.includes(this.config.domain)) {
-      console.log('Not a Tommy Hilfiger page');
       return false;
     }
     
     // Приоритет 1: Проверяем JSON-LD на наличие Product
     const jsonData = this.getJsonLdData();
     if (jsonData && jsonData['@type'] === 'Product') {
-      console.log('Valid TH product page: JSON-LD Product found');
       return true;
     }
     
@@ -87,16 +77,7 @@ class TommyHilfigerParser extends BaseParser {
     const productName = document.querySelector(this.config.selectors.productName);
     const buyBox = document.querySelector(this.config.selectors.buyBox);
     
-    console.log('ProductName element:', productName);
-    console.log('BuyBox element:', buyBox);
-    
-    if (!productName || !buyBox) {
-      console.log('Missing core product elements');
-      return false;
-    }
-    
-    console.log('Page is valid TH product page');
-    return true;
+    return productName && buyBox;
   }
 
   /**
@@ -115,7 +96,7 @@ class TommyHilfigerParser extends BaseParser {
     // Извлекаем базовый код продукта из radio ID
     const baseProductCode = this.extractUniqueProductId();
     if (!baseProductCode) {
-      console.log('TH extractSku: No base product code found, trying fallbacks');
+      // No base product code found, trying fallbacks
       
       // Fallback 1: JSON-LD SKU
       if (jsonData && jsonData.sku) {
@@ -151,19 +132,16 @@ class TommyHilfigerParser extends BaseParser {
     if (colorsList) {
       selectedColor = colorsList.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
       if (selectedColor) {
-        console.log('TH extractSelectedColorCode: Found selected color in main colorsList');
       }
     }
     
     // Вариант 2: Grouped-by-price структура - ищем во всех видимых colorGroup
     if (!selectedColor) {
       const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
-      console.log(`TH extractSelectedColorCode: Searching in ${colorGroups.length} visible color groups`);
       
       for (const group of colorGroups) {
         selectedColor = group.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
         if (selectedColor) {
-          console.log('TH extractSelectedColorCode: Found selected color in color group:', group.className);
           break;
         }
       }
@@ -173,12 +151,10 @@ class TommyHilfigerParser extends BaseParser {
     if (!selectedColor) {
       selectedColor = document.querySelector('input[type="radio"].variant-colorCode:checked, input[type="radio"].variant-colorCode[aria-checked="true"]');
       if (selectedColor) {
-        console.log('TH extractSelectedColorCode: Found selected color via fallback selector');
       }
     }
     
     if (!selectedColor) {
-      console.log('TH extractSelectedColorCode: No selected color found, looking for first available color');
       
       // Fallback: берем первый доступный цвет
       let firstColor = null;
@@ -200,7 +176,6 @@ class TommyHilfigerParser extends BaseParser {
       }
       
       if (firstColor) {
-        console.log('TH extractSelectedColorCode: Using first color as fallback');
         return this.extractColorCodeFromId(firstColor.getAttribute('id'));
       }
       
@@ -235,17 +210,13 @@ class TommyHilfigerParser extends BaseParser {
    * Извлечение изображений - приоритет DOM над JSON-LD для актуальных данных
    */
   async extractImages() {
-    console.log('TH extractImages: Starting image extraction...');
-    
     // Приоритет 1: Извлекаем из DOM (актуальные изображения для текущего цвета)
     const domImages = await this.extractImagesFromDOM();
     if (domImages.length > 0) {
-      console.log(`TH extractImages: Found ${domImages.length} images from DOM`);
       return domImages;
     }
     
     // Приоритет 2: Fallback к JSON-LD (может быть устаревшим)
-    console.log('TH extractImages: No DOM images found, falling back to JSON-LD...');
     const jsonData = this.getJsonLdData();
     const imageUrls = [];
     
@@ -258,7 +229,6 @@ class TommyHilfigerParser extends BaseParser {
       });
     }
     
-    console.log(`TH extractImages: Found ${imageUrls.length} images from JSON-LD fallback`);
     return imageUrls;
   }
 
@@ -268,30 +238,23 @@ class TommyHilfigerParser extends BaseParser {
    */
   async extractImagesFromDOM() {
     try {
-      console.log('TH extractImagesFromDOM: Starting DOM extraction...');
-      
       // Находим основной контейнер с изображениями
       const productImageContainer = document.querySelector('[data-comp="ProductImage"]');
       if (!productImageContainer) {
-        console.log('TH extractImagesFromDOM: ProductImage container not found');
         return [];
       }
       
       // Находим все слайды с изображениями
       const imageSlides = productImageContainer.querySelectorAll('.product-image.swiper-slide');
       if (imageSlides.length === 0) {
-        console.log('TH extractImagesFromDOM: No image slides found');
         return [];
       }
-      
-      console.log(`TH extractImagesFromDOM: Found ${imageSlides.length} image slides`);
       
       const imageUrls = [];
       
       imageSlides.forEach((slide, index) => {
         const img = slide.querySelector('img');
         if (!img) {
-          console.log(`TH extractImagesFromDOM: No img tag found in slide ${index}`);
           return;
         }
         
@@ -301,7 +264,6 @@ class TommyHilfigerParser extends BaseParser {
         const src = img.getAttribute('src');
         if (src && src.startsWith('http') && !src.includes('data:image')) {
           imageUrl = src;
-          console.log(`TH extractImagesFromDOM: Found loaded image in slide ${index}: ${imageUrl}`);
         }
         
         // Приоритет 2: Lazy-loaded изображения (источники в picture > source)
@@ -317,7 +279,6 @@ class TommyHilfigerParser extends BaseParser {
                 const firstUrl = srcset.split(' ')[0];
                 if (firstUrl && firstUrl.startsWith('http')) {
                   imageUrl = firstUrl;
-                  console.log(`TH extractImagesFromDOM: Found lazy image in slide ${index}: ${imageUrl}`);
                   break;
                 }
               }
@@ -329,13 +290,9 @@ class TommyHilfigerParser extends BaseParser {
           // Применяем улучшение качества (поддерживает Tommy Hilfiger CDN)
           const enhancedUrl = this.enhanceImageQuality(imageUrl);
           imageUrls.push(enhancedUrl);
-          console.log(`TH extractImagesFromDOM: Added enhanced image: ${enhancedUrl}`);
-        } else {
-          console.log(`TH extractImagesFromDOM: No valid image URL found in slide ${index}`);
         }
       });
       
-      console.log(`TH extractImagesFromDOM: Extracted ${imageUrls.length} images from DOM`);
       return imageUrls;
       
     } catch (error) {
@@ -357,7 +314,6 @@ class TommyHilfigerParser extends BaseParser {
     if (colorsList) {
       selectedColor = colorsList.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
       if (selectedColor) {
-        console.log('TH extractColor: Found selected color in main colorsList');
       }
     }
     
@@ -367,7 +323,6 @@ class TommyHilfigerParser extends BaseParser {
       for (const group of colorGroups) {
         selectedColor = group.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
         if (selectedColor) {
-          console.log('TH extractColor: Found selected color in color group:', group.className);
           break;
         }
       }
@@ -377,7 +332,6 @@ class TommyHilfigerParser extends BaseParser {
     if (!selectedColor) {
       selectedColor = document.querySelector('input[type="radio"].variant-colorCode:checked, input[type="radio"].variant-colorCode[aria-checked="true"]');
       if (selectedColor) {
-        console.log('TH extractColor: Found selected color via fallback selector');
       }
     }
     
@@ -420,22 +374,18 @@ class TommyHilfigerParser extends BaseParser {
    */
   async extractSizes() {
     try {
-      console.log('TH extractSizes: Starting simplified size extraction...');
-      
       // Look for size containers using .variant-list approach
       const sizeContainers = document.querySelectorAll('.variant-list[data-display-value]:not([data-display-id="colorCode"])');
-      console.log(`TH extractSizes: Found ${sizeContainers.length} size containers with .variant-list`);
       
       if (sizeContainers.length >= 2) {
-        console.log('TH extractSizes: Detected two-dimensional size system (e.g., Waist × Length)');
+        // Two-dimensional size system (e.g., Waist × Length)
         return await this.extractSizeCombinations(sizeContainers[0], sizeContainers[1]);
       } else if (sizeContainers.length === 1) {
-        console.log('TH extractSizes: Detected one-dimensional size system');
+        // One-dimensional size system
         return await this.extractSimpleSizes(sizeContainers[0]);
       }
       
       // Fallback: try old method
-      console.log('TH extractSizes: No .variant-list containers found, trying fallback methods');
       return await this.extractSimpleSizes();
       
     } catch (error) {
@@ -463,7 +413,6 @@ class TommyHilfigerParser extends BaseParser {
       
       if (targetContainer) {
         const sizeInputs = targetContainer.querySelectorAll('input[type="radio"]');
-        console.log(`TH extractSimpleSizes: Found ${sizeInputs.length} size radio inputs`);
         
         sizeInputs.forEach(input => {
           const inputId = input.getAttribute('id');
@@ -471,12 +420,10 @@ class TommyHilfigerParser extends BaseParser {
           
           // Проверяем, что размер не отключен (не имеет класс size-disabled)
           if (label && label.classList.contains('size-disabled')) {
-            console.log(`TH extractSimpleSizes: Skipping disabled size for input ${inputId}`);
             return;
           }
           
           if (input.classList.contains('disabled') || input.classList.contains('oos-variant')) {
-            console.log(`TH extractSimpleSizes: Skipping disabled input ${inputId}`);
             return;
           }
           
@@ -490,7 +437,6 @@ class TommyHilfigerParser extends BaseParser {
         });
         
         if (availableSizes.length > 0) {
-          console.log(`TH extractSimpleSizes: Found ${availableSizes.length} simple sizes:`, availableSizes);
           return availableSizes;
         }
       }
@@ -502,7 +448,6 @@ class TommyHilfigerParser extends BaseParser {
         if (sizeValueSpan) {
           const sizeText = sizeValueSpan.textContent?.trim();
           if (sizeText && sizeText !== '' && sizeText !== 'Отсутствует') {
-            console.log(`TH extractSimpleSizes: Found size from header:`, sizeText);
             availableSizes.push(sizeText);
             break;
           }
@@ -512,7 +457,6 @@ class TommyHilfigerParser extends BaseParser {
       if (availableSizes.length === 0) {
         const oneSize = document.querySelector('[data-testid="size-onesize"], .size-one-size');
         if (oneSize) {
-          console.log('TH extractSimpleSizes: Found ONE SIZE indicator');
           availableSizes.push('ONE SIZE');
         }
       }
@@ -532,24 +476,16 @@ class TommyHilfigerParser extends BaseParser {
    */
   async extractSizeCombinations(dimension1Container, dimension2Container) {
     try {
-      console.log('TH extractSizeCombinations: Starting SIMPLIFIED two-dimensional size extraction...');
-      
       // Get dimension types
       const dimension1Type = this.getDimensionType(dimension1Container);
       const dimension2Type = this.getDimensionType(dimension2Container);
       
-      console.log(`TH extractSizeCombinations: Dimensions detected - ${dimension1Type} × ${dimension2Type}`);
-      
       const dimension1Options = Array.from(dimension1Container.querySelectorAll('input[type="radio"].variant-item'));
       const combinations = {};
-      
-      console.log(`TH extractSizeCombinations: Found ${dimension1Options.length} ${dimension1Type} options to test`);
       
       // Save original selections for restoration (simplified)
       const originalDim1 = dimension1Container.querySelector('input[type="radio"][aria-checked="true"]');
       const originalDim2 = dimension2Container.querySelector('input[type="radio"][aria-checked="true"]');
-      
-      console.log(`TH extractSizeCombinations: Original selections - ${dimension1Type}: ${originalDim1?.id || 'none'}, ${dimension2Type}: ${originalDim2?.id || 'none'}`);
       
       // Test each dimension1 option
       for (let i = 0; i < dimension1Options.length; i++) {
@@ -558,58 +494,23 @@ class TommyHilfigerParser extends BaseParser {
         
         // Skip obviously disabled options
         if (dim1Option.classList.contains('disabled') || dim1Option.classList.contains('oos-variant')) {
-          console.log(`TH extractSizeCombinations: Skipping disabled ${dimension1Type} option: ${dim1Value}`);
           continue;
         }
-        
-        console.log(`TH extractSizeCombinations: Testing ${dimension1Type} option: ${dim1Value} (${i + 1}/${dimension1Options.length})`);
         
         // Click dimension1 option (try clicking the label instead of the input for better results)
         const dim1Label = document.querySelector(`label[for="${dim1Option.id}"]`);
         if (dim1Label) {
-          console.log(`TH extractSizeCombinations: Clicking ${dimension1Type} label for ${dim1Value}`);
           dim1Label.click();
         } else {
-          console.log(`TH extractSizeCombinations: No label found, clicking ${dimension1Type} input for ${dim1Value}`);
           dim1Option.click();
         }
         
         // Wait for DOM to update - using conservative timing
-        console.log('TH extractSizeCombinations: Waiting for DOM update after dimension1 click...');
         await this.wait(2000); // Even longer wait to ensure DOM fully updates
-        
-        // Verify the dimension1 selection was successful
-        const selectedDim1 = dimension1Container.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
-        const selectedDim1Value = selectedDim1?.getAttribute('data-attr-value') || 'none';
-        console.log(`TH extractSizeCombinations: After click, ${dimension1Type} selection is: ${selectedDim1Value}`);
-        
-        if (selectedDim1Value !== dim1Value) {
-          console.log(`TH extractSizeCombinations: WARNING - Expected ${dim1Value} but ${selectedDim1Value} is selected`);
-        }
         
         // Get available dimension2 options after dimension1 selection
         const dimension2Options = Array.from(dimension2Container.querySelectorAll('input[type="radio"].variant-item'));
         const availableDim2Values = [];
-        
-        console.log(`TH extractSizeCombinations: Testing ${dimension2Options.length} ${dimension2Type} options for ${dimension1Type} ${dim1Value}`);
-        
-        // CORRECT APPROACH: Observe label.size-disabled changes in second radiogroup
-        console.log(`TH extractSizeCombinations: After selecting ${dimension1Type} ${dim1Value}, observing ${dimension2Type} label states...`);
-        
-        // DEBUG: First, let's see what's happening with all labels in the second radiogroup
-        console.log(`TH extractSizeCombinations: === DEBUGGING ${dimension2Type} LABELS STATE ===`);
-        const allDim2Labels = dimension2Container.querySelectorAll('label');
-        console.log(`TH extractSizeCombinations: Found ${allDim2Labels.length} labels in ${dimension2Type} container`);
-        
-        allDim2Labels.forEach((label, index) => {
-          const forAttr = label.getAttribute('for');
-          const hasDisabled = label.classList.contains('size-disabled');
-          const hasDisabled2 = label.classList.contains('disabled');
-          const labelText = label.textContent?.trim();
-          const allClasses = Array.from(label.classList).join(', ');
-          
-          console.log(`TH extractSizeCombinations: Label ${index}: for="${forAttr}", text="${labelText}", classes="${allClasses}", size-disabled=${hasDisabled}, disabled=${hasDisabled2}`);
-        });
         
         // Tommy Hilfiger adds .size-disabled class to labels of unavailable options in the second radiogroup
         // We just need to observe which labels DON'T have this class
@@ -619,7 +520,6 @@ class TommyHilfigerParser extends BaseParser {
           const dim2Value = dim2Option.getAttribute('data-attr-value');
           
           if (!dim2Value) {
-            console.log(`TH extractSizeCombinations: Skipping ${dimension2Type} option without value at index ${j}`);
             continue;
           }
           
@@ -627,7 +527,6 @@ class TommyHilfigerParser extends BaseParser {
           const dim2Label = document.querySelector(`label[for="${dim2Option.id}"]`);
           
           if (!dim2Label) {
-            console.log(`TH extractSizeCombinations: No label found for ${dimension2Type} ${dim2Value}, skipping`);
             continue;
           }
           
@@ -637,49 +536,30 @@ class TommyHilfigerParser extends BaseParser {
           const hasOosClass = dim2Label.classList.contains('oos');
           const isLabelDisabled = hasDisabledClass || hasSizeDisabledClass || hasOosClass;
           
-          console.log(`TH extractSizeCombinations: Checking ${dimension2Type} ${dim2Value}:`);
-          console.log(`  - label.disabled: ${hasDisabledClass}`);
-          console.log(`  - label.size-disabled: ${hasSizeDisabledClass}`);
-          console.log(`  - label.oos: ${hasOosClass}`);
-          console.log(`  - final assessment: ${isLabelDisabled ? 'DISABLED' : 'AVAILABLE'}`);
-          
           if (!isLabelDisabled) {
             // Label is not disabled - option is available for this waist size
             availableDim2Values.push(dim2Value);
-            console.log(`TH extractSizeCombinations: ✓ ${dimension2Type} ${dim2Value} is AVAILABLE for ${dimension1Type} ${dim1Value}`);
-          } else {
-            console.log(`TH extractSizeCombinations: ✗ ${dimension2Type} ${dim2Value} is DISABLED for ${dimension1Type} ${dim1Value}`);
           }
         }
         
-        console.log(`TH extractSizeCombinations: ${dimension1Type} ${dim1Value} → Available ${dimension2Type}:`, availableDim2Values);
-        
         if (availableDim2Values.length > 0) {
           combinations[dim1Value] = availableDim2Values;
-        } else {
-          console.log(`TH extractSizeCombinations: No available ${dimension2Type} options for ${dimension1Type} ${dim1Value}`);
         }
       }
       
       // Simple restoration - just restore original selections if they existed
-      console.log('TH extractSizeCombinations: Restoring original selections...');
       try {
         if (originalDim1 && !originalDim1.checked) {
-          console.log(`TH extractSizeCombinations: Restoring ${dimension1Type} to: ${originalDim1.id}`);
           originalDim1.click();
           await this.wait(200);
         }
         if (originalDim2 && !originalDim2.checked) {
-          console.log(`TH extractSizeCombinations: Restoring ${dimension2Type} to: ${originalDim2.id}`);
           originalDim2.click();
           await this.wait(200);
         }
-        console.log('TH extractSizeCombinations: Restoration completed');
       } catch (e) {
-        console.log('TH extractSizeCombinations: Error during restoration (non-critical):', e);
+        // Restoration error (non-critical)
       }
-      
-      console.log('TH extractSizeCombinations: Final combinations extracted:', combinations);
       
       return {
         dimension1_type: dimension1Type,
@@ -688,7 +568,7 @@ class TommyHilfigerParser extends BaseParser {
       };
       
     } catch (error) {
-      console.error('Error extracting TH size combinations:', error);
+      console.error('Error extracting size combinations:', error);
       return [];
     }
   }
@@ -727,7 +607,6 @@ class TommyHilfigerParser extends BaseParser {
       return 'Unknown';
       
     } catch (error) {
-      console.error('Error getting dimension type:', error);
       return 'Unknown';
     }
   }
@@ -745,21 +624,16 @@ class TommyHilfigerParser extends BaseParser {
     const colorsList = document.querySelector(this.config.selectors.colorsList);
     if (colorsList) {
       firstColorInput = colorsList.querySelector('input[type="radio"]');
-      if (firstColorInput) {
-        console.log('TH extractUniqueProductId: Found color input in main colorsList');
-      }
     }
     
     // Вариант 2: Grouped-by-price структура - ищем во всех colorGroup
     if (!firstColorInput) {
       const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
-      console.log(`TH extractUniqueProductId: Found ${colorGroups.length} visible color groups`);
       
       for (const group of colorGroups) {
         const input = group.querySelector('input[type="radio"]');
         if (input) {
           firstColorInput = input;
-          console.log('TH extractUniqueProductId: Found color input in color group:', group.className);
           break;
         }
       }
@@ -768,13 +642,9 @@ class TommyHilfigerParser extends BaseParser {
     // Вариант 3: Поиск по всему документу как fallback
     if (!firstColorInput) {
       firstColorInput = document.querySelector('input[type="radio"].variant-colorCode');
-      if (firstColorInput) {
-        console.log('TH extractUniqueProductId: Found color input via fallback selector');
-      }
     }
     
     if (!firstColorInput) {
-      console.log('TH extractUniqueProductId: No color radio inputs found');
       return null;
     }
     
@@ -807,7 +677,6 @@ class TommyHilfigerParser extends BaseParser {
     const parts = fullPart.split('-');
     const uniqueProductId = parts[0]; // MW41326-HGF -> MW41326
     
-    console.log(`TH extractUniqueProductId: Extracted (fallback) "${uniqueProductId}" from "${fullPart}" using first-part-only rule (consistent with CK)`);
     return uniqueProductId;
   }
 
@@ -823,12 +692,10 @@ class TommyHilfigerParser extends BaseParser {
     // Парсим ID формата: MW41326-HGF_colorCodeitem-DW5
     const match = inputId.match(/_colorCodeitem-(.+)$/);
     if (!match) {
-      console.log('TH extractColorCodeFromId: ID format does not match expected pattern:', inputId);
       return null;
     }
     
     const colorCode = match[1]; // DW5
-    console.log(`TH extractColorCodeFromId: Extracted color code "${colorCode}" from "${inputId}"`);
     return colorCode;
   }
 
@@ -843,13 +710,10 @@ class TommyHilfigerParser extends BaseParser {
     }
 
     if (!colorCode) {
-      console.log('TH generateColorSpecificSku: No color code, returning base product code');
       return baseProductCode;
     }
 
     const colorSpecificSku = `${baseProductCode}-${colorCode}`;
-    console.log(`TH generateColorSpecificSku: Generated ${colorSpecificSku} from base ${baseProductCode} and color ${colorCode}`);
-    
     return colorSpecificSku;
   }
 
@@ -1011,11 +875,8 @@ class TommyHilfigerParser extends BaseParser {
    */
   setupColorChangeObserver() {
     try {
-      console.log('TH setupColorChangeObserver: Setting up color change detection...');
-      
       // Очистка предыдущих слушателей если есть
       if (this.colorListeners && this.colorListeners.length > 0) {
-        console.log(`TH setupColorChangeObserver: Cleaning up ${this.colorListeners.length} existing listeners first...`);
         this.cleanup();
       }
       
@@ -1023,7 +884,6 @@ class TommyHilfigerParser extends BaseParser {
       this.currentColorCode = this.extractSelectedColorCode();
       this.colorListeners = []; // Массив для очистки
       
-      console.log(`TH setupColorChangeObserver: Initial color code: ${this.currentColorCode}`);
       
       // Проверяем, есть ли нужные элементы на странице
       if (!document.querySelector(this.config.selectors.colorsList) && 
@@ -1037,7 +897,6 @@ class TommyHilfigerParser extends BaseParser {
       const colorInputs = this.getAllColorInputs();
       const colorLabels = this.getAllColorLabels(colorInputs);
       
-      console.log(`TH setupColorChangeObserver: Found ${colorInputs.length} color inputs and ${colorLabels.length} color labels`);
       
       if (colorInputs.length === 0) {
         console.warn('TH setupColorChangeObserver: No color inputs found, setup failed');
@@ -1049,7 +908,6 @@ class TommyHilfigerParser extends BaseParser {
         const handler = this.handleColorChange.bind(this);
         input.addEventListener('change', handler);
         this.colorListeners.push({ element: input, type: 'change', handler });
-        console.log(`TH setupColorChangeObserver: Added change listener to color input ${index}: ${input.id}`);
       });
       
       // Устанавливаем слушатели на labels (иногда более надежно)
@@ -1057,7 +915,6 @@ class TommyHilfigerParser extends BaseParser {
         const handler = this.handleColorLabelClick.bind(this);
         label.addEventListener('click', handler);
         this.colorListeners.push({ element: label, type: 'click', handler });
-        console.log(`TH setupColorChangeObserver: Added click listener to color label ${index}: ${label.getAttribute('for')}`);
       });
       
       // Автоматическая очистка при уходе со страницы
@@ -1067,11 +924,10 @@ class TommyHilfigerParser extends BaseParser {
         if (document.hidden) this.cleanup();
       });
       
-      console.log('TH setupColorChangeObserver: Color change observer setup complete');
       return { success: true, listeners: this.colorListeners.length };
       
     } catch (error) {
-      console.error('TH setupColorChangeObserver: Error setting up color observer:', error);
+      console.error('Error setting up color observer:', error);
       return { success: false, error: error.message };
     }
   }
@@ -1136,22 +992,15 @@ class TommyHilfigerParser extends BaseParser {
    */
   async handleColorChange(event) {
     try {
-      console.log('TH handleColorChange: Color input change detected');
-      
       // Небольшая задержка для стабилизации DOM
       await this.wait(100);
       
       const newColorCode = this.extractSelectedColorCode();
-      console.log(`TH handleColorChange: New color code detected: ${newColorCode}`);
       
       // Проверяем, действительно ли цвет изменился
       if (newColorCode && newColorCode !== this.currentColorCode) {
-        console.log(`TH handleColorChange: Color actually changed from ${this.currentColorCode} to ${newColorCode}`);
-        
         this.currentColorCode = newColorCode;
         await this.sendColorUpdateMessage();
-      } else {
-        console.log('TH handleColorChange: Color did not actually change, ignoring');
       }
       
     } catch (error) {
@@ -1275,27 +1124,21 @@ class TommyHilfigerParser extends BaseParser {
     if (colorsList) {
       const inputs = colorsList.querySelectorAll('input[type="radio"]');
       colorInputs = colorInputs.concat(Array.from(inputs));
-      console.log(`TH extractAllColors: Found ${inputs.length} color inputs in main colorsList`);
     }
     
     // Вариант 2: Grouped-by-price структура - собираем из всех видимых colorGroup
     const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
-    console.log(`TH extractAllColors: Found ${colorGroups.length} visible color groups`);
     
     colorGroups.forEach((group, index) => {
       const inputs = group.querySelectorAll('input[type="radio"]');
       colorInputs = colorInputs.concat(Array.from(inputs));
-      console.log(`TH extractAllColors: Found ${inputs.length} color inputs in color group ${index}: ${group.className}`);
     });
     
     // Вариант 3: Fallback - поиск по всему документу
     if (colorInputs.length === 0) {
       const fallbackInputs = document.querySelectorAll('input[type="radio"].variant-colorCode');
       colorInputs = colorInputs.concat(Array.from(fallbackInputs));
-      console.log(`TH extractAllColors: Found ${fallbackInputs.length} color inputs via fallback selector`);
     }
-    
-    console.log(`TH extractAllColors: Total found ${colorInputs.length} color radio inputs`);
     
     // Удаляем дубликаты по ID
     const uniqueInputs = [];
@@ -1309,19 +1152,15 @@ class TommyHilfigerParser extends BaseParser {
       }
     });
     
-    console.log(`TH extractAllColors: After deduplication: ${uniqueInputs.length} unique color inputs`);
-    
     uniqueInputs.forEach(input => {
       const inputId = input.getAttribute('id');
       if (!inputId) {
-        console.log('TH extractAllColors: Skipping input without ID');
         return;
       }
       
       // Извлекаем цветовой код из ID
       const colorCode = this.extractColorCodeFromId(inputId);
       if (!colorCode) {
-        console.log('TH extractAllColors: No color code found for input ID:', inputId);
         return;
       }
       
@@ -1335,10 +1174,8 @@ class TommyHilfigerParser extends BaseParser {
         inputId: inputId  // Сохраняем ID для удобства отладки
       });
       
-      console.log(`TH extractAllColors: Added color - Code: "${colorCode}", Name: "${colorName}", Selected: ${input.checked || input.getAttribute('aria-checked') === 'true'}`);
     });
     
-    console.log(`TH extractAllColors: Extracted ${colors.length} colors`);
     return colors;
   }
 
@@ -1347,15 +1184,12 @@ class TommyHilfigerParser extends BaseParser {
    */
   async switchToColor(color) {
     try {
-      console.log(`TH switchToColor: Switching to color ${color.name} (${color.code})`);
-      
       // Найти input элемент для этого цвета
       let colorInput = null;
       
       // Способ 1: Прямой поиск по document.getElementById (самый надежный, не требует экранирования)
       if (color.inputId) {
         colorInput = document.getElementById(color.inputId);
-        console.log(`TH switchToColor: Found via getElementById for ${color.inputId}:`, !!colorInput);
       }
       
       // Способ 2: Поиск по коду цвета в ID (с атрибутными селекторами)
@@ -1370,28 +1204,25 @@ class TommyHilfigerParser extends BaseParser {
           try {
             colorInput = document.querySelector(selector);
             if (colorInput) {
-              console.log(`TH switchToColor: Found input with selector ${selector}`);
               break;
             }
           } catch (e) {
-            console.log(`TH switchToColor: Selector failed: ${selector}`, e.message);
+            // Selector failed, try next
           }
         }
       }
       
       // Способ 3: Поиск среди всех цветовых input-ов
       if (!colorInput) {
-        console.log('TH switchToColor: Searching among all color inputs...');
         try {
           const allColors = this.extractAllColors();
           const targetColor = allColors.find(c => c.code === color.code || c.name === color.name);
           
           if (targetColor && targetColor.inputId) {
             colorInput = document.getElementById(targetColor.inputId);
-            console.log(`TH switchToColor: Found via extractAllColors search:`, !!colorInput);
           }
         } catch (e) {
-          console.log(`TH switchToColor: extractAllColors failed:`, e.message);
+          // extractAllColors failed, continue
         }
       }
       
@@ -1400,16 +1231,12 @@ class TommyHilfigerParser extends BaseParser {
         return { success: false, error: `Color input not found for ${color.name}` };
       }
       
-      console.log(`TH switchToColor: Found color input:`, colorInput.id, colorInput.type, colorInput.tagName);
-      
       // Проверяем, не выбран ли уже этот цвет
       if (colorInput.checked || colorInput.getAttribute('aria-checked') === 'true') {
-        console.log(`TH switchToColor: Color ${color.name} is already selected`);
         return { success: true, message: 'Color already selected' };
       }
       
       // Кликаем на input для выбора цвета
-      console.log(`TH switchToColor: Clicking color input for ${color.name}`);
       colorInput.click();
       
       // Даем время на обновление DOM
@@ -1419,11 +1246,8 @@ class TommyHilfigerParser extends BaseParser {
       const isNowSelected = colorInput.checked || colorInput.getAttribute('aria-checked') === 'true';
       
       if (!isNowSelected) {
-        console.error(`TH switchToColor: Color ${color.name} was not selected after click`);
         return { success: false, error: `Failed to select color ${color.name}` };
       }
-      
-      console.log(`TH switchToColor: Successfully switched to color ${color.name}`);
       
       // Дополнительное время для обновления изображений и размеров
       await this.wait(1500);
@@ -1431,7 +1255,7 @@ class TommyHilfigerParser extends BaseParser {
       return { success: true, message: `Successfully switched to ${color.name}` };
       
     } catch (error) {
-      console.error(`TH switchToColor: Error switching to color ${color.name}:`, error);
+      console.error(`Error switching to color ${color.name}:`, error);
       return { success: false, error: error.message };
     }
   }
