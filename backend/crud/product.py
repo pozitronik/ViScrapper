@@ -440,6 +440,7 @@ async def update_existing_product_with_changes(db: Session, existing_product: Pr
     """
     from services.image_downloader import download_images
     from utils.database import bulk_create_relationships
+    from sqlalchemy import func
 
     logger.info(f"Updating existing product ID: {existing_product.id} with detected changes")
 
@@ -450,6 +451,10 @@ async def update_existing_product_with_changes(db: Session, existing_product: Pr
                 for field, change in changes['field_changes'].items():
                     setattr(existing_product, field, change['new'])
                     logger.debug(f"Updated field {field}: {change['old']} -> {change['new']}")
+
+            # Update creation date when product is updated
+            existing_product.created_at = func.now()
+            logger.debug("Updated product creation date to current timestamp")
 
             # Handle image changes with duplicate detection
             images_added = []
@@ -656,6 +661,7 @@ def update_product(db: Session, product_id: int, product_update: ProductUpdate) 
         ProductException: If product not found or update fails
         DatabaseException: If database operation fails
     """
+    from sqlalchemy import func
     logger.info(f"Updating product with ID: {product_id}")
 
     try:
@@ -697,6 +703,10 @@ def update_product(db: Session, product_id: int, product_update: ProductUpdate) 
                 # Apply updates
                 for field, value in update_data.items():
                     setattr(product, field, value)
+
+                # Update creation date when product is updated
+                product.created_at = func.now()
+                logger.debug("Updated product creation date to current timestamp")
 
                 db.flush()
                 logger.debug(f"Updated product fields: {list(update_data.keys())}")
