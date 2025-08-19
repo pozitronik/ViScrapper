@@ -104,39 +104,10 @@ class VIParserEvents {
     const refreshBtn = document.getElementById(refreshBtnId);
     const manualRefreshBtn = document.getElementById(manualRefreshBtnId);
     
-    // Submit button and dropdown functionality
+    // Submit button
     if (submitBtn) {
-      // Main submit button click (always normal submit)
       submitBtn.addEventListener('click', async () => {
         await this.handleSubmit(closeOnSubmit);
-      });
-      
-      // Dropdown toggle button click
-      const dropdownToggleBtn = document.getElementById('dropdownToggleBtn');
-      if (dropdownToggleBtn) {
-        dropdownToggleBtn.addEventListener('click', async (event) => {
-          event.preventDefault();
-          await this.toggleDropdown();
-        });
-      }
-      
-      // All colors button click
-      const submitAllColorsBtn = document.getElementById('submitAllColorsBtn');
-      if (submitAllColorsBtn) {
-        submitAllColorsBtn.addEventListener('click', async () => {
-          await this.handleSubmitAllColors(closeOnSubmit);
-        });
-      }
-      
-      // Close dropdown when clicking outside
-      document.addEventListener('click', (event) => {
-        const dropdownContainer = document.getElementById('dropdownContainer');
-        const dropdownContent = document.getElementById('dropdownContent');
-        
-        if (dropdownContainer && dropdownContent && 
-            !dropdownContainer.contains(event.target)) {
-          dropdownContent.style.display = 'none';
-        }
       });
     }
     
@@ -264,7 +235,7 @@ class VIParserEvents {
       }
       
       // Check if this is a site that supports color observer
-      if (!tab.url.includes('carters.com') && !tab.url.includes('usa.tommy.com') && !tab.url.includes('calvinklein.us')) {
+      if (!tab.url.includes('carters.com') && !tab.url.includes('usa.tommy.com')) {
         console.log('Site does not support color observer, skipping');
         return;
       }
@@ -287,10 +258,6 @@ class VIParserEvents {
       } else if (tab.url.includes('usa.tommy.com')) {
         // Tommy Hilfiger: Always start observer to track image changes on color switch
         console.log('Tommy Hilfiger: Starting color observer to track image changes...');
-        shouldStartObserver = true;
-      } else if (tab.url.includes('calvinklein.us')) {
-        // Calvin Klein: Always start observer to track panel refresh on color switch
-        console.log('Calvin Klein: Starting color observer to track data refresh...');
         shouldStartObserver = true;
       }
       
@@ -447,14 +414,6 @@ class VIParserEvents {
       // Request data through core
       const response = await this.core.loadProductData();
       
-      // Debug: Log the response to understand what's happening
-      console.log('VIParserEvents.loadProductData: Response received:', {
-        hasError: !!response.error,
-        hasData: !!response.data,
-        dataKeys: response.data ? Object.keys(response.data) : null,
-        error: response.error
-      });
-      
       if (response.error) {
         // Hide data preview on error
         if (previewContainer) {
@@ -484,13 +443,6 @@ class VIParserEvents {
       }
       
       // Update interface
-      console.log('VIParserEvents.loadProductData: Updating data preview with:', {
-        sku: response.data?.sku,
-        color: response.data?.color,
-        name: response.data?.name,
-        price: response.data?.price,
-        imageCount: response.data?.all_image_urls?.length
-      });
       this.ui.updateDataPreview(response.data);
       
       // Check product status on backend
@@ -538,206 +490,6 @@ class VIParserEvents {
 
   // Note: refreshPreviewAfterColorChange() method removed
   // Tommy Hilfiger now uses the same autoRefreshPanel mechanism as Carter's
-
-  /**
-   * Переключение состояния dropdown меню
-   */
-  async toggleDropdown() {
-    const dropdownContent = document.getElementById('dropdownContent');
-    const submitBtn = document.getElementById('submitBtn');
-    
-    if (!dropdownContent || !submitBtn) return;
-    
-    // If dropdown is visible, hide it; if hidden, show it
-    if (dropdownContent.style.display === 'none' || !dropdownContent.style.display) {
-      dropdownContent.style.display = 'block';
-    } else {
-      dropdownContent.style.display = 'none';
-    }
-  }
-
-  /**
-   * Обработка отправки всех цветов (универсальная версия)
-   */
-  async handleSubmitAllColors(closeOnSubmit = false) {
-    const submitBtn = document.getElementById('submitBtn');
-    const submitAllColorsBtn = document.getElementById('submitAllColorsBtn');
-    const dropdownContent = document.getElementById('dropdownContent');
-    const statusCard = document.getElementById('productStatus');
-    
-    if (!submitBtn || !this.core.appState.availableColors) return;
-    
-    // Close dropdown
-    if (dropdownContent) dropdownContent.style.display = 'none';
-    
-    // Disable buttons during processing
-    submitBtn.disabled = true;
-    if (submitAllColorsBtn) submitAllColorsBtn.disabled = true;
-    
-    const colors = this.core.appState.availableColors;
-    let successCount = 0;
-    let failureCount = 0;
-    const failedColors = [];
-
-    // Capture user's selection pattern before starting bulk scraping
-    const selectedIndices = this.core.getSelectedIndices();
-    
-    if (selectedIndices.length > 0) {
-      console.log(`[Bulk Scraping] Using image selection pattern: indices [${selectedIndices.join(',')}] will be applied to each color`);
-    } else {
-      console.log(`[Bulk Scraping] No specific image selection - using all images for each color`);
-    }
-
-    try {
-      // Show initial progress
-      if (statusCard) {
-        statusCard.className = 'status-card warning';
-        statusCard.innerHTML = `<div class="status-text">Отправка цветов: 0/${colors.length}</div>`;
-      }
-      submitBtn.textContent = `Отправка цветов: 0/${colors.length}`;
-
-      // Process each color sequentially (one at a time)
-      for (let i = 0; i < colors.length; i++) {
-        const color = colors[i];
-        
-        try {
-          console.log(`Processing color ${i + 1}/${colors.length}: ${color.name} (${color.code})`);
-          
-          // Update progress display
-          if (statusCard) {
-            statusCard.innerHTML = `<div class="status-text">Отправка цвета: ${color.name} (${i + 1}/${colors.length})</div>`;
-          }
-          submitBtn.textContent = `Отправка: ${color.name} (${i + 1}/${colors.length})`;
-          
-          // Send scrape request for this color and wait for completion
-          const result = await this.scrapeColorVariant(color, selectedIndices);
-          
-          if (result.success) {
-            successCount++;
-            console.log(`Successfully scraped color: ${color.name}`);
-            
-            // Update progress with success
-            if (statusCard) {
-              statusCard.className = 'status-card existing';
-              statusCard.innerHTML = `<div class="status-text">✓ ${color.name} отправлен (${successCount}/${colors.length})</div>`;
-            }
-            submitBtn.textContent = `✓ ${color.name} отправлен (${successCount}/${colors.length})`;
-            
-            // Short delay to show success before moving to next color
-            await new Promise(resolve => setTimeout(resolve, 500));
-          } else {
-            failureCount++;
-            failedColors.push(`${color.name}: ${result.error}`);
-            console.error(`Failed to scrape color ${color.name}:`, result.error);
-            
-            // Update progress with failure
-            if (statusCard) {
-              statusCard.className = 'status-card warning';
-              statusCard.innerHTML = `<div class="status-text">✗ ${color.name} ошибка (${failureCount} неудач)</div>`;
-            }
-            submitBtn.textContent = `✗ ${color.name} ошибка (${failureCount} неудач)`;
-            
-            // Short delay before continuing to next color
-            await new Promise(resolve => setTimeout(resolve, 800));
-          }
-          
-        } catch (error) {
-          failureCount++;
-          failedColors.push(`${color.name}: ${error.message}`);
-          console.error(`Error processing color ${color.name}:`, error);
-          
-          // Update progress with error
-          if (statusCard) {
-            statusCard.className = 'status-card unavailable';
-            statusCard.innerHTML = `<div class="status-text">✗ ${color.name} критическая ошибка</div>`;
-          }
-          submitBtn.textContent = `✗ ${color.name} критическая ошибка`;
-          
-          // Longer delay for critical errors
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-
-      // Show final results
-      const message = `Отправлено: ${successCount}/${colors.length} цветов`;
-      
-      if (statusCard) {
-        const statusClass = failureCount === 0 ? 'existing' : 'warning';
-        statusCard.className = `status-card ${statusClass}`;
-        statusCard.innerHTML = `<div class="status-text">${message}</div>`;
-      }
-      
-      submitBtn.textContent = failureCount === 0 ? 'Все цвета отправлены!' : message;
-      
-      // Show failed colors if any
-      if (failedColors.length > 0) {
-        console.warn('Failed colors:', failedColors);
-        // Could show a more detailed error message in the future
-      }
-
-    } catch (error) {
-      console.error('Error in handleSubmitAllColors:', error);
-      submitBtn.textContent = 'Ошибка отправки - попробуйте снова';
-      if (statusCard) {
-        statusCard.className = 'status-card unavailable';
-        statusCard.innerHTML = `<div class="status-text">Ошибка отправки цветов</div>`;
-      }
-    } finally {
-      // Re-enable buttons after delay
-      setTimeout(() => {
-        if (closeOnSubmit && failureCount === 0) {
-          window.close();
-        } else {
-          this.core.updateButtonsState();
-          if (submitAllColorsBtn) submitAllColorsBtn.disabled = false;
-        }
-      }, closeOnSubmit && failureCount === 0 ? 2000 : 3000);
-    }
-  }
-
-  /**
-   * Скрапинг конкретного цветового варианта с повышенным таймаутом
-   */
-  async scrapeColorVariant(color, selectedIndices = []) {
-    try {
-      console.log(`[ColorScraper] Starting scrape for ${color.name} (${color.code}) with selection indices:`, selectedIndices);
-      
-      const response = await new Promise((resolve, reject) => {
-        // Set a timeout for the scraping operation
-        const timeout = setTimeout(() => {
-          reject(new Error(`Timeout scraping color ${color.name} after 45 seconds`));
-        }, 45000); // Increased timeout
-        
-        chrome.runtime.sendMessage(
-          { 
-            action: 'scrapeColorVariant',
-            color: color,
-            selectedIndices: selectedIndices
-          },
-          (response) => {
-            clearTimeout(timeout);
-            
-            if (chrome.runtime.lastError) {
-              console.error(`[ColorScraper] Chrome runtime error for ${color.name}:`, chrome.runtime.lastError);
-              reject(new Error(chrome.runtime.lastError.message));
-            } else if (!response) {
-              console.error(`[ColorScraper] Empty response for ${color.name}`);
-              reject(new Error(`Empty response received for ${color.name}`));
-            } else {
-              console.log(`[ColorScraper] Received response for ${color.name}:`, response.success ? 'SUCCESS' : response.error);
-              resolve(response);
-            }
-          }
-        );
-      });
-      
-      console.log(`[ColorScraper] Completed scrape for ${color.name}:`, response.success ? 'SUCCESS' : 'FAILED');
-      return response;
-    } catch (error) {
-      console.error(`[ColorScraper] Error scraping color variant ${color.name}:`, error);
-      return { success: false, error: error.message };
-    }
-  }
 
   /**
    * Setup cleanup handlers

@@ -1,7 +1,6 @@
 /**
- * Simplified Tommy Hilfiger Parser - NO OBSERVERS
- * Focus on core data extraction functionality
- * Observer logic removed to debug size extraction issues
+ * Парсер для Tommy Hilfiger
+ * Содержит всю логику извлечения данных, специфичную для TH
  */
 class TommyHilfigerParser extends BaseParser {
   constructor() {
@@ -18,34 +17,6 @@ class TommyHilfigerParser extends BaseParser {
         jsonLdScript: 'script[type="application/ld+json"]'
       }
     });
-    
-    // SELF-INITIALIZATION: Setup color observer immediately when parser is created
-    console.log('TH Parser: Self-initializing color change observer...');
-    this.initializeColorObserver();
-  }
-  
-  /**
-   * Self-initialization of color observer - called from constructor
-   */
-  initializeColorObserver() {
-    // Try immediate setup
-    const immediateResult = this.setupColorChangeObserver();
-    
-    if (immediateResult.success && immediateResult.listeners > 0) {
-      console.log(`TH Parser: Color observer self-initialized: ${immediateResult.listeners} listeners`);
-    } else {
-      // Fallback: DOM might not be ready yet
-      console.log('TH Parser: DOM not ready, scheduling delayed color observer setup...');
-      
-      setTimeout(() => {
-        const delayedResult = this.setupColorChangeObserver();
-        if (delayedResult.success) {
-          console.log(`TH Parser: Color observer setup successful after delay: ${delayedResult.listeners} listeners`);
-        } else {
-          console.warn('TH Parser: Color observer setup failed even after delay');
-        }
-      }, 1000);
-    }
   }
 
   /**
@@ -80,8 +51,21 @@ class TommyHilfigerParser extends BaseParser {
       return false;
     }
     
-    console.log('Page is valid TH product page');
-    return true;
+    // Приоритет 3: Проверяем наличие характерных функций продукта
+    const hasColorSelector = !!document.querySelector(this.config.selectors.colorsList);
+    const hasProductImages = !!document.querySelector('[data-comp="ProductImage"]');
+    const hasPriceElement = !!document.querySelector('.sales .value[content]');
+    
+    console.log('Color selector found:', hasColorSelector);
+    console.log('Product images found:', hasProductImages);
+    console.log('Price element found:', hasPriceElement);
+    
+    // Если есть базовые элементы + любая из характерных функций = валидная страница
+    const hasProductFeatures = hasColorSelector || hasProductImages || hasPriceElement;
+    const isValid = hasProductFeatures;
+    
+    console.log('Page is valid TH product page:', isValid);
+    return isValid;
   }
 
   /**
@@ -330,6 +314,106 @@ class TommyHilfigerParser extends BaseParser {
   }
 
   /**
+   * Настройка наблюдателя для отслеживания изменений цвета и обновления изображений
+   */
+  setupColorObserver(callback) {
+    console.log('TH setupColorObserver: Setting up Tommy Hilfiger color observer...');
+    
+    // Создаем MutationObserver для отслеживания изменений
+    const observer = new MutationObserver(async (mutations) => {
+      let shouldUpdateImages = false;
+      
+      for (const mutation of mutations) {
+        // Отслеживаем изменения атрибутов у radio inputs (checked/aria-checked)
+        if (mutation.type === 'attributes' && 
+            (mutation.attributeName === 'checked' || mutation.attributeName === 'aria-checked')) {
+          const target = mutation.target;
+          
+          // Проверяем различные возможные контейнеры для цветов
+          const isColorRadio = target.type === 'radio' && (
+            // Обычная структура
+            target.closest('[data-display-id="colorCode"]') ||
+            // Grouped-by-price структура
+            target.closest('.colors-variant-list') ||
+            // Fallback по классу
+            target.classList.contains('variant-colorCode')
+          );
+          
+          if (isColorRadio) {
+            console.log('TH setupColorObserver: Color radio change detected:', target.id);
+            shouldUpdateImages = true;
+            break;
+          }
+        }
+        
+        // Также отслеживаем добавление/удаление узлов в изображениях (динамические обновления)
+        if (mutation.type === 'childList') {
+          const addedNodes = Array.from(mutation.addedNodes);
+          const hasImageChanges = addedNodes.some(node => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              return node.matches && (
+                node.matches('[data-comp="ProductImage"]') ||
+                node.matches('.product-image.swiper-slide') ||
+                node.querySelector && (
+                  node.querySelector('[data-comp="ProductImage"]') ||
+                  node.querySelector('.product-image.swiper-slide')
+                )
+              );
+            }
+            return false;
+          });
+          
+          if (hasImageChanges) {
+            console.log('TH setupColorObserver: Image container changes detected');
+            shouldUpdateImages = true;
+            break;
+          }
+        }
+      }
+      
+      if (shouldUpdateImages) {
+        console.log('TH setupColorObserver: Updating images after color change...');
+        
+        // Небольшая задержка для завершения DOM обновлений
+        await this.wait(300);
+        
+        try {
+          // Извлекаем новые изображения из обновленного DOM
+          const updatedImages = await this.extractImagesFromDOM();
+          console.log(`TH setupColorObserver: Found ${updatedImages.length} updated images`);
+          
+          // Извлекаем обновленный цвет
+          const updatedColor = this.extractColor();
+          console.log('TH setupColorObserver: Updated color:', updatedColor);
+          
+          // Уведомляем callback о изменениях
+          if (callback) {
+            callback({
+              color: updatedColor,
+              images: updatedImages,
+              source: 'tommy-hilfiger-color-change'
+            });
+          }
+          
+        } catch (error) {
+          console.error('TH setupColorObserver: Error updating images:', error);
+        }
+      }
+    });
+    
+    // Настраиваем наблюдение за всем документом
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['checked', 'aria-checked']
+    });
+    
+    console.log('TH setupColorObserver: Tommy Hilfiger color observer set up');
+    return observer;
+  }
+
+  /**
    * Извлечение цвета из выбранного элемента
    * Поддерживает как обычную структуру, так и grouped-by-price структуру
    */
@@ -405,50 +489,13 @@ class TommyHilfigerParser extends BaseParser {
    */
   async extractSizes() {
     try {
-      console.log('TH extractSizes: Starting simplified size extraction...');
-      
-      // Look for size containers using .variant-list approach
-      const sizeContainers = document.querySelectorAll('.variant-list[data-display-value]:not([data-display-id="colorCode"])');
-      console.log(`TH extractSizes: Found ${sizeContainers.length} size containers with .variant-list`);
-      
-      if (sizeContainers.length >= 2) {
-        console.log('TH extractSizes: Detected two-dimensional size system (e.g., Waist × Length)');
-        return await this.extractSizeCombinations(sizeContainers[0], sizeContainers[1]);
-      } else if (sizeContainers.length === 1) {
-        console.log('TH extractSizes: Detected one-dimensional size system');
-        return await this.extractSimpleSizes(sizeContainers[0]);
-      }
-      
-      // Fallback: try old method
-      console.log('TH extractSizes: No .variant-list containers found, trying fallback methods');
-      return await this.extractSimpleSizes();
-      
-    } catch (error) {
-      console.error('Error in TH extractSizes:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Extract simple sizes (one-dimensional)
-   */
-  async extractSimpleSizes(sizeContainer = null) {
-    try {
       const availableSizes = [];
       
-      let targetContainer = sizeContainer;
-      
-      if (!targetContainer) {
-        targetContainer = document.querySelector(this.config.selectors.sizesList);
-        
-        if (!targetContainer) {
-          targetContainer = document.querySelector('.variant-list[data-display-value]:not([data-display-id="colorCode"])');
-        }
-      }
-      
-      if (targetContainer) {
-        const sizeInputs = targetContainer.querySelectorAll('input[type="radio"]');
-        console.log(`TH extractSimpleSizes: Found ${sizeInputs.length} size radio inputs`);
+      // Вариант 1: Обычная структура с размерными input'ами
+      const sizesList = document.querySelector(this.config.selectors.sizesList);
+      if (sizesList) {
+        const sizeInputs = sizesList.querySelectorAll('input[type="radio"]');
+        console.log(`TH extractSizes: Found ${sizeInputs.length} size radio inputs`);
         
         sizeInputs.forEach(input => {
           const inputId = input.getAttribute('id');
@@ -456,12 +503,7 @@ class TommyHilfigerParser extends BaseParser {
           
           // Проверяем, что размер не отключен (не имеет класс size-disabled)
           if (label && label.classList.contains('size-disabled')) {
-            console.log(`TH extractSimpleSizes: Skipping disabled size for input ${inputId}`);
-            return;
-          }
-          
-          if (input.classList.contains('disabled') || input.classList.contains('oos-variant')) {
-            console.log(`TH extractSimpleSizes: Skipping disabled input ${inputId}`);
+            console.log(`TH extractSizes: Skipping disabled size for input ${inputId}`);
             return;
           }
           
@@ -475,205 +517,54 @@ class TommyHilfigerParser extends BaseParser {
         });
         
         if (availableSizes.length > 0) {
-          console.log(`TH extractSimpleSizes: Found ${availableSizes.length} simple sizes:`, availableSizes);
+          console.log(`TH extractSizes: Found ${availableSizes.length} sizes from radio inputs:`, availableSizes);
           return availableSizes;
         }
       }
       
-      // Fallback for ONE SIZE products
-      const sizeHeaders = document.querySelectorAll('[id^="pdp-attr-"], .attribute-label');
-      for (const sizeHeader of sizeHeaders) {
+      // Вариант 2: "ONE SIZE" структура - ищем в тексте заголовка
+      const sizeHeader = document.querySelector('#pdp-attr-size');
+      if (sizeHeader) {
         const sizeValueSpan = sizeHeader.querySelector('.variation__attr--value');
         if (sizeValueSpan) {
           const sizeText = sizeValueSpan.textContent?.trim();
-          if (sizeText && sizeText !== '' && sizeText !== 'Отсутствует') {
-            console.log(`TH extractSimpleSizes: Found size from header:`, sizeText);
+          console.log(`TH extractSizes: Found size from header:`, sizeText);
+          
+          if (sizeText && sizeText !== '') {
             availableSizes.push(sizeText);
-            break;
+            return availableSizes;
           }
         }
       }
       
-      if (availableSizes.length === 0) {
-        const oneSize = document.querySelector('[data-testid="size-onesize"], .size-one-size');
-        if (oneSize) {
-          console.log('TH extractSimpleSizes: Found ONE SIZE indicator');
-          availableSizes.push('ONE SIZE');
+      // Вариант 3: Альтернативный поиск размера в заголовке
+      const altSizeHeader = document.querySelector('.size.attribute-label');
+      if (altSizeHeader) {
+        const sizeValueSpan = altSizeHeader.querySelector('.variation__attr--value');
+        if (sizeValueSpan) {
+          const sizeText = sizeValueSpan.textContent?.trim();
+          console.log(`TH extractSizes: Found size from alternative header:`, sizeText);
+          
+          if (sizeText && sizeText !== '') {
+            availableSizes.push(sizeText);
+            return availableSizes;
+          }
         }
       }
       
-      console.log(`TH extractSimpleSizes: Final result - ${availableSizes.length} sizes found:`, availableSizes);
+      // Вариант 4: Поиск по всему документу для "ONE SIZE" или других размеров
+      const oneSize = document.querySelector('[data-testid="size-onesize"], .size-one-size');
+      if (oneSize) {
+        console.log('TH extractSizes: Found ONE SIZE indicator');
+        availableSizes.push('ONE SIZE');
+        return availableSizes;
+      }
+      
+      console.log('TH extractSizes: No sizes found');
       return availableSizes;
       
     } catch (error) {
-      console.error('Error in TH extractSimpleSizes:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Extract size combinations for two-dimensional systems (e.g., Waist × Length)
-   * SIMPLIFIED VERSION - No observer management, focus on accurate data collection
-   */
-  async extractSizeCombinations(dimension1Container, dimension2Container) {
-    try {
-      console.log('TH extractSizeCombinations: Starting SIMPLIFIED two-dimensional size extraction...');
-      
-      // Get dimension types
-      const dimension1Type = this.getDimensionType(dimension1Container);
-      const dimension2Type = this.getDimensionType(dimension2Container);
-      
-      console.log(`TH extractSizeCombinations: Dimensions detected - ${dimension1Type} × ${dimension2Type}`);
-      
-      const dimension1Options = Array.from(dimension1Container.querySelectorAll('input[type="radio"].variant-item'));
-      const combinations = {};
-      
-      console.log(`TH extractSizeCombinations: Found ${dimension1Options.length} ${dimension1Type} options to test`);
-      
-      // Save original selections for restoration (simplified)
-      const originalDim1 = dimension1Container.querySelector('input[type="radio"][aria-checked="true"]');
-      const originalDim2 = dimension2Container.querySelector('input[type="radio"][aria-checked="true"]');
-      
-      console.log(`TH extractSizeCombinations: Original selections - ${dimension1Type}: ${originalDim1?.id || 'none'}, ${dimension2Type}: ${originalDim2?.id || 'none'}`);
-      
-      // Test each dimension1 option
-      for (let i = 0; i < dimension1Options.length; i++) {
-        const dim1Option = dimension1Options[i];
-        const dim1Value = dim1Option.getAttribute('data-attr-value');
-        
-        // Skip obviously disabled options
-        if (dim1Option.classList.contains('disabled') || dim1Option.classList.contains('oos-variant')) {
-          console.log(`TH extractSizeCombinations: Skipping disabled ${dimension1Type} option: ${dim1Value}`);
-          continue;
-        }
-        
-        console.log(`TH extractSizeCombinations: Testing ${dimension1Type} option: ${dim1Value} (${i + 1}/${dimension1Options.length})`);
-        
-        // Click dimension1 option (try clicking the label instead of the input for better results)
-        const dim1Label = document.querySelector(`label[for="${dim1Option.id}"]`);
-        if (dim1Label) {
-          console.log(`TH extractSizeCombinations: Clicking ${dimension1Type} label for ${dim1Value}`);
-          dim1Label.click();
-        } else {
-          console.log(`TH extractSizeCombinations: No label found, clicking ${dimension1Type} input for ${dim1Value}`);
-          dim1Option.click();
-        }
-        
-        // Wait for DOM to update - using conservative timing
-        console.log('TH extractSizeCombinations: Waiting for DOM update after dimension1 click...');
-        await this.wait(2000); // Even longer wait to ensure DOM fully updates
-        
-        // Verify the dimension1 selection was successful
-        const selectedDim1 = dimension1Container.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
-        const selectedDim1Value = selectedDim1?.getAttribute('data-attr-value') || 'none';
-        console.log(`TH extractSizeCombinations: After click, ${dimension1Type} selection is: ${selectedDim1Value}`);
-        
-        if (selectedDim1Value !== dim1Value) {
-          console.log(`TH extractSizeCombinations: WARNING - Expected ${dim1Value} but ${selectedDim1Value} is selected`);
-        }
-        
-        // Get available dimension2 options after dimension1 selection
-        const dimension2Options = Array.from(dimension2Container.querySelectorAll('input[type="radio"].variant-item'));
-        const availableDim2Values = [];
-        
-        console.log(`TH extractSizeCombinations: Testing ${dimension2Options.length} ${dimension2Type} options for ${dimension1Type} ${dim1Value}`);
-        
-        // CORRECT APPROACH: Observe label.size-disabled changes in second radiogroup
-        console.log(`TH extractSizeCombinations: After selecting ${dimension1Type} ${dim1Value}, observing ${dimension2Type} label states...`);
-        
-        // DEBUG: First, let's see what's happening with all labels in the second radiogroup
-        console.log(`TH extractSizeCombinations: === DEBUGGING ${dimension2Type} LABELS STATE ===`);
-        const allDim2Labels = dimension2Container.querySelectorAll('label');
-        console.log(`TH extractSizeCombinations: Found ${allDim2Labels.length} labels in ${dimension2Type} container`);
-        
-        allDim2Labels.forEach((label, index) => {
-          const forAttr = label.getAttribute('for');
-          const hasDisabled = label.classList.contains('size-disabled');
-          const hasDisabled2 = label.classList.contains('disabled');
-          const labelText = label.textContent?.trim();
-          const allClasses = Array.from(label.classList).join(', ');
-          
-          console.log(`TH extractSizeCombinations: Label ${index}: for="${forAttr}", text="${labelText}", classes="${allClasses}", size-disabled=${hasDisabled}, disabled=${hasDisabled2}`);
-        });
-        
-        // Tommy Hilfiger adds .size-disabled class to labels of unavailable options in the second radiogroup
-        // We just need to observe which labels DON'T have this class
-        
-        for (let j = 0; j < dimension2Options.length; j++) {
-          const dim2Option = dimension2Options[j];
-          const dim2Value = dim2Option.getAttribute('data-attr-value');
-          
-          if (!dim2Value) {
-            console.log(`TH extractSizeCombinations: Skipping ${dimension2Type} option without value at index ${j}`);
-            continue;
-          }
-          
-          // Find the label for this radio input
-          const dim2Label = document.querySelector(`label[for="${dim2Option.id}"]`);
-          
-          if (!dim2Label) {
-            console.log(`TH extractSizeCombinations: No label found for ${dimension2Type} ${dim2Value}, skipping`);
-            continue;
-          }
-          
-          // Check multiple possible disabled indicators on the label
-          const hasDisabledClass = dim2Label.classList.contains('disabled');
-          const hasSizeDisabledClass = dim2Label.classList.contains('size-disabled');
-          const hasOosClass = dim2Label.classList.contains('oos');
-          const isLabelDisabled = hasDisabledClass || hasSizeDisabledClass || hasOosClass;
-          
-          console.log(`TH extractSizeCombinations: Checking ${dimension2Type} ${dim2Value}:`);
-          console.log(`  - label.disabled: ${hasDisabledClass}`);
-          console.log(`  - label.size-disabled: ${hasSizeDisabledClass}`);
-          console.log(`  - label.oos: ${hasOosClass}`);
-          console.log(`  - final assessment: ${isLabelDisabled ? 'DISABLED' : 'AVAILABLE'}`);
-          
-          if (!isLabelDisabled) {
-            // Label is not disabled - option is available for this waist size
-            availableDim2Values.push(dim2Value);
-            console.log(`TH extractSizeCombinations: ✓ ${dimension2Type} ${dim2Value} is AVAILABLE for ${dimension1Type} ${dim1Value}`);
-          } else {
-            console.log(`TH extractSizeCombinations: ✗ ${dimension2Type} ${dim2Value} is DISABLED for ${dimension1Type} ${dim1Value}`);
-          }
-        }
-        
-        console.log(`TH extractSizeCombinations: ${dimension1Type} ${dim1Value} → Available ${dimension2Type}:`, availableDim2Values);
-        
-        if (availableDim2Values.length > 0) {
-          combinations[dim1Value] = availableDim2Values;
-        } else {
-          console.log(`TH extractSizeCombinations: No available ${dimension2Type} options for ${dimension1Type} ${dim1Value}`);
-        }
-      }
-      
-      // Simple restoration - just restore original selections if they existed
-      console.log('TH extractSizeCombinations: Restoring original selections...');
-      try {
-        if (originalDim1 && !originalDim1.checked) {
-          console.log(`TH extractSizeCombinations: Restoring ${dimension1Type} to: ${originalDim1.id}`);
-          originalDim1.click();
-          await this.wait(200);
-        }
-        if (originalDim2 && !originalDim2.checked) {
-          console.log(`TH extractSizeCombinations: Restoring ${dimension2Type} to: ${originalDim2.id}`);
-          originalDim2.click();
-          await this.wait(200);
-        }
-        console.log('TH extractSizeCombinations: Restoration completed');
-      } catch (e) {
-        console.log('TH extractSizeCombinations: Error during restoration (non-critical):', e);
-      }
-      
-      console.log('TH extractSizeCombinations: Final combinations extracted:', combinations);
-      
-      return {
-        dimension1_type: dimension1Type,
-        dimension2_type: dimension2Type,
-        combinations: combinations
-      };
-      
-    } catch (error) {
-      console.error('Error extracting TH size combinations:', error);
+      console.error('Error in TH extractSizes:', error);
       return [];
     }
   }
@@ -683,38 +574,80 @@ class TommyHilfigerParser extends BaseParser {
    * Извлекает цветовые коды из radio ID формата: MW41326-HGF_colorCodeitem-DW5
    * Поддерживает как обычную структуру, так и grouped-by-price структуру
    */
-  getDimensionType(container) {
-    try {
-      const displayValue = container.getAttribute('data-display-value');
-      if (displayValue) {
-        return displayValue;
-      }
-      
-      const displayId = container.getAttribute('data-display-id');
-      if (displayId) {
-        return displayId.charAt(0).toUpperCase() + displayId.slice(1);
-      }
-      
-      const containerId = container.getAttribute('id');
-      if (containerId) {
-        const cleaned = containerId.replace(/^sizes/, '');
-        return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-      }
-      
-      const parent = container.closest('.product-detail__attribute-item');
-      if (parent) {
-        const header = parent.querySelector('.attribute-label .variation__attr--name');
-        if (header) {
-          return header.textContent.trim();
-        }
-      }
-      
-      return 'Unknown';
-      
-    } catch (error) {
-      console.error('Error getting dimension type:', error);
-      return 'Unknown';
+  extractAllColors() {
+    const colors = [];
+    let colorInputs = [];
+    
+    // Вариант 1: Обычная структура с одним colorsList
+    const colorsList = document.querySelector(this.config.selectors.colorsList);
+    if (colorsList) {
+      const inputs = colorsList.querySelectorAll('input[type="radio"]');
+      colorInputs = colorInputs.concat(Array.from(inputs));
+      console.log(`TH extractAllColors: Found ${inputs.length} color inputs in main colorsList`);
     }
+    
+    // Вариант 2: Grouped-by-price структура - собираем из всех видимых colorGroup
+    const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
+    console.log(`TH extractAllColors: Found ${colorGroups.length} visible color groups`);
+    
+    colorGroups.forEach((group, index) => {
+      const inputs = group.querySelectorAll('input[type="radio"]');
+      colorInputs = colorInputs.concat(Array.from(inputs));
+      console.log(`TH extractAllColors: Found ${inputs.length} color inputs in color group ${index}: ${group.className}`);
+    });
+    
+    // Вариант 3: Fallback - поиск по всему документу
+    if (colorInputs.length === 0) {
+      const fallbackInputs = document.querySelectorAll('input[type="radio"].variant-colorCode');
+      colorInputs = colorInputs.concat(Array.from(fallbackInputs));
+      console.log(`TH extractAllColors: Found ${fallbackInputs.length} color inputs via fallback selector`);
+    }
+    
+    console.log(`TH extractAllColors: Total found ${colorInputs.length} color radio inputs`);
+    
+    // Удаляем дубликаты по ID
+    const uniqueInputs = [];
+    const seenIds = new Set();
+    
+    colorInputs.forEach(input => {
+      const inputId = input.getAttribute('id');
+      if (inputId && !seenIds.has(inputId)) {
+        uniqueInputs.push(input);
+        seenIds.add(inputId);
+      }
+    });
+    
+    console.log(`TH extractAllColors: After deduplication: ${uniqueInputs.length} unique color inputs`);
+    
+    uniqueInputs.forEach(input => {
+      const inputId = input.getAttribute('id');
+      if (!inputId) {
+        console.log('TH extractAllColors: Skipping input without ID');
+        return;
+      }
+      
+      // Извлекаем цветовой код из ID
+      const colorCode = this.extractColorCodeFromId(inputId);
+      if (!colorCode) {
+        console.log('TH extractAllColors: No color code found for input ID:', inputId);
+        return;
+      }
+      
+      // Извлекаем название цвета (для отображения)
+      const colorName = this.extractColorNameFromInput(input);
+      
+      colors.push({
+        code: colorCode,
+        name: colorName || colorCode,
+        isSelected: input.checked || input.getAttribute('aria-checked') === 'true',
+        inputId: inputId  // Сохраняем ID для удобства отладки
+      });
+      
+      console.log(`TH extractAllColors: Added color - Code: "${colorCode}", Name: "${colorName}", Selected: ${input.checked || input.getAttribute('aria-checked') === 'true'}`);
+    });
+    
+    console.log(`TH extractAllColors: Extracted ${colors.length} colors`);
+    return colors;
   }
 
   /**
@@ -991,584 +924,154 @@ class TommyHilfigerParser extends BaseParser {
   }
 
   /**
-   * Настройка наблюдателя за изменением цвета (только для Tommy Hilfiger)
-   * Устанавливается сразу при загрузке страницы для отслеживания ранних изменений
+   * Извлечение всех вариантов (цвет + размеры) для создания отдельных продуктов
+   * Генерирует уникальные SKU в формате: {baseProductCode}-{colorCode}
+   * Каждый цвет = отдельный продукт с массивом доступных размеров
    */
-  setupColorChangeObserver() {
+  async extractAllVariants() {
     try {
-      console.log('TH setupColorChangeObserver: Setting up color change detection...');
-      
-      // Очистка предыдущих слушателей если есть
-      if (this.colorListeners && this.colorListeners.length > 0) {
-        console.log(`TH setupColorChangeObserver: Cleaning up ${this.colorListeners.length} existing listeners first...`);
-        this.cleanup();
-      }
-      
-      // Сохраняем текущий цвет для сравнения
-      this.currentColorCode = this.extractSelectedColorCode();
-      this.colorListeners = []; // Массив для очистки
-      
-      console.log(`TH setupColorChangeObserver: Initial color code: ${this.currentColorCode}`);
-      
-      // Проверяем, есть ли нужные элементы на странице
-      if (!document.querySelector(this.config.selectors.colorsList) && 
-          !document.querySelector('.colors-variant-list:not(.d-none)') &&
-          !document.querySelector('input[type="radio"].variant-colorCode')) {
-        console.warn('TH setupColorChangeObserver: No color elements found on page yet');
-        return { success: false, error: 'No color elements found', listeners: 0 };
-      }
-      
-      // Находим все цветовые элементы
-      const colorInputs = this.getAllColorInputs();
-      const colorLabels = this.getAllColorLabels(colorInputs);
-      
-      console.log(`TH setupColorChangeObserver: Found ${colorInputs.length} color inputs and ${colorLabels.length} color labels`);
-      
-      if (colorInputs.length === 0) {
-        console.warn('TH setupColorChangeObserver: No color inputs found, setup failed');
-        return { success: false, error: 'No color inputs found', listeners: 0 };
-      }
-      
-      // Устанавливаем слушатели на radio inputs
-      colorInputs.forEach((input, index) => {
-        const handler = this.handleColorChange.bind(this);
-        input.addEventListener('change', handler);
-        this.colorListeners.push({ element: input, type: 'change', handler });
-        console.log(`TH setupColorChangeObserver: Added change listener to color input ${index}: ${input.id}`);
-      });
-      
-      // Устанавливаем слушатели на labels (иногда более надежно)
-      colorLabels.forEach((label, index) => {
-        const handler = this.handleColorLabelClick.bind(this);
-        label.addEventListener('click', handler);
-        this.colorListeners.push({ element: label, type: 'click', handler });
-        console.log(`TH setupColorChangeObserver: Added click listener to color label ${index}: ${label.getAttribute('for')}`);
-      });
-      
-      // Автоматическая очистка при уходе со страницы
-      const cleanupHandler = this.cleanup.bind(this);
-      window.addEventListener('beforeunload', cleanupHandler);
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) this.cleanup();
-      });
-      
-      console.log('TH setupColorChangeObserver: Color change observer setup complete');
-      return { success: true, listeners: this.colorListeners.length };
-      
-    } catch (error) {
-      console.error('TH setupColorChangeObserver: Error setting up color observer:', error);
-      return { success: false, error: error.message };
-    }
-  }
-  
-  /**
-   * Находит все цветовые radio inputs в различных структурах TH
-   */
-  getAllColorInputs() {
-    const colorInputs = [];
-    
-    // Структура 1: Основной colorsList
-    const mainColorsList = document.querySelector(this.config.selectors.colorsList);
-    if (mainColorsList) {
-      const inputs = mainColorsList.querySelectorAll('input[type="radio"]');
-      colorInputs.push(...inputs);
-      console.log(`TH getAllColorInputs: Found ${inputs.length} inputs in main colorsList`);
-    }
-    
-    // Структура 2: Grouped-by-price структура
-    const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
-    colorGroups.forEach((group, groupIndex) => {
-      const inputs = group.querySelectorAll('input[type="radio"]');
-      colorInputs.push(...inputs);
-      console.log(`TH getAllColorInputs: Found ${inputs.length} inputs in color group ${groupIndex}`);
-    });
-    
-    // Структура 3: Fallback - поиск по классу
-    const fallbackInputs = document.querySelectorAll('input[type="radio"].variant-colorCode');
-    // Добавляем только те, которых еще нет в массиве
-    fallbackInputs.forEach(input => {
-      if (!colorInputs.includes(input)) {
-        colorInputs.push(input);
-      }
-    });
-    
-    console.log(`TH getAllColorInputs: Total unique color inputs found: ${colorInputs.length}`);
-    return colorInputs;
-  }
-  
-  /**
-   * Находит все labels для цветовых inputs
-   */
-  getAllColorLabels(colorInputs) {
-    const colorLabels = [];
-    
-    colorInputs.forEach(input => {
-      const inputId = input.getAttribute('id');
-      if (inputId) {
-        const label = document.querySelector(`label[for="${inputId}"]`);
-        if (label) {
-          colorLabels.push(label);
-        }
-      }
-    });
-    
-    console.log(`TH getAllColorLabels: Found ${colorLabels.length} labels for color inputs`);
-    return colorLabels;
-  }
-  
-  /**
-   * Обработчик изменения цвета через radio input
-   */
-  async handleColorChange(event) {
-    try {
-      console.log('TH handleColorChange: Color input change detected');
-      
-      // Небольшая задержка для стабилизации DOM
-      await this.wait(100);
-      
-      const newColorCode = this.extractSelectedColorCode();
-      console.log(`TH handleColorChange: New color code detected: ${newColorCode}`);
-      
-      // Проверяем, действительно ли цвет изменился
-      if (newColorCode && newColorCode !== this.currentColorCode) {
-        console.log(`TH handleColorChange: Color actually changed from ${this.currentColorCode} to ${newColorCode}`);
-        
-        this.currentColorCode = newColorCode;
-        await this.sendColorUpdateMessage();
-      } else {
-        console.log('TH handleColorChange: Color did not actually change, ignoring');
-      }
-      
-    } catch (error) {
-      console.error('TH handleColorChange: Error handling color change:', error);
-    }
-  }
-  
-  /**
-   * Обработчик клика по label (альтернативный способ)
-   */
-  async handleColorLabelClick(event) {
-    try {
-      console.log('TH handleColorLabelClick: Color label click detected');
-      
-      // Store color BEFORE click to compare properly
-      const colorBeforeClick = this.extractSelectedColorCode();
-      console.log(`TH handleColorLabelClick: Color before click: ${colorBeforeClick}`);
-      
-      // Progressive timeout approach for slow connections
-      let newColorCode = null;
-      const timeouts = [800, 1500]; // Try 800ms, then 1500ms if needed
-      
-      for (let i = 0; i < timeouts.length; i++) {
-        console.log(`TH handleColorLabelClick: Waiting ${timeouts[i]}ms for DOM update (attempt ${i + 1}/${timeouts.length})...`);
-        await this.wait(timeouts[i]);
-        
-        newColorCode = this.extractSelectedColorCode();
-        console.log(`TH handleColorLabelClick: Color after ${timeouts[i]}ms wait: ${newColorCode}`);
-        
-        // If color changed from before, we're good
-        if (newColorCode !== colorBeforeClick) {
-          console.log(`TH handleColorLabelClick: ✓ Color change detected after ${timeouts[i]}ms`);
-          break;
-        }
-        
-        // If this was the last attempt, we'll proceed anyway
-        if (i === timeouts.length - 1) {
-          console.warn('TH handleColorLabelClick: ⚠️ DOM update took longer than expected, proceeding anyway');
-        }
-      }
-      
-      console.log(`TH handleColorLabelClick: Final color code: ${newColorCode}`);
-      console.log(`TH handleColorLabelClick: Current stored color code: ${this.currentColorCode}`);
-      
-      // Compare with BOTH stored color AND pre-click color
-      const changedFromStored = newColorCode !== this.currentColorCode;
-      const changedFromBefore = newColorCode !== colorBeforeClick;
-      
-      console.log(`TH handleColorLabelClick: Changed from stored? ${changedFromStored}`);
-      console.log(`TH handleColorLabelClick: Changed from before click? ${changedFromBefore}`);
-      
-      // Trigger refresh if color changed from either reference
-      if (newColorCode && (changedFromStored || changedFromBefore)) {
-        console.log(`TH handleColorLabelClick: ✓ Color change detected: ${this.currentColorCode} → ${newColorCode}`);
-        
-        this.currentColorCode = newColorCode;
-        await this.sendColorUpdateMessage();
-      } else {
-        console.log(`TH handleColorLabelClick: ✗ No color change detected (stored: ${this.currentColorCode}, before: ${colorBeforeClick}, after: ${newColorCode})`);
-      }
-      
-    } catch (error) {
-      console.error('TH handleColorLabelClick: Error handling label click:', error);
-    }
-  }
-  
-  /**
-   * Отправка сообщения об изменении цвета - триггерит ПОЛНОЕ обновление данных
-   * Поскольку смена цвета на TH = совершенно новый продукт (SKU, изображения, размеры)
-   */
-  async sendColorUpdateMessage() {
-    try {
-      console.log('TH sendColorUpdateMessage: Color changed - triggering FULL data refresh...');
-      
-      // Для Tommy Hilfiger смена цвета = новый продукт, нужно полное обновление
-      // Используем существующую систему SPA refresh из viparser-events.js
-      chrome.runtime.sendMessage({
-        action: 'spaPanelRefresh',
-        source: 'tommy-hilfiger-color-change',
-        reason: 'Color changed - new product variant with different SKU/images/sizes'
-      });
-      
-      console.log('TH sendColorUpdateMessage: Full data refresh message sent');
-      
-    } catch (error) {
-      console.error('TH sendColorUpdateMessage: Error sending color update message:', error);
-    }
-  }
-  
-  /**
-   * Очистка слушателей событий
-   */
-  cleanup() {
-    try {
-      if (this.colorListeners && this.colorListeners.length > 0) {
-        console.log(`TH cleanup: Removing ${this.colorListeners.length} color change listeners...`);
-        
-        this.colorListeners.forEach(({ element, type, handler }) => {
-          element.removeEventListener(type, handler);
-        });
-        
-        this.colorListeners = [];
-        console.log('TH cleanup: All color listeners removed');
-      }
-    } catch (error) {
-      console.error('TH cleanup: Error during cleanup:', error);
-    }
-  }
-
-  /**
-   * Извлечение всех доступных цветов
-   * Извлекает цветовые коды из radio ID формата: MW41326-HGF_colorCodeitem-DW5
-   * Поддерживает как обычную структуру, так и grouped-by-price структуру
-   */
-  extractAllColors() {
-    const colors = [];
-    let colorInputs = [];
-    
-    // Вариант 1: Обычная структура с одним colorsList
-    const colorsList = document.querySelector(this.config.selectors.colorsList);
-    if (colorsList) {
-      const inputs = colorsList.querySelectorAll('input[type="radio"]');
-      colorInputs = colorInputs.concat(Array.from(inputs));
-      console.log(`TH extractAllColors: Found ${inputs.length} color inputs in main colorsList`);
-    }
-    
-    // Вариант 2: Grouped-by-price структура - собираем из всех видимых colorGroup
-    const colorGroups = document.querySelectorAll('.colors-variant-list:not(.d-none)');
-    console.log(`TH extractAllColors: Found ${colorGroups.length} visible color groups`);
-    
-    colorGroups.forEach((group, index) => {
-      const inputs = group.querySelectorAll('input[type="radio"]');
-      colorInputs = colorInputs.concat(Array.from(inputs));
-      console.log(`TH extractAllColors: Found ${inputs.length} color inputs in color group ${index}: ${group.className}`);
-    });
-    
-    // Вариант 3: Fallback - поиск по всему документу
-    if (colorInputs.length === 0) {
-      const fallbackInputs = document.querySelectorAll('input[type="radio"].variant-colorCode');
-      colorInputs = colorInputs.concat(Array.from(fallbackInputs));
-      console.log(`TH extractAllColors: Found ${fallbackInputs.length} color inputs via fallback selector`);
-    }
-    
-    console.log(`TH extractAllColors: Total found ${colorInputs.length} color radio inputs`);
-    
-    // Удаляем дубликаты по ID
-    const uniqueInputs = [];
-    const seenIds = new Set();
-    
-    colorInputs.forEach(input => {
-      const inputId = input.getAttribute('id');
-      if (inputId && !seenIds.has(inputId)) {
-        uniqueInputs.push(input);
-        seenIds.add(inputId);
-      }
-    });
-    
-    console.log(`TH extractAllColors: After deduplication: ${uniqueInputs.length} unique color inputs`);
-    
-    uniqueInputs.forEach(input => {
-      const inputId = input.getAttribute('id');
-      if (!inputId) {
-        console.log('TH extractAllColors: Skipping input without ID');
-        return;
-      }
-      
-      // Извлекаем цветовой код из ID
-      const colorCode = this.extractColorCodeFromId(inputId);
-      if (!colorCode) {
-        console.log('TH extractAllColors: No color code found for input ID:', inputId);
-        return;
-      }
-      
-      // Извлекаем название цвета (для отображения)
-      const colorName = this.extractColorNameFromInput(input);
-      
-      colors.push({
-        code: colorCode,
-        name: colorName || colorCode,
-        isSelected: input.checked || input.getAttribute('aria-checked') === 'true',
-        inputId: inputId  // Сохраняем ID для удобства отладки
-      });
-      
-      console.log(`TH extractAllColors: Added color - Code: "${colorCode}", Name: "${colorName}", Selected: ${input.checked || input.getAttribute('aria-checked') === 'true'}`);
-    });
-    
-    console.log(`TH extractAllColors: Extracted ${colors.length} colors`);
-    return colors;
-  }
-
-  /**
-   * Переключение на конкретный цвет
-   */
-  async switchToColor(color) {
-    try {
-      console.log(`TH switchToColor: Switching to color ${color.name} (${color.code})`);
-      
-      // Найти input элемент для этого цвета
-      let colorInput = null;
-      
-      // Способ 1: Прямой поиск по document.getElementById (самый надежный, не требует экранирования)
-      if (color.inputId) {
-        colorInput = document.getElementById(color.inputId);
-        console.log(`TH switchToColor: Found via getElementById for ${color.inputId}:`, !!colorInput);
-      }
-      
-      // Способ 2: Поиск по коду цвета в ID (с атрибутными селекторами)
-      if (!colorInput && color.code) {
-        const possibleSelectors = [
-          `input[id*="${color.code}"]`,
-          `input[id*="colorCodeitem-${color.code}"]`,
-          `input[data-attr-value="${color.code}"]`
-        ];
-        
-        for (const selector of possibleSelectors) {
-          try {
-            colorInput = document.querySelector(selector);
-            if (colorInput) {
-              console.log(`TH switchToColor: Found input with selector ${selector}`);
-              break;
-            }
-          } catch (e) {
-            console.log(`TH switchToColor: Selector failed: ${selector}`, e.message);
-          }
-        }
-      }
-      
-      // Способ 3: Поиск среди всех цветовых input-ов
-      if (!colorInput) {
-        console.log('TH switchToColor: Searching among all color inputs...');
-        try {
-          const allColors = this.extractAllColors();
-          const targetColor = allColors.find(c => c.code === color.code || c.name === color.name);
-          
-          if (targetColor && targetColor.inputId) {
-            colorInput = document.getElementById(targetColor.inputId);
-            console.log(`TH switchToColor: Found via extractAllColors search:`, !!colorInput);
-          }
-        } catch (e) {
-          console.log(`TH switchToColor: extractAllColors failed:`, e.message);
-        }
-      }
-      
-      if (!colorInput) {
-        console.error(`TH switchToColor: Could not find input for color ${color.name} (${color.code})`);
-        return { success: false, error: `Color input not found for ${color.name}` };
-      }
-      
-      console.log(`TH switchToColor: Found color input:`, colorInput.id, colorInput.type, colorInput.tagName);
-      
-      // Проверяем, не выбран ли уже этот цвет
-      if (colorInput.checked || colorInput.getAttribute('aria-checked') === 'true') {
-        console.log(`TH switchToColor: Color ${color.name} is already selected`);
-        return { success: true, message: 'Color already selected' };
-      }
-      
-      // Кликаем на input для выбора цвета
-      console.log(`TH switchToColor: Clicking color input for ${color.name}`);
-      colorInput.click();
-      
-      // Даем время на обновление DOM
-      await this.wait(1000);
-      
-      // Проверяем, что цвет успешно выбран
-      const isNowSelected = colorInput.checked || colorInput.getAttribute('aria-checked') === 'true';
-      
-      if (!isNowSelected) {
-        console.error(`TH switchToColor: Color ${color.name} was not selected after click`);
-        return { success: false, error: `Failed to select color ${color.name}` };
-      }
-      
-      console.log(`TH switchToColor: Successfully switched to color ${color.name}`);
-      
-      // Дополнительное время для обновления изображений и размеров
-      await this.wait(1500);
-      
-      return { success: true, message: `Successfully switched to ${color.name}` };
-      
-    } catch (error) {
-      console.error(`TH switchToColor: Error switching to color ${color.name}:`, error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  /**
-   * Извлечение данных для ТЕКУЩЕГО выбранного цвета (после переключения)
-   * Используется при скрапинге конкретного цветового варианта
-   */
-  async extractCurrentVariant() {
-    try {
-      console.log('TH extractCurrentVariant: Starting extraction for current page state...');
+      console.log('Starting TH variant extraction...');
       
       const baseJsonData = this.getJsonLdData();
       const baseProductCode = this.extractUniqueProductId();
-      const currentName = this.extractName();
-      const currentPrice = this.extractPrice(baseJsonData);
-      const currentCurrency = this.extractCurrency(baseJsonData);
-      const currentAvailability = this.extractAvailability(baseJsonData);
-      
-      // Извлекаем данные текущего выбранного цвета
-      const currentColorCode = this.extractSelectedColorCode();
-      const currentColorName = this.extractColor();
-      
-      console.log(`TH extractCurrentVariant: Current color - Code: "${currentColorCode}", Name: "${currentColorName}"`);
+      const baseName = this.extractName();
+      const basePrice = this.extractPrice(baseJsonData);
+      const baseCurrency = this.extractCurrency(baseJsonData);
+      const baseAvailability = this.extractAvailability(baseJsonData);
       
       if (!baseProductCode) {
-        console.error('TH extractCurrentVariant: No base product code found');
-        return null;
+        console.error('TH extractAllVariants: No base product code found, cannot create variants');
+        return [];
       }
       
-      if (!currentColorCode) {
-        console.error('TH extractCurrentVariant: No current color code found');
-        return null;
+      const colors = this.extractAllColors();
+      const variants = [];
+      
+      if (colors.length === 0) {
+        console.log('TH extractAllVariants: No colors found, creating single variant with current state');
+        const sizes = await this.extractSizes();
+        const currentColorCode = this.extractSelectedColorCode();
+        const currentColorName = this.extractColor();
+        const baseImages = await this.extractImages();
+        
+        // Создаем один вариант с текущим цветом и всеми размерами
+        const variantSku = `${baseProductCode}-${currentColorCode || 'default'}`;
+        
+        variants.push({
+          sku: variantSku,
+          name: baseName,
+          price: basePrice,
+          currency: baseCurrency,
+          availability: baseAvailability,
+          color: currentColorName,
+          available_sizes: sizes, // Все размеры для этого цвета
+          all_image_urls: baseImages,
+          item: baseProductCode, // Добавляем артикул
+          product_url: this.sanitizeUrl(window.location.href)
+        });
+      } else {
+        // Для каждого цвета создаем один вариант с всеми размерами
+        for (const color of colors) {
+          console.log(`TH extractAllVariants: Processing color: ${color.name} (${color.code})`);
+          
+          // Кликаем на цвет если он не выбран
+          if (!color.isSelected) {
+            // Используем ID для поиска radio input вместо data-attr-value
+            const colorInput = document.querySelector(`#${color.inputId}`);
+            if (colorInput) {
+              console.log(`TH extractAllVariants: Clicking color input with ID: ${color.inputId}`);
+              colorInput.click();
+              await this.wait(500); // Ждем обновления размеров и изображений
+            } else {
+              console.warn(`TH extractAllVariants: Could not find color input with ID: ${color.inputId}`);
+            }
+          }
+          
+          const sizes = await this.extractSizes();
+          const colorImages = await this.extractImages();
+          
+          // Создаем один вариант для этого цвета со всеми размерами
+          const variantSku = `${baseProductCode}-${color.code}`;
+          
+          variants.push({
+            sku: variantSku,
+            name: baseName,
+            price: basePrice,
+            currency: baseCurrency,
+            availability: baseAvailability,
+            color: color.name,
+            available_sizes: sizes, // Все размеры для этого цвета
+            all_image_urls: colorImages,
+            item: baseProductCode, // Добавляем артикул
+            product_url: this.sanitizeUrl(window.location.href)
+          });
+        }
       }
       
-      // Генерируем SKU для текущего цвета
-      const currentSku = this.generateColorSpecificSku(baseProductCode, currentColorCode);
-      console.log(`TH extractCurrentVariant: Generated SKU: ${currentSku}`);
-      
-      // Извлекаем размеры и изображения для текущего состояния
-      const currentSizes = await this.extractSizes();
-      const currentImages = await this.extractImages();
-      
-      console.log(`TH extractCurrentVariant: Found ${Array.isArray(currentSizes) ? currentSizes.length : 'complex'} sizes and ${currentImages.length} images`);
-      
-      const variant = {
-        sku: currentSku,
-        name: currentName,
-        price: currentPrice,
-        currency: currentCurrency,
-        availability: currentAvailability,
-        color: currentColorName,
-        available_sizes: Array.isArray(currentSizes) ? currentSizes : null,
-        size_combinations: !Array.isArray(currentSizes) ? currentSizes : null,
-        all_image_urls: currentImages,
-        main_image_url: currentImages.length > 0 ? currentImages[0] : null,
-        item: baseProductCode,
-        product_url: this.sanitizeUrl(window.location.href),
-        store: this.config.siteName,
-        comment: ''
-      };
-      
-      console.log('TH extractCurrentVariant: Created variant:', {
-        sku: variant.sku,
-        color: variant.color,
-        price: variant.price,
-        sizeType: typeof currentSizes,
-        imageCount: variant.all_image_urls.length
-      });
-      
-      return variant;
+      console.log(`TH extractAllVariants: Created ${variants.length} variants total`);
+      return variants;
       
     } catch (error) {
-      console.error('TH extractCurrentVariant: Error extracting current variant:', error);
-      return null;
+      console.error('Error extracting TH variants:', error);
+      return [];
     }
   }
 
+
   /**
-   * Основной метод парсинга для SINGLE COLOR (текущего состояния)
+   * Основной метод парсинга
    */
   async parseProduct() {
     try {
-      console.log('Starting SIMPLIFIED TH product parsing...');
+      console.log('Starting TH product parsing...');
       
+      // Сначала проверяем базовую валидацию еще раз
       if (!this.isValidProductPage()) {
         console.error('TH parseProduct: Page validation failed');
         return [];
       }
       
+      // Ждем загрузки JSON-LD (с повторными попытками)
       const jsonLdScript = await this.waitForJsonLd();
       if (!jsonLdScript) {
         console.warn('TH parseProduct: No JSON-LD found after waiting, continuing without it');
       }
       
-      // Extract basic product data
-      const jsonData = this.getJsonLdData();
-      const baseProductCode = this.extractUniqueProductId();
-      const baseName = this.extractName();
-      const basePrice = this.extractPrice(jsonData);
-      const baseCurrency = this.extractCurrency(jsonData);
-      const baseAvailability = this.extractAvailability(jsonData);
-      const currentColorCode = this.extractSelectedColorCode();
-      const currentColorName = this.extractColor();
-      const currentImages = await this.extractImages();
-      const currentSizes = await this.extractSizes();
+      const variants = await this.extractAllVariants();
       
-      if (!baseProductCode) {
-        console.error('TH parseProduct: No base product code found, cannot create variants');
+      if (variants.length === 0) {
+        console.error('TH parseProduct: No variants extracted - this could indicate selector issues');
+        
+        // Дополнительная диагностика
+        const jsonData = this.getJsonLdData();
+        const productName = this.extractName();
+        const sku = this.extractSku(jsonData);
+        
+        console.log('TH Diagnostic Info:');
+        console.log('- JSON-LD available:', !!jsonData);
+        console.log('- Product name:', productName);
+        console.log('- SKU:', sku);
+        console.log('- Colors found:', this.extractAllColors().length);
+        console.log('- URL:', window.location.href);
+        
         return [];
       }
       
-      // Create single variant for current state
-      const currentSku = this.generateColorSpecificSku(baseProductCode, currentColorCode);
-      
-      const variant = {
-        sku: currentSku,
-        name: baseName,
-        price: basePrice,
-        currency: baseCurrency,
-        availability: baseAvailability,
-        color: currentColorName,
-        available_sizes: currentSizes,
-        all_image_urls: currentImages,
-        main_image_url: currentImages.length > 0 ? currentImages[0] : null,
-        item: baseProductCode,
-        product_url: this.sanitizeUrl(window.location.href),
-        store: this.config.siteName,
-        comment: ''
-      };
-      
-      console.log('TH parseProduct: Created variant:', {
-        sku: variant.sku,
-        color: variant.color,
-        price: variant.price,
-        sizeType: typeof variant.available_sizes,
-        sizeData: variant.available_sizes,
-        imageCount: variant.all_image_urls.length
+      // Валидируем каждый вариант
+      const validVariants = variants.filter(variant => {
+        const validation = this.validateProductData(variant);
+        if (!validation.isValid) {
+          console.warn(`TH parseProduct: Invalid variant for ${variant.sku}:`, validation.warnings);
+          return false;
+        }
+        if (validation.warnings.length > 0) {
+          console.warn(`TH parseProduct: Warnings for variant ${variant.sku}:`, validation.warnings);
+        }
+        return true;
       });
       
-      const validation = this.validateProductData(variant);
-      if (!validation.isValid) {
-        console.warn(`TH parseProduct: Invalid variant for ${variant.sku}:`, validation.warnings);
-        return [];
-      }
-      
-      if (validation.warnings.length > 0) {
-        console.warn(`TH parseProduct: Warnings for variant ${variant.sku}:`, validation.warnings);
-      }
-      
-      console.log(`TH parseProduct: Returning 1 valid variant`);
-      return [variant];
+      console.log(`TH parseProduct: Returning ${validVariants.length} valid variants out of ${variants.length} total`);
+      return validVariants;
       
     } catch (error) {
       console.error('Error in TH parseProduct:', error);
