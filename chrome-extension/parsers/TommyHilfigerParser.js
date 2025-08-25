@@ -486,16 +486,54 @@ class TommyHilfigerParser extends BaseParser {
   /**
    * Извлечение размеров для текущего выбранного цвета
    * Поддерживает как обычные размеры (S, M, L), так и "ONE SIZE"
+   * Также поддерживает двумерные системы размеров (например, Waist × Length)
    */
   async extractSizes() {
     try {
+      console.log('TH extractSizes: Starting enhanced size extraction...');
+      
+      // Look for size containers using .variant-list approach
+      const sizeContainers = document.querySelectorAll('.variant-list[data-display-value]:not([data-display-id="colorCode"])');
+      console.log(`TH extractSizes: Found ${sizeContainers.length} size containers with .variant-list`);
+      
+      if (sizeContainers.length >= 2) {
+        console.log('TH extractSizes: Detected two-dimensional size system (e.g., Waist × Length)');
+        return await this.extractSizeCombinations(sizeContainers[0], sizeContainers[1]);
+      } else if (sizeContainers.length === 1) {
+        console.log('TH extractSizes: Detected one-dimensional size system');
+        return await this.extractSimpleSizes(sizeContainers[0]);
+      }
+      
+      // Fallback: try old method
+      console.log('TH extractSizes: No .variant-list containers found, trying fallback methods');
+      return await this.extractSimpleSizes();
+      
+    } catch (error) {
+      console.error('Error in TH extractSizes:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Extract simple sizes (one-dimensional)
+   */
+  async extractSimpleSizes(sizeContainer = null) {
+    try {
       const availableSizes = [];
       
-      // Вариант 1: Обычная структура с размерными input'ами
-      const sizesList = document.querySelector(this.config.selectors.sizesList);
-      if (sizesList) {
-        const sizeInputs = sizesList.querySelectorAll('input[type="radio"]');
-        console.log(`TH extractSizes: Found ${sizeInputs.length} size radio inputs`);
+      let targetContainer = sizeContainer;
+      
+      if (!targetContainer) {
+        targetContainer = document.querySelector(this.config.selectors.sizesList);
+        
+        if (!targetContainer) {
+          targetContainer = document.querySelector('.variant-list[data-display-value]:not([data-display-id="colorCode"])');
+        }
+      }
+      
+      if (targetContainer) {
+        const sizeInputs = targetContainer.querySelectorAll('input[type="radio"]');
+        console.log(`TH extractSimpleSizes: Found ${sizeInputs.length} size radio inputs`);
         
         sizeInputs.forEach(input => {
           const inputId = input.getAttribute('id');
@@ -503,7 +541,12 @@ class TommyHilfigerParser extends BaseParser {
           
           // Проверяем, что размер не отключен (не имеет класс size-disabled)
           if (label && label.classList.contains('size-disabled')) {
-            console.log(`TH extractSizes: Skipping disabled size for input ${inputId}`);
+            console.log(`TH extractSimpleSizes: Skipping disabled size for input ${inputId}`);
+            return;
+          }
+          
+          if (input.classList.contains('disabled') || input.classList.contains('oos-variant')) {
+            console.log(`TH extractSimpleSizes: Skipping disabled input ${inputId}`);
             return;
           }
           
@@ -517,55 +560,220 @@ class TommyHilfigerParser extends BaseParser {
         });
         
         if (availableSizes.length > 0) {
-          console.log(`TH extractSizes: Found ${availableSizes.length} sizes from radio inputs:`, availableSizes);
+          console.log(`TH extractSimpleSizes: Found ${availableSizes.length} simple sizes:`, availableSizes);
           return availableSizes;
         }
       }
       
-      // Вариант 2: "ONE SIZE" структура - ищем в тексте заголовка
-      const sizeHeader = document.querySelector('#pdp-attr-size');
-      if (sizeHeader) {
+      // Fallback for ONE SIZE products
+      const sizeHeaders = document.querySelectorAll('[id^="pdp-attr-"], .attribute-label');
+      for (const sizeHeader of sizeHeaders) {
         const sizeValueSpan = sizeHeader.querySelector('.variation__attr--value');
         if (sizeValueSpan) {
           const sizeText = sizeValueSpan.textContent?.trim();
-          console.log(`TH extractSizes: Found size from header:`, sizeText);
-          
-          if (sizeText && sizeText !== '') {
+          if (sizeText && sizeText !== '' && sizeText !== 'Отсутствует') {
+            console.log(`TH extractSimpleSizes: Found size from header:`, sizeText);
             availableSizes.push(sizeText);
-            return availableSizes;
+            break;
           }
         }
       }
       
-      // Вариант 3: Альтернативный поиск размера в заголовке
-      const altSizeHeader = document.querySelector('.size.attribute-label');
-      if (altSizeHeader) {
-        const sizeValueSpan = altSizeHeader.querySelector('.variation__attr--value');
-        if (sizeValueSpan) {
-          const sizeText = sizeValueSpan.textContent?.trim();
-          console.log(`TH extractSizes: Found size from alternative header:`, sizeText);
-          
-          if (sizeText && sizeText !== '') {
-            availableSizes.push(sizeText);
-            return availableSizes;
-          }
+      if (availableSizes.length === 0) {
+        const oneSize = document.querySelector('[data-testid="size-onesize"], .size-one-size');
+        if (oneSize) {
+          console.log('TH extractSimpleSizes: Found ONE SIZE indicator');
+          availableSizes.push('ONE SIZE');
         }
       }
       
-      // Вариант 4: Поиск по всему документу для "ONE SIZE" или других размеров
-      const oneSize = document.querySelector('[data-testid="size-onesize"], .size-one-size');
-      if (oneSize) {
-        console.log('TH extractSizes: Found ONE SIZE indicator');
-        availableSizes.push('ONE SIZE');
-        return availableSizes;
-      }
-      
-      console.log('TH extractSizes: No sizes found');
+      console.log(`TH extractSimpleSizes: Final result - ${availableSizes.length} sizes found:`, availableSizes);
       return availableSizes;
       
     } catch (error) {
-      console.error('Error in TH extractSizes:', error);
+      console.error('Error in TH extractSimpleSizes:', error);
       return [];
+    }
+  }
+
+  /**
+   * Extract size combinations for two-dimensional systems (e.g., Waist × Length)
+   * Focus on accurate data collection for multi-dimensional sizing
+   */
+  async extractSizeCombinations(dimension1Container, dimension2Container) {
+    try {
+      console.log('TH extractSizeCombinations: Starting two-dimensional size extraction...');
+      
+      // Get dimension types
+      const dimension1Type = this.getDimensionType(dimension1Container);
+      const dimension2Type = this.getDimensionType(dimension2Container);
+      
+      console.log(`TH extractSizeCombinations: Dimensions detected - ${dimension1Type} × ${dimension2Type}`);
+      
+      const dimension1Options = Array.from(dimension1Container.querySelectorAll('input[type="radio"].variant-item'));
+      const combinations = {};
+      
+      console.log(`TH extractSizeCombinations: Found ${dimension1Options.length} ${dimension1Type} options to test`);
+      
+      // Save original selections for restoration
+      const originalDim1 = dimension1Container.querySelector('input[type="radio"][aria-checked="true"]');
+      const originalDim2 = dimension2Container.querySelector('input[type="radio"][aria-checked="true"]');
+      
+      console.log(`TH extractSizeCombinations: Original selections - ${dimension1Type}: ${originalDim1?.id || 'none'}, ${dimension2Type}: ${originalDim2?.id || 'none'}`);
+      
+      // Test each dimension1 option
+      for (let i = 0; i < dimension1Options.length; i++) {
+        const dim1Option = dimension1Options[i];
+        const dim1Value = dim1Option.getAttribute('data-attr-value');
+        
+        // Skip obviously disabled options
+        if (dim1Option.classList.contains('disabled') || dim1Option.classList.contains('oos-variant')) {
+          console.log(`TH extractSizeCombinations: Skipping disabled ${dimension1Type} option: ${dim1Value}`);
+          continue;
+        }
+        
+        console.log(`TH extractSizeCombinations: Testing ${dimension1Type} option: ${dim1Value} (${i + 1}/${dimension1Options.length})`);
+        
+        // Click dimension1 option (try clicking the label instead of the input for better results)
+        const dim1Label = document.querySelector(`label[for="${dim1Option.id}"]`);
+        if (dim1Label) {
+          console.log(`TH extractSizeCombinations: Clicking ${dimension1Type} label for ${dim1Value}`);
+          dim1Label.click();
+        } else {
+          console.log(`TH extractSizeCombinations: No label found, clicking ${dimension1Type} input for ${dim1Value}`);
+          dim1Option.click();
+        }
+        
+        // Wait for DOM to update
+        console.log('TH extractSizeCombinations: Waiting for DOM update after dimension1 click...');
+        await this.wait(2000); // Conservative wait to ensure DOM fully updates
+        
+        // Verify the dimension1 selection was successful
+        const selectedDim1 = dimension1Container.querySelector('input[type="radio"]:checked, input[type="radio"][aria-checked="true"]');
+        const selectedDim1Value = selectedDim1?.getAttribute('data-attr-value') || 'none';
+        console.log(`TH extractSizeCombinations: After click, ${dimension1Type} selection is: ${selectedDim1Value}`);
+        
+        if (selectedDim1Value !== dim1Value) {
+          console.log(`TH extractSizeCombinations: WARNING - Expected ${dim1Value} but ${selectedDim1Value} is selected`);
+        }
+        
+        // Get available dimension2 options after dimension1 selection
+        const dimension2Options = Array.from(dimension2Container.querySelectorAll('input[type="radio"].variant-item'));
+        const availableDim2Values = [];
+        
+        console.log(`TH extractSizeCombinations: Testing ${dimension2Options.length} ${dimension2Type} options for ${dimension1Type} ${dim1Value}`);
+        
+        // Tommy Hilfiger adds .size-disabled class to labels of unavailable options
+        // We observe which labels DON'T have this class
+        for (let j = 0; j < dimension2Options.length; j++) {
+          const dim2Option = dimension2Options[j];
+          const dim2Value = dim2Option.getAttribute('data-attr-value');
+          
+          if (!dim2Value) {
+            console.log(`TH extractSizeCombinations: Skipping ${dimension2Type} option without value at index ${j}`);
+            continue;
+          }
+          
+          // Find the label for this radio input
+          const dim2Label = document.querySelector(`label[for="${dim2Option.id}"]`);
+          
+          if (!dim2Label) {
+            console.log(`TH extractSizeCombinations: No label found for ${dimension2Type} ${dim2Value}, skipping`);
+            continue;
+          }
+          
+          // Check multiple possible disabled indicators on the label
+          const hasDisabledClass = dim2Label.classList.contains('disabled');
+          const hasSizeDisabledClass = dim2Label.classList.contains('size-disabled');
+          const hasOosClass = dim2Label.classList.contains('oos');
+          const isLabelDisabled = hasDisabledClass || hasSizeDisabledClass || hasOosClass;
+          
+          console.log(`TH extractSizeCombinations: Checking ${dimension2Type} ${dim2Value}: ${isLabelDisabled ? 'DISABLED' : 'AVAILABLE'}`);
+          
+          if (!isLabelDisabled) {
+            // Label is not disabled - option is available for this dimension1 size
+            availableDim2Values.push(dim2Value);
+            console.log(`TH extractSizeCombinations: ✓ ${dimension2Type} ${dim2Value} is AVAILABLE for ${dimension1Type} ${dim1Value}`);
+          } else {
+            console.log(`TH extractSizeCombinations: ✗ ${dimension2Type} ${dim2Value} is DISABLED for ${dimension1Type} ${dim1Value}`);
+          }
+        }
+        
+        console.log(`TH extractSizeCombinations: ${dimension1Type} ${dim1Value} → Available ${dimension2Type}:`, availableDim2Values);
+        
+        if (availableDim2Values.length > 0) {
+          combinations[dim1Value] = availableDim2Values;
+        } else {
+          console.log(`TH extractSizeCombinations: No available ${dimension2Type} options for ${dimension1Type} ${dim1Value}`);
+        }
+      }
+      
+      // Restore original selections
+      console.log('TH extractSizeCombinations: Restoring original selections...');
+      try {
+        if (originalDim1 && !originalDim1.checked) {
+          console.log(`TH extractSizeCombinations: Restoring ${dimension1Type} to: ${originalDim1.id}`);
+          originalDim1.click();
+          await this.wait(200);
+        }
+        if (originalDim2 && !originalDim2.checked) {
+          console.log(`TH extractSizeCombinations: Restoring ${dimension2Type} to: ${originalDim2.id}`);
+          originalDim2.click();
+          await this.wait(200);
+        }
+        console.log('TH extractSizeCombinations: Restoration completed');
+      } catch (e) {
+        console.log('TH extractSizeCombinations: Error during restoration (non-critical):', e);
+      }
+      
+      console.log('TH extractSizeCombinations: Final combinations extracted:', combinations);
+      
+      return {
+        dimension1_type: dimension1Type,
+        dimension2_type: dimension2Type,
+        combinations: combinations
+      };
+      
+    } catch (error) {
+      console.error('Error extracting TH size combinations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get the dimension type from a variant list container
+   */
+  getDimensionType(container) {
+    try {
+      const displayValue = container.getAttribute('data-display-value');
+      if (displayValue) {
+        return displayValue;
+      }
+      
+      const displayId = container.getAttribute('data-display-id');
+      if (displayId) {
+        return displayId.charAt(0).toUpperCase() + displayId.slice(1);
+      }
+      
+      const containerId = container.getAttribute('id');
+      if (containerId) {
+        const cleaned = containerId.replace(/^sizes/, '');
+        return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      }
+      
+      const parent = container.closest('.product-detail__attribute-item');
+      if (parent) {
+        const header = parent.querySelector('.attribute-label .variation__attr--name');
+        if (header) {
+          return header.textContent.trim();
+        }
+      }
+      
+      return 'Unknown';
+      
+    } catch (error) {
+      console.error('Error getting dimension type:', error);
+      return 'Unknown';
     }
   }
 
