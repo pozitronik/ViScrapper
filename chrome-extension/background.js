@@ -4,14 +4,19 @@
  * Поддерживает двойной режим работы (popup + side panel)
  */
 
-// Поддерживаемые сайты - единый источник истины
+// Supported sites - centralized but duplicated for service worker compatibility
+// TODO: Future improvement - load this from a JSON config file
 const SUPPORTED_SITES = {
-  domains: ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com'],
+  domains: ['victoriassecret.com', 'calvinklein.us', 'carters.com', 'usa.tommy.com', 'hm.com'],
   urlPatterns: [
     'https://www.victoriassecret.com/*',
     'https://www.calvinklein.us/*',
     'https://www.carters.com/*',
-    'https://usa.tommy.com/*'
+    'https://usa.tommy.com/*',
+    'https://www.hm.com/*',
+    'https://www2.hm.com/*',
+    'https://us.hm.com/*',
+    'https://uk.hm.com/*'
   ]
 };
 
@@ -99,7 +104,7 @@ chrome.commands.onCommand.addListener((command) => {
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
     // Проверяем, что мы на поддерживаемом сайте
     const isSupportedSite = isSiteSupported(tab.url);
-    
+
     if (!isSupportedSite) {
       console.log('Keyboard shortcut ignored - not on supported site');
       return;
@@ -126,9 +131,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (!changeInfo.url) {
     return;
   }
-  
+
   console.log('URL changed to:', changeInfo.url);
-  
+
   // Проверяем, что это поддерживаемый сайт
   const isSupportedSite = isSiteSupported(changeInfo.url);
   
@@ -198,21 +203,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  */
 async function handleGetTabData(sendResponse) {
   try {
+    console.log('Background: handleGetTabData called');
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+    console.log('Background: Found active tab:', tab.url);
+
     // Проверяем, поддерживается ли сайт
     const isSupportedSite = isSiteSupported(tab.url);
-    
+    console.log('Background: Is site supported:', isSupportedSite);
+
     if (!isSupportedSite) {
+      console.log('Background: Site not supported, sending error');
       sendResponse({ error: 'Расширение работает только на поддерживаемых сайтах: ' + SUPPORTED_SITES.domains.join(', ') });
       return;
     }
-    
+
     // Отправка запроса к content script
+    console.log('Background: Sending extractData message to tab', tab.id);
     chrome.tabs.sendMessage(tab.id, { action: 'extractData' }, (response) => {
+      console.log('Background: Received response from content script:', response);
+      console.log('Background: Chrome runtime lastError:', chrome.runtime.lastError);
+
       if (chrome.runtime.lastError) {
-        sendResponse({ error: 'Не удалось получить данные со страницы' });
+        console.log('Background: Error communicating with content script:', chrome.runtime.lastError.message);
+        sendResponse({ error: 'Не удалось получить данные со страницы: ' + chrome.runtime.lastError.message });
       } else {
+        console.log('Background: Forwarding response to popup:', response);
         sendResponse(response);
       }
     });
