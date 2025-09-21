@@ -6,23 +6,48 @@
 
 ### Файлы системы
 
-1. **`BaseParser.js`** - Базовый класс со всеми общими методами
-2. **`VictoriasSecretParser.js`** - Парсер для Victoria's Secret
-3. **`ParserFactory.js`** - Фабрика для создания парсеров
-4. **`index.js`** - Индексный файл для загрузки всех парсеров
+1. **`../shared/site-detector.js`** - Единый модуль детекции сайтов (источник истины)
+2. **`BaseParser.js`** - Базовый класс со всеми общими методами
+3. **`VictoriasSecretParser.js`** - Парсер для Victoria's Secret
+4. **`CalvinKleinParser.js`** - Парсер для Calvin Klein
+5. **`CartersParser.js`** - Парсер для Carter's
+6. **`TommyHilfigerParser.js`** - Парсер для Tommy Hilfiger
+7. **`HMParser.js`** - Парсер для H&M
+8. **`ParserFactory.js`** - Фабрика для создания парсеров (использует SiteDetector)
+9. **`index.js`** - Индексный файл для загрузки всех парсеров
 
 ### Порядок загрузки
 
 Файлы загружаются в `manifest.json` в следующем порядке:
 ```json
 "js": [
+  "shared/site-detector.js",
   "parsers/BaseParser.js",
-  "parsers/VictoriasSecretParser.js", 
+  "parsers/VictoriasSecretParser.js",
+  "parsers/CalvinKleinParser.js",
+  "parsers/CartersParser.js",
+  "parsers/TommyHilfigerParser.js",
+  "parsers/HMParser.js",
   "parsers/ParserFactory.js",
   "parsers/index.js",
   "content.js"
 ]
 ```
+
+## 🎯 Единая Система Детекции Сайтов
+
+Система использует **`SiteDetector`** как единый источник истины для определения поддерживаемых сайтов. Это исключает дублирование кода и обеспечивает консистентность между компонентами.
+
+### Ключевые преимущества:
+- **Единый источник истины** - все данные о сайтах в одном месте
+- **Нет дублирования** - ParserFactory и UI используют одну логику
+- **Легко расширять** - добавление нового сайта в одном месте
+- **Консистентность** - одинаковое поведение везде
+
+### Компоненты:
+- **`SiteDetector`** - центральный модуль детекции
+- **`ParserFactory`** - делегирует детекцию SiteDetector'у
+- **`viparser-core.js`** - использует SiteDetector для UI
 
 ## 🔧 Добавление нового сайта
 
@@ -76,15 +101,21 @@ class YourSiteParser extends BaseParser {
 }
 ```
 
-### Шаг 2: Зарегистрировать парсер
+### Шаг 2: Зарегистрировать в SiteDetector
 
-Добавьте парсер в `ParserFactory.js`:
+Добавьте сайт в `shared/site-detector.js` в массив `SUPPORTED_SITES`:
 
 ```javascript
-static parsers = new Map([
-  ['victoriassecret.com', () => new VictoriasSecretParser()],
-  ['yoursite.com', () => new YourSiteParser()], // <- добавить сюда
-]);
+static SUPPORTED_SITES = [
+  // ... существующие сайты
+  {
+    id: 'yoursite',
+    name: 'Your Site Name',
+    domain: 'yoursite.com',
+    parserFactory: () => new YourSiteParser(),
+    supported: true
+  }
+];
 ```
 
 ### Шаг 3: Подключить в manifest.json
@@ -128,6 +159,34 @@ static parsers = new Map([
     "js": [...]
   }
 ]
+```
+
+### Шаг 6: Добавить брендинг CSS
+
+Добавьте стили для нового сайта в `popup.css` и `sidepanel.css`:
+
+```css
+/* Заголовок */
+body.site-yoursite h1 {
+  color: #YOUR_BRAND_COLOR;
+}
+
+/* Кнопки */
+body.site-yoursite .btn-primary {
+  background-color: #YOUR_BRAND_COLOR;
+  border-color: #YOUR_BRAND_COLOR;
+}
+
+body.site-yoursite .btn-primary:hover {
+  background-color: #DARKER_SHADE;
+  border-color: #DARKER_SHADE;
+}
+
+/* Фокус textarea */
+body.site-yoursite textarea:focus {
+  border: 2px solid #YOUR_BRAND_COLOR;
+  box-shadow: 0 0 0 1px #333;
+}
 ```
 
 ## 📝 Базовые методы

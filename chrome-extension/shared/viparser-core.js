@@ -17,33 +17,25 @@ class VIParserCore {
 
   /**
    * Определение текущего сайта и получение информации о брендинге
+   * Использует SiteDetector как единый источник истины
    */
   async detectSite() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
+
       if (!tab || !tab.url) {
         console.log('No tab URL available');
-        return { id: 'unsupported', name: 'VIParser', supported: false };
+        return SiteDetector.getUnsupportedSite();
       }
-      
+
       console.log('Detecting site for URL:', tab.url);
-      
-      if (tab.url.includes('victoriassecret.com')) {
-        return { id: 'victoriassecret', name: "Victoria's Secret", supported: true };
-      } else if (tab.url.includes('calvinklein.us')) {
-        return { id: 'calvinklein', name: 'Calvin Klein', supported: true };
-      } else if (tab.url.includes('carters.com')) {
-        return { id: 'carters', name: "Carter's", supported: true };
-      } else if (tab.url.includes('usa.tommy.com')) {
-        return { id: 'tommy', name: 'Tommy Hilfiger', supported: true };
-      } else {
-        console.log('Unsupported site detected:', tab.url);
-        return { id: 'unsupported', name: 'VIParser', supported: false };
-      }
+
+      // Use SiteDetector for unified detection logic
+      return SiteDetector.detectSite(tab.url);
+
     } catch (error) {
       console.error('Error detecting site:', error);
-      return { id: 'unsupported', name: 'VIParser', supported: false };
+      return SiteDetector.getUnsupportedSite();
     }
   }
 

@@ -9,6 +9,10 @@
 console.log('Loading VIParser parsers...');
 
 // Проверяем, что все необходимые классы загружены
+if (typeof SiteDetector === 'undefined') {
+  console.error('SiteDetector not loaded!');
+}
+
 if (typeof BaseParser === 'undefined') {
   console.error('BaseParser not loaded!');
 }
@@ -29,6 +33,10 @@ if (typeof TommyHilfigerParser === 'undefined') {
   console.error('TommyHilfigerParser not loaded!');
 }
 
+if (typeof HMParser === 'undefined') {
+  console.error('HMParser not loaded!');
+}
+
 if (typeof ParserFactory === 'undefined') {
   console.error('ParserFactory not loaded!');
 }
@@ -38,11 +46,13 @@ console.log('VIParser parsers loaded successfully');
 // Экспортируем для использования в других файлах (если используется система модулей)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    SiteDetector,
     BaseParser,
     VictoriasSecretParser,
     CalvinKleinParser,
     CartersParser,
     TommyHilfigerParser,
+    HMParser,
     ParserFactory
   };
 }

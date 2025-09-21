@@ -1,18 +1,9 @@
 /**
  * Фабрика парсеров
  * Управляет созданием парсеров для разных сайтов
+ * Использует SiteDetector как единый источник истины
  */
 class ParserFactory {
-  // Карта поддерживаемых сайтов и их парсеров
-  static parsers = new Map([
-    ['victoriassecret.com', () => new VictoriasSecretParser()],
-    ['calvinklein.us', () => new CalvinKleinParser()],
-    ['carters.com', () => new CartersParser()],
-    ['usa.tommy.com', () => new TommyHilfigerParser()],
-    // Добавлять новые парсеры здесь:
-    // ['anothersite.com', () => new AnotherSiteParser()],
-  ]);
-
   /**
    * Создает парсер для текущего сайта
    * @param {string} url - URL страницы (по умолчанию текущий)
@@ -20,24 +11,9 @@ class ParserFactory {
    */
   static createParser(url = window.location.href) {
     console.log('Creating parser for URL:', url);
-    
-    for (const [domain, parserFactory] of this.parsers) {
-      if (url.includes(domain)) {
-        console.log(`Creating parser for ${domain}`);
-        try {
-          const parser = parserFactory();
-          console.log(`Successfully created ${parser.siteName} parser`);
-          return parser;
-        } catch (error) {
-          console.error(`Failed to create parser for ${domain}:`, error);
-          return null;
-        }
-      }
-    }
-    
-    console.log('No parser found for URL:', url);
-    console.log('Supported sites:', Array.from(this.parsers.keys()));
-    return null;
+
+    // Delegate to SiteDetector for unified detection logic
+    return SiteDetector.createParser(url);
   }
 
   /**
@@ -45,7 +21,7 @@ class ParserFactory {
    * @returns {string[]} - Массив доменов поддерживаемых сайтов
    */
   static getSupportedSites() {
-    return Array.from(this.parsers.keys());
+    return SiteDetector.getSupportedDomains();
   }
 
   /**
@@ -54,7 +30,7 @@ class ParserFactory {
    * @returns {boolean} - true если сайт поддерживается
    */
   static isSiteSupported(url = window.location.href) {
-    return this.getSupportedSites().some(domain => url.includes(domain));
+    return SiteDetector.isSiteSupported(url);
   }
 
   /**
@@ -62,46 +38,50 @@ class ParserFactory {
    * @returns {Object[]} - Массив объектов с информацией о сайтах
    */
   static getSiteInfo() {
-    const siteInfo = [];
-    
-    for (const [domain, parserFactory] of this.parsers) {
+    const sites = SiteDetector.getAllSites();
+
+    return sites.map(site => {
       try {
-        const parser = parserFactory();
-        siteInfo.push({
-          domain: domain,
-          siteName: parser.siteName,
+        // Test parser creation to verify availability
+        const parser = site.parserFactory ? site.parserFactory() : null;
+        return {
+          domain: site.domain,
+          siteName: parser ? parser.siteName : site.name,
           isAvailable: true
-        });
+        };
       } catch (error) {
-        siteInfo.push({
-          domain: domain,
-          siteName: domain,
+        return {
+          domain: site.domain,
+          siteName: site.name,
           isAvailable: false,
           error: error.message
-        });
+        };
       }
-    }
-    
-    return siteInfo;
+    });
   }
 
   /**
    * Регистрирует новый парсер
    * @param {string} domain - Домен сайта
    * @param {Function} parserFactory - Функция-фабрика для создания парсера
+   * @deprecated - Use SiteDetector.SUPPORTED_SITES instead
    */
   static registerParser(domain, parserFactory) {
+    console.warn('ParserFactory.registerParser is deprecated. Update SiteDetector.SUPPORTED_SITES instead.');
     console.log(`Registering parser for domain: ${domain}`);
-    this.parsers.set(domain, parserFactory);
+    // This method is kept for backward compatibility but should not be used
   }
 
   /**
    * Удаляет парсер для домена
    * @param {string} domain - Домен для удаления
+   * @deprecated - Use SiteDetector.SUPPORTED_SITES instead
    */
   static unregisterParser(domain) {
+    console.warn('ParserFactory.unregisterParser is deprecated. Update SiteDetector.SUPPORTED_SITES instead.');
     console.log(`Unregistering parser for domain: ${domain}`);
-    return this.parsers.delete(domain);
+    // This method is kept for backward compatibility but should not be used
+    return false;
   }
 }
 

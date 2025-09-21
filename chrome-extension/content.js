@@ -52,20 +52,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 function initializeParser() {
   try {
     console.log('Initializing parser for current site...');
-    
+
     if (typeof ParserFactory === 'undefined') {
       console.error('ParserFactory not available! Make sure parsers are loaded.');
       return false;
     }
-    
+
     currentParser = ParserFactory.createParser();
-    
+
     if (!currentParser) {
       console.log('No parser available for current site');
       console.log('Supported sites:', ParserFactory.getSupportedSites());
       return false;
     }
-    
+
     console.log(`Successfully initialized parser: ${currentParser.siteName}`);
     return true;
   } catch (error) {

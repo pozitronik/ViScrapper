@@ -90,6 +90,10 @@ body.site-tommy h1 {
   color: #DC143C; /* Tommy Hilfiger red */
 }
 
+body.site-hm h1 {
+  color: #E50000; /* H&M red */
+}
+
 body.site-unsupported h1 {
   color: #666; /* Neutral gray for unsupported sites */
 }
@@ -114,6 +118,11 @@ body.site-tommy .btn-primary {
   border-color: #DC143C;
 }
 
+body.site-hm .btn-primary {
+  background-color: #E50000;
+  border-color: #E50000;
+}
+
 body.site-victoriassecret .btn-primary:hover {
   background-color: #E05A9B;
   border-color: #E05A9B;
@@ -132,6 +141,11 @@ body.site-carters .btn-primary:hover {
 body.site-tommy .btn-primary:hover {
   background-color: #B22222;
   border-color: #B22222;
+}
+
+body.site-hm .btn-primary:hover {
+  background-color: #CC0000;
+  border-color: #CC0000;
 }
 
 .status-indicator {
@@ -579,6 +593,11 @@ body.site-carters textarea:focus {
 
 body.site-tommy textarea:focus {
   border: 2px solid #DC143C;
+  box-shadow: 0 0 0 1px #333;
+}
+
+body.site-hm textarea:focus {
+  border: 2px solid #E50000;
   box-shadow: 0 0 0 1px #333;
 }
 

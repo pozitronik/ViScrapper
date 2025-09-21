@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VIParser - Multi-Site Product Parser",
-  "version": "2.7.2",
-  "description": "Автоматический парсер продуктов с Victoria's Secret, Calvin Klein, Carter's и Tommy Hilfiger для VIParser",
+  "version": "2.7.5",
+  "description": "Автоматический парсер продуктов с Victoria's Secret, Calvin Klein, Carter's, Tommy Hilfiger и H&M для VIParser",
   
   "permissions": [
     "activeTab",
@@ -16,6 +16,10 @@
     "https://www.calvinklein.us/*",
     "https://www.carters.com/*",
     "https://usa.tommy.com/*",
+    "https://www.hm.com/*",
+    "https://www2.hm.com/*",
+    "https://us.hm.com/*",
+    "https://uk.hm.com/*",
     "http://localhost:8000/*"
   ],
   
@@ -25,14 +29,20 @@
         "https://www.victoriassecret.com/*",
         "https://www.calvinklein.us/*",
         "https://www.carters.com/*",
-        "https://usa.tommy.com/*"
+        "https://usa.tommy.com/*",
+        "https://www.hm.com/*",
+        "https://www2.hm.com/*",
+        "https://us.hm.com/*",
+        "https://uk.hm.com/*"
       ],
       "js": [
+        "shared/site-detector.js",
         "parsers/BaseParser.js",
         "parsers/VictoriasSecretParser.js",
         "parsers/CalvinKleinParser.js",
         "parsers/CartersParser.js",
         "parsers/TommyHilfigerParser.js",
+        "parsers/HMParser.js",
         "parsers/ParserFactory.js",
         "parsers/index.js",
         "content.js"
@@ -84,7 +94,11 @@
         "https://www.victoriassecret.com/*",
         "https://www.calvinklein.us/*",
         "https://www.carters.com/*",
-        "https://usa.tommy.com/*"
+        "https://usa.tommy.com/*",
+        "https://www.hm.com/*",
+        "https://www2.hm.com/*",
+        "https://us.hm.com/*",
+        "https://uk.hm.com/*"
       ]
     }
   ]
