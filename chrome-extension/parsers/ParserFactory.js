@@ -11,8 +11,6 @@ class ParserFactory {
    */
   static createParser(url = window.location.href) {
     console.log('Creating parser for URL:', url);
-
-    // Delegate to SiteDetector for unified detection logic
     return SiteDetector.createParser(url);
   }
 
@@ -42,7 +40,6 @@ class ParserFactory {
 
     return sites.map(site => {
       try {
-        // Test parser creation to verify availability
         const parser = site.parserFactory ? site.parserFactory() : null;
         return {
           domain: site.domain,
@@ -58,30 +55,6 @@ class ParserFactory {
         };
       }
     });
-  }
-
-  /**
-   * Регистрирует новый парсер
-   * @param {string} domain - Домен сайта
-   * @param {Function} parserFactory - Функция-фабрика для создания парсера
-   * @deprecated - Use SiteDetector.SUPPORTED_SITES instead
-   */
-  static registerParser(domain, parserFactory) {
-    console.warn('ParserFactory.registerParser is deprecated. Update SiteDetector.SUPPORTED_SITES instead.');
-    console.log(`Registering parser for domain: ${domain}`);
-    // This method is kept for backward compatibility but should not be used
-  }
-
-  /**
-   * Удаляет парсер для домена
-   * @param {string} domain - Домен для удаления
-   * @deprecated - Use SiteDetector.SUPPORTED_SITES instead
-   */
-  static unregisterParser(domain) {
-    console.warn('ParserFactory.unregisterParser is deprecated. Update SiteDetector.SUPPORTED_SITES instead.');
-    console.log(`Unregistering parser for domain: ${domain}`);
-    // This method is kept for backward compatibility but should not be used
-    return false;
   }
 }
 
