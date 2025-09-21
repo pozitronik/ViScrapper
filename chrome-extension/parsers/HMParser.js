@@ -52,7 +52,6 @@ class HMParser extends BaseParser {
    */
   isValidProductPage() {
     const url = window.location.href;
-    console.log('Checking H&M page validity, URL:', url);
 
     if (!url.includes(this.config.domain)) {
       console.log('Not an H&M page');
@@ -62,7 +61,6 @@ class HMParser extends BaseParser {
     // H&M URL pattern: contains /productpage. or /product/
     const urlPattern = /\/(productpage\.|product\/)/i;
     const hasValidUrlPattern = urlPattern.test(url);
-    console.log('Valid H&M URL pattern:', hasValidUrlPattern);
 
     if (!hasValidUrlPattern) {
       console.log('URL does not match H&M product page pattern');
@@ -74,13 +72,8 @@ class HMParser extends BaseParser {
     const hasProductTitle = !!document.querySelector(this.config.selectors.productTitle);
     const hasProductPrice = !!document.querySelector(this.config.selectors.productPrice);
 
-    console.log('H&M validation checks:');
-    console.log('- JSON-LD found:', hasJsonLd);
-    console.log('- Product title found:', hasProductTitle);
-    console.log('- Product price found:', hasProductPrice);
 
     const isValid = hasValidUrlPattern && (hasJsonLd || hasProductTitle || hasProductPrice);
-    console.log('Page is valid H&M product page:', isValid);
 
     return isValid;
   }
@@ -92,7 +85,6 @@ class HMParser extends BaseParser {
     // Приоритет 1: Из JSON-LD (стабильные данные)
     const jsonData = this.getJsonLdData();
     if (jsonData && jsonData.name) {
-      console.log('H&M name from JSON-LD:', jsonData.name);
       return jsonData.name;
     }
 
@@ -100,11 +92,9 @@ class HMParser extends BaseParser {
     const titleElement = document.querySelector(this.config.selectors.productTitle);
     if (titleElement) {
       const name = titleElement.textContent?.trim();
-      console.log('H&M name from DOM:', name);
       return name;
     }
 
-    console.log('H&M name not found');
     return null;
   }
 
@@ -116,15 +106,10 @@ class HMParser extends BaseParser {
     const urlMatch = window.location.href.match(/\.(\d+)\.html$/);
     if (urlMatch && urlMatch[1]) {
       const urlSku = urlMatch[1];
-      console.log('H&M SKU from URL:', urlSku);
 
-      // Проверяем, совпадает ли с JSON-LD
+      // URL SKU is most reliable during color changes
       if (!jsonData) {
         jsonData = this.getJsonLdData();
-      }
-
-      if (jsonData && jsonData.sku && jsonData.sku !== urlSku) {
-        console.log('H&M SKU: URL and JSON-LD mismatch. URL:', urlSku, 'JSON-LD:', jsonData.sku, '- using URL');
       }
 
       return urlSku;
@@ -134,7 +119,6 @@ class HMParser extends BaseParser {
     const urlMatch2 = window.location.href.match(/\/(\d+)$/);
     if (urlMatch2 && urlMatch2[1]) {
       const urlSku = urlMatch2[1];
-      console.log('H&M SKU from URL (alternative pattern):', urlSku);
       return urlSku;
     }
 
@@ -144,7 +128,6 @@ class HMParser extends BaseParser {
     }
 
     if (jsonData && jsonData.sku) {
-      console.log('H&M SKU from JSON-LD (fallback):', jsonData.sku);
       return jsonData.sku;
     }
 
@@ -153,12 +136,10 @@ class HMParser extends BaseParser {
     if (productCodeElement) {
       const productCode = productCodeElement.textContent?.trim();
       if (productCode) {
-        console.log('H&M SKU from product code element:', productCode);
         return productCode;
       }
     }
 
-    console.log('H&M SKU not found');
     return null;
   }
 
@@ -174,7 +155,6 @@ class HMParser extends BaseParser {
     if (jsonData && jsonData.offers) {
       if (jsonData.offers.price) {
         const price = parseFloat(jsonData.offers.price);
-        console.log('H&M price from JSON-LD:', price);
         return price;
       }
 
@@ -183,7 +163,6 @@ class HMParser extends BaseParser {
         const firstOffer = jsonData.offers[0];
         if (firstOffer.price) {
           const price = parseFloat(firstOffer.price);
-          console.log('H&M price from JSON-LD offers array:', price);
           return price;
         }
       }
@@ -198,13 +177,11 @@ class HMParser extends BaseParser {
         const priceMatch = priceText.match(/[\d.,]+/);
         if (priceMatch) {
           const price = parseFloat(priceMatch[0].replace(',', '.'));
-          console.log('H&M price from DOM:', price);
           return price;
         }
       }
     }
 
-    console.log('H&M price not found');
     return null;
   }
 
@@ -212,36 +189,25 @@ class HMParser extends BaseParser {
    * Извлечение изображений с поддержкой lazy loading
    */
   async extractImages() {
-    console.log('H&M extractImages: Starting image extraction with lazy loading support...');
-
     try {
       const imageGallery = document.querySelector(this.config.selectors.imageGallery);
       if (!imageGallery) {
-        console.log('H&M extractImages: No image gallery found, trying JSON-LD fallback...');
         return await this.extractImagesFromJsonLd();
       }
 
       // Check if scrolling is needed for lazy loading
       const needsScrolling = this.checkIfScrollingNeeded(imageGallery);
-      console.log('H&M extractImages: Scrolling needed:', needsScrolling);
 
       // Force image loading by scrolling if needed
       if (needsScrolling) {
-        console.log('H&M extractImages: Triggering lazy loading with scroll...');
         await this.forceImageLoadingByScroll();
-      } else {
-        console.log('H&M extractImages: Images already loaded, proceeding...');
       }
 
       // Extract images after potential lazy loading
       const images = imageGallery.querySelectorAll(this.config.selectors.productImages);
-      console.log(`H&M extractImages: Found ${images.length} images after processing`);
-
       const extractedUrls = this.extractImageUrlsFromElements(images);
-      console.log(`H&M extractImages: Extracted ${extractedUrls.length} URLs from gallery`);
 
       if (extractedUrls.length === 0) {
-        console.log('H&M extractImages: No gallery images found, trying JSON-LD fallback...');
         return await this.extractImagesFromJsonLd();
       }
 
@@ -276,8 +242,6 @@ class HMParser extends BaseParser {
       }
     });
 
-    console.log(`H&M checkIfScrollingNeeded: ${emptyCount} empty/placeholder images out of ${totalCount} total`);
-
     // If more than 30% of images are not loaded, trigger scrolling
     return totalCount > 0 && (emptyCount / totalCount) > 0.3;
   }
@@ -286,19 +250,13 @@ class HMParser extends BaseParser {
    * Force image loading by invisible scrolling (no page twitching)
    */
   async forceImageLoadingByScroll() {
-    console.log('H&M forceImageLoadingByScroll: Starting invisible scroll to trigger lazy loading...');
-
     try {
       const imageGallery = document.querySelector(this.config.selectors.imageGallery);
-      if (!imageGallery) {
-        console.log('H&M forceImageLoadingByScroll: No image gallery found');
-        return;
-      }
+      if (!imageGallery) return;
 
       // Save current scroll position
       const originalScrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const originalScrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      console.log(`H&M forceImageLoadingByScroll: Saved original position: ${originalScrollTop}px top, ${originalScrollLeft}px left`);
 
       // Get document height
       const documentHeight = Math.max(
@@ -309,33 +267,23 @@ class HMParser extends BaseParser {
         document.documentElement.offsetHeight
       );
 
-      console.log('H&M forceImageLoadingByScroll: Document height:', documentHeight);
-
       // Perform ultra-fast invisible scroll operations
-      console.log('H&M forceImageLoadingByScroll: Starting ultra-fast invisible scroll sequence...');
-
-      // 1. Scroll to image gallery
       imageGallery.scrollIntoView({ behavior: 'instant', block: 'center' });
       await this.wait(100);
 
-      // 2. Quick scroll to bottom
       window.scrollTo({ top: documentHeight, left: 0, behavior: 'instant' });
       await this.wait(150);
 
-      // 3. Quick scroll to middle
       window.scrollTo({ top: documentHeight / 2, left: 0, behavior: 'instant' });
       await this.wait(100);
 
-      // 4. Scroll back to gallery area
       imageGallery.scrollIntoView({ behavior: 'instant', block: 'center' });
       await this.wait(150);
 
-      // 5. One more bottom scroll for good measure
       window.scrollTo({ top: documentHeight, left: 0, behavior: 'instant' });
       await this.wait(100);
 
-      // Restore original scroll position (invisible restoration)
-      console.log(`H&M forceImageLoadingByScroll: Restoring original position: ${originalScrollTop}px top`);
+      // Restore original scroll position
       window.scrollTo({
         top: originalScrollTop,
         left: originalScrollLeft,
@@ -343,14 +291,10 @@ class HMParser extends BaseParser {
       });
 
       // Final wait for images to finish loading
-      console.log('H&M forceImageLoadingByScroll: Final wait for images to load...');
       await this.wait(800);
 
-      console.log('H&M forceImageLoadingByScroll: Invisible scroll completed');
-
     } catch (error) {
-      console.warn('H&M forceImageLoadingByScroll: Error during invisible scroll:', error);
-
+      console.warn('H&M forceImageLoadingByScroll: Error during scroll:', error);
       // Try to restore position even if there was an error
       try {
         const originalScrollTop = window.pageYOffset || document.documentElement.scrollTop;
@@ -358,7 +302,7 @@ class HMParser extends BaseParser {
           window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
         }
       } catch (restoreError) {
-        console.warn('H&M forceImageLoadingByScroll: Could not restore scroll position');
+        // Silent fail on restore error
       }
     }
   }
@@ -367,8 +311,6 @@ class HMParser extends BaseParser {
    * Extract images from JSON-LD (fallback)
    */
   async extractImagesFromJsonLd() {
-    console.log('H&M extractImagesFromJsonLd: Starting JSON-LD fallback...');
-
     const imageUrls = [];
     const jsonData = this.getJsonLdData();
 
@@ -386,7 +328,6 @@ class HMParser extends BaseParser {
       }
     }
 
-    console.log(`H&M extractImagesFromJsonLd: Extracted ${imageUrls.length} images from JSON-LD`);
     return imageUrls;
   }
 
@@ -456,11 +397,10 @@ class HMParser extends BaseParser {
   extractImageUrlsFromElements(images) {
     const imageUrls = [];
 
-    images.forEach((img, index) => {
+    images.forEach((img) => {
       const imageUrl = this.extractImageUrlFromElement(img);
       if (imageUrl) {
         imageUrls.push(imageUrl);
-        console.log(`H&M extractImageUrlsFromElements: Added image ${index + 1}: ${imageUrl}`);
       }
     });
 
@@ -491,77 +431,51 @@ class HMParser extends BaseParser {
    */
   async extractSizes() {
     try {
-      console.log('H&M extractSizes: Starting size extraction...');
       const availableSizes = [];
 
       // Find the specific H&M size selector structure
       const sizeSelector = document.querySelector('[data-testid="size-selector"]');
       if (!sizeSelector) {
-        console.log('H&M extractSizes: No size-selector found');
         return availableSizes;
       }
 
-      console.log('H&M extractSizes: Found size-selector container');
 
       // Find the size list within the size selector
       const sizeList = sizeSelector.querySelector('ul[aria-labelledby="sizeSelector"]');
       if (!sizeList) {
-        console.log('H&M extractSizes: No size list found with aria-labelledby="sizeSelector"');
         return availableSizes;
       }
 
-      console.log('H&M extractSizes: Found size list container');
 
       // Get all size items (li elements)
       const sizeItems = sizeList.querySelectorAll('li');
-      console.log(`H&M extractSizes: Found ${sizeItems.length} size items`);
 
       sizeItems.forEach((item, index) => {
-        console.log(`H&M extractSizes: Processing size item ${index + 1}`);
-
-        // Find the size button/div within each li
         const sizeButton = item.querySelector('[data-testid^="sizeButton-"]');
         if (!sizeButton) {
-          console.log(`H&M extractSizes: No size button found in item ${index + 1}`);
           return;
         }
 
-        // Extract size info from aria-label
         const ariaLabel = sizeButton.getAttribute('aria-label');
         if (!ariaLabel) {
-          console.log(`H&M extractSizes: No aria-label found for item ${index + 1}`);
           return;
         }
 
-        console.log(`H&M extractSizes: Item ${index + 1} aria-label: "${ariaLabel}"`);
-
-        // Parse the aria-label to extract size and availability
-        // Format: "Size 5-7: Available. Select the size." or "Size XS: Out of stock. Select to see similar products or for notify if back."
         const sizeMatch = ariaLabel.match(/Size\s+([^:]+):/i);
         if (!sizeMatch) {
-          console.log(`H&M extractSizes: Could not parse size from aria-label: "${ariaLabel}"`);
           return;
         }
 
         const sizeName = sizeMatch[1].trim();
         const isOutOfStock = ariaLabel.toLowerCase().includes('out of stock');
 
-        console.log(`H&M extractSizes: Extracted size: "${sizeName}", out of stock: ${isOutOfStock}`);
-
-        // Only include available sizes (you might want to include out of stock sizes too)
         if (!isOutOfStock) {
           if (!availableSizes.includes(sizeName)) {
             availableSizes.push(sizeName);
-            console.log(`H&M extractSizes: Added available size: ${sizeName}`);
-          } else {
-            console.log(`H&M extractSizes: Size ${sizeName} already added`);
           }
-        } else {
-          console.log(`H&M extractSizes: Skipping out of stock size: ${sizeName}`);
         }
       });
 
-      console.log(`H&M extractSizes: Final result - ${availableSizes.length} available sizes:`, availableSizes);
       return availableSizes;
 
     } catch (error) {
@@ -575,8 +489,6 @@ class HMParser extends BaseParser {
    * Извлечение цвета
    */
   extractColor() {
-    console.log('H&M extractColor: Starting color extraction...');
-
     // Method 1: Extract from visible color text (most reliable)
     const colorSelector = document.querySelector('[data-testid="color-selector-wrapper"]');
     if (colorSelector) {
@@ -584,7 +496,6 @@ class HMParser extends BaseParser {
       if (colorText) {
         const visibleColor = colorText.textContent?.trim();
         if (visibleColor && visibleColor.length > 0) {
-          console.log('H&M extractColor: Found color from visible text:', visibleColor);
           return visibleColor;
         }
       }
@@ -593,18 +504,15 @@ class HMParser extends BaseParser {
     // Method 2: Check URL for color parameter
     const urlColor = this.extractColorFromUrl();
     if (urlColor) {
-      console.log('H&M extractColor: Found color in URL:', urlColor);
       return urlColor;
     }
 
-    // Method 3: Fallback to button analysis if visible text not found
+    // Method 3: Fallback to button analysis
     if (colorSelector) {
-      console.log('H&M extractColor: Fallback to button analysis...');
       const selectedButton = colorSelector.querySelector('[aria-checked="true"]');
       if (selectedButton) {
         const colorName = this.extractColorNameFromElement(selectedButton);
         if (colorName) {
-          console.log('H&M extractColor: Found color from selected button:', colorName);
           return colorName;
         }
       }
@@ -617,14 +525,11 @@ class HMParser extends BaseParser {
       if (title) {
         const colorMatch = title.match(/[-–]\s*([^-–]+)$/);
         if (colorMatch) {
-          const color = colorMatch[1].trim();
-          console.log('H&M extractColor: Found color in title:', color);
-          return color;
+          return colorMatch[1].trim();
         }
       }
     }
 
-    console.log('H&M extractColor: No color found');
     return null;
   }
 
@@ -633,7 +538,6 @@ class HMParser extends BaseParser {
    */
   extractColorFromUrl() {
     const url = window.location.href;
-    console.log('H&M extractColorFromUrl: Checking URL:', url);
 
     // H&M URL patterns for color
     const urlPatterns = [
@@ -641,17 +545,15 @@ class HMParser extends BaseParser {
       /[?&]colour[=:]([^&\/]+)/i,
       /\/color\/([^\/]+)/i,
       /\/colour\/([^\/]+)/i,
-      /[?&]c[=:]([^&\/]+)/i, // Sometimes H&M uses 'c' parameter
+      /[?&]c[=:]([^&\/]+)/i
     ];
 
     for (const pattern of urlPatterns) {
       const match = url.match(pattern);
       if (match) {
-        const urlColor = decodeURIComponent(match[1])
+        return decodeURIComponent(match[1])
           .replace(/[-_]/g, ' ')
           .replace(/\+/g, ' ');
-        console.log('H&M extractColorFromUrl: Found color in URL:', urlColor);
-        return urlColor;
       }
     }
 
@@ -850,11 +752,9 @@ class HMParser extends BaseParser {
     // For H&M, use SKU as item/article number
     const sku = this.extractSku();
     if (sku) {
-      console.log('H&M extractItem: Using SKU as item:', sku);
       return sku;
     }
 
-    console.log('H&M extractItem: No item found');
     return null;
   }
 
@@ -863,7 +763,6 @@ class HMParser extends BaseParser {
    */
   extractComposition() {
     try {
-      console.log('H&M extractComposition: Starting composition extraction...');
 
       // Method 1: Look for composition in specific H&M DOM structure
       const compositionSelectors = [
@@ -874,46 +773,35 @@ class HMParser extends BaseParser {
       ];
 
       for (const selector of compositionSelectors) {
-        console.log(`H&M extractComposition: Trying selector: ${selector}`);
         const element = document.querySelector(selector);
         if (element) {
           const text = element.textContent?.trim();
-          console.log(`H&M extractComposition: Found element with text: "${text}"`);
           if (text && this.containsCompositionInfo(text)) {
-            console.log('H&M extractComposition: Found composition in DOM:', text);
             return this.formatComposition(text);
           }
         }
       }
 
       // Method 2: Search in product details section
-      console.log('H&M extractComposition: Searching product details section...');
       const productDetails = document.querySelector(this.config.selectors.productDetails);
       if (productDetails) {
-        console.log('H&M extractComposition: Found product details container');
         const allParagraphs = productDetails.querySelectorAll('p, div, span');
-        console.log(`H&M extractComposition: Found ${allParagraphs.length} elements in product details`);
 
         for (const element of allParagraphs) {
           const text = element.textContent?.trim();
           if (text && this.containsCompositionInfo(text)) {
-            console.log('H&M extractComposition: Found composition in product details:', text);
             return this.formatComposition(text);
           }
         }
-      } else {
-        console.log('H&M extractComposition: No product details container found');
       }
 
       // Method 3: Search all elements containing composition keywords
-      console.log('H&M extractComposition: Performing broad search...');
       const allElements = document.querySelectorAll('*');
       let searchCount = 0;
       for (const element of allElements) {
         if (element.children.length === 0) { // Only leaf elements
           const text = element.textContent?.trim();
           if (text && text.length > 10 && text.length < 200 && this.containsCompositionInfo(text)) {
-            console.log('H&M extractComposition: Found composition in page element:', text);
             return this.formatComposition(text);
           }
           searchCount++;
@@ -921,7 +809,6 @@ class HMParser extends BaseParser {
         }
       }
 
-      console.log('H&M extractComposition: No composition found after broad search');
       return null;
 
     } catch (error) {
@@ -1019,20 +906,16 @@ class HMParser extends BaseParser {
    * Извлечение доступности товара
    */
   async extractAvailability(jsonData = null) {
-    console.log('H&M extractAvailability: Starting availability check...');
 
     // Priority 1: Check actual size availability (most reliable)
-    console.log('H&M extractAvailability: Checking size availability...');
     const availableSizes = await this.extractSizes();
     if (availableSizes && availableSizes.length > 0) {
-      console.log(`H&M extractAvailability: Found ${availableSizes.length} available sizes, product is in stock`);
       return BaseParser.AVAILABILITY.IN_STOCK;
     }
 
     // Priority 2: Check for explicit out of stock message
     const outOfStockElement = document.querySelector(this.config.selectors.outOfStockMessage);
     if (outOfStockElement) {
-      console.log('H&M extractAvailability: Found out of stock element');
       return BaseParser.AVAILABILITY.OUT_OF_STOCK;
     }
 
@@ -1040,13 +923,11 @@ class HMParser extends BaseParser {
     const addToCartButton = document.querySelector(this.config.selectors.addToCartButton);
     if (addToCartButton) {
       if (addToCartButton.disabled || addToCartButton.classList.contains('disabled')) {
-        console.log('H&M extractAvailability: Add to cart button is disabled');
         return BaseParser.AVAILABILITY.OUT_OF_STOCK;
       }
 
       const buttonText = addToCartButton.textContent?.toLowerCase();
       if (buttonText && (buttonText.includes('out of stock') || buttonText.includes('sold out'))) {
-        console.log('H&M extractAvailability: Add to cart button indicates out of stock');
         return BaseParser.AVAILABILITY.OUT_OF_STOCK;
       }
     }
@@ -1066,20 +947,16 @@ class HMParser extends BaseParser {
       }
 
       if (availability) {
-        console.log('H&M extractAvailability: JSON-LD availability (fallback):', availability);
         if (availability.includes('OutOfStock') || availability.includes('SoldOut')) {
-          console.log('H&M extractAvailability: JSON-LD indicates out of stock, but no sizes checked yet');
           return BaseParser.AVAILABILITY.OUT_OF_STOCK;
         }
         if (availability.includes('InStock')) {
-          console.log('H&M extractAvailability: JSON-LD indicates in stock');
           return BaseParser.AVAILABILITY.IN_STOCK;
         }
       }
     }
 
     // Default to in stock if product page is accessible
-    console.log('H&M extractAvailability: Defaulting to in stock');
     return BaseParser.AVAILABILITY.IN_STOCK;
   }
 
@@ -1094,13 +971,11 @@ class HMParser extends BaseParser {
         if (script.textContent.trim() && script.textContent.includes('@type')) {
           const jsonData = this.parseJsonLd(script.textContent);
           if (jsonData && jsonData['@type'] === 'Product') {
-            console.log('H&M getJsonLdData: Found Product JSON-LD');
             return jsonData;
           }
         }
       }
 
-      console.log('H&M getJsonLdData: No Product JSON-LD found');
       return null;
     } catch (error) {
       console.error('H&M getJsonLdData: Error getting JSON-LD data:', error);
@@ -1113,7 +988,6 @@ class HMParser extends BaseParser {
    */
   async parseProduct() {
     try {
-      console.log('Starting H&M product parsing...');
 
       // Проверяем валидность страницы
       if (!this.isValidProductPage()) {
@@ -1121,50 +995,35 @@ class HMParser extends BaseParser {
         return [];
       }
 
-      console.log('H&M parseProduct: Page validation passed, extracting data...');
 
       // Извлекаем данные продукта
       const jsonData = this.getJsonLdData();
-      console.log('H&M parseProduct: JSON-LD data:', jsonData ? 'found' : 'not found');
 
       const name = this.extractName();
-      console.log('H&M parseProduct: Name extracted:', name);
 
       const sku = this.extractSku(jsonData);
-      console.log('H&M parseProduct: SKU extracted:', sku);
 
       const price = this.extractPrice(jsonData);
-      console.log('H&M parseProduct: Price extracted:', price);
 
       const currency = this.extractCurrency(jsonData);
-      console.log('H&M parseProduct: Currency extracted:', currency);
 
       const availability = await this.extractAvailability(jsonData);
-      console.log('H&M parseProduct: Availability extracted:', availability);
 
       const color = this.extractColor();
-      console.log('H&M parseProduct: Color extracted:', color);
 
       const composition = this.extractComposition();
-      console.log('H&M parseProduct: Composition extracted:', composition);
 
       const item = this.extractItem();
-      console.log('H&M parseProduct: Item extracted:', item);
 
-      console.log('H&M parseProduct: Starting image extraction...');
       const images = await this.extractImages();
-      console.log('H&M parseProduct: Images extracted:', images.length);
 
-      console.log('H&M parseProduct: Starting size extraction...');
       const sizes = await this.extractSizes();
-      console.log('H&M parseProduct: Sizes extracted:', sizes.length);
 
       if (!sku) {
         console.error('H&M parseProduct: No SKU found, cannot create product');
         return [];
       }
 
-      console.log('H&M parseProduct: Creating product object...');
       const product = {
         sku: sku,
         name: name,
@@ -1182,11 +1041,9 @@ class HMParser extends BaseParser {
         comment: ''
       };
 
-      console.log('H&M parseProduct: Product object created, validating...');
 
       // Валидируем данные продукта
       const validation = this.validateProductData(product);
-      console.log('H&M parseProduct: Validation result:', validation);
 
       if (!validation.isValid) {
         console.error('H&M parseProduct: Product validation failed:', validation.warnings);
@@ -1197,22 +1054,11 @@ class HMParser extends BaseParser {
         console.warn('H&M parseProduct: Product warnings:', validation.warnings);
       }
 
-      console.log('H&M parseProduct: Successfully parsed product:', {
-        sku: product.sku,
-        name: product.name,
-        price: product.price,
-        currency: product.currency,
-        color: product.color,
-        sizesCount: product.available_sizes.length,
-        imagesCount: product.all_image_urls.length
-      });
 
-      console.log('H&M parseProduct: Returning successful result');
       return [product];
 
     } catch (error) {
       console.error('H&M parseProduct: Error occurred:', error);
-      console.error('H&M parseProduct: Stack trace:', error.stack);
       return [];
     }
   }
