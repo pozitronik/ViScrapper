@@ -78,10 +78,7 @@ function initializeParser() {
  * Обработка запроса на извлечение данных
  */
 async function handleExtractData(sendResponse) {
-  console.log('handleExtractData called - starting extraction process...');
-
   if (extractionInProgress) {
-    console.log('Extraction already in progress, rejecting request');
     sendResponse({ error: 'Извлечение данных уже выполняется' });
     return;
   }
@@ -89,13 +86,9 @@ async function handleExtractData(sendResponse) {
   extractionInProgress = true;
 
   try {
-    console.log('Starting data extraction...');
-
     // Инициализируем парсер если еще не инициализирован
     if (!currentParser) {
-      console.log('No current parser, attempting to initialize...');
       if (!initializeParser()) {
-        console.log('Parser initialization failed');
         sendResponse({
           error: 'Сайт не поддерживается расширением',
           isValid: false,
@@ -103,27 +96,19 @@ async function handleExtractData(sendResponse) {
         });
         return;
       }
-      console.log('Parser initialized successfully');
-    } else {
-      console.log('Using existing parser:', currentParser.siteName);
     }
 
     // Проверяем, что мы на правильной странице
-    console.log('Validating product page...');
     if (!currentParser.isValidProductPage()) {
-      console.log('Product page validation failed');
       sendResponse({
         error: `Расширение работает только на страницах товаров ${currentParser.siteName}`,
         isValid: false
       });
       return;
     }
-    console.log('Product page validation passed');
 
     // Проверяем, изменился ли продукт
-    console.log('Checking if product changed. isProductChanged:', isProductChanged);
     if (isProductChanged) {
-      console.log('Product was changed, requiring refresh');
       sendResponse({
         error: 'Продукт был изменен. Необходимо обновить страницу для получения актуальных данных.',
         needsRefresh: true,
@@ -131,15 +116,11 @@ async function handleExtractData(sendResponse) {
       });
       return;
     }
-    console.log('Product change check passed');
 
     // Извлекаем данные
-    console.log('Calling extractProductData()...');
     const productData = await extractProductData();
-    console.log('extractProductData() completed. Result:', productData);
 
     if (!productData) {
-      console.log('No product data returned from extraction');
       sendResponse({
         error: 'Не удалось извлечь данные продукта',
         isValid: false
@@ -147,14 +128,11 @@ async function handleExtractData(sendResponse) {
       return;
     }
 
-    console.log('Product data extracted successfully, validating...');
     // Проверяем валидность данных
     const validation = currentParser.validateProductData(productData);
-    console.log('Validation result:', validation);
 
     // Если нет SKU - не отправляем данные на бэкенд
     if (!validation.isValid) {
-      console.log('Product validation failed');
       sendResponse({
         error: 'Продукт не может быть отправлен на сервер: ' + (validation.warnings.join(', ') || 'отсутствует SKU'),
         isValid: false,
@@ -164,7 +142,6 @@ async function handleExtractData(sendResponse) {
       return;
     }
 
-    console.log('Product validation passed');
     currentProductData = productData;
     
     sendResponse({
@@ -183,7 +160,6 @@ async function handleExtractData(sendResponse) {
       isValid: false
     });
   } finally {
-    console.log('Extraction process completed, resetting extractionInProgress flag');
     extractionInProgress = false;
   }
 }
@@ -202,7 +178,6 @@ async function extractProductData() {
 
     // Check if parser has new parseProduct method (H&M and newer parsers)
     if (typeof currentParser.parseProduct === 'function') {
-      console.log('Using new parseProduct method...');
       const productsArray = await currentParser.parseProduct();
 
       if (!productsArray || productsArray.length === 0) {
@@ -212,12 +187,10 @@ async function extractProductData() {
 
       // Return first product from array
       const productData = productsArray[0];
-      console.log('Product data extracted via parseProduct:', productData);
       return productData;
     }
 
     // Fallback to legacy individual extraction methods for older parsers
-    console.log('Using legacy individual extraction methods...');
 
     // Получаем JSON-LD данные (если парсер их поддерживает)
     let jsonData = null;

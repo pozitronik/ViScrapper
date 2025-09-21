@@ -203,31 +203,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  */
 async function handleGetTabData(sendResponse) {
   try {
-    console.log('Background: handleGetTabData called');
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    console.log('Background: Found active tab:', tab.url);
 
     // Проверяем, поддерживается ли сайт
     const isSupportedSite = isSiteSupported(tab.url);
-    console.log('Background: Is site supported:', isSupportedSite);
 
     if (!isSupportedSite) {
-      console.log('Background: Site not supported, sending error');
       sendResponse({ error: 'Расширение работает только на поддерживаемых сайтах: ' + SUPPORTED_SITES.domains.join(', ') });
       return;
     }
 
     // Отправка запроса к content script
-    console.log('Background: Sending extractData message to tab', tab.id);
     chrome.tabs.sendMessage(tab.id, { action: 'extractData' }, (response) => {
-      console.log('Background: Received response from content script:', response);
-      console.log('Background: Chrome runtime lastError:', chrome.runtime.lastError);
-
       if (chrome.runtime.lastError) {
-        console.log('Background: Error communicating with content script:', chrome.runtime.lastError.message);
         sendResponse({ error: 'Не удалось получить данные со страницы: ' + chrome.runtime.lastError.message });
       } else {
-        console.log('Background: Forwarding response to popup:', response);
         sendResponse(response);
       }
     });
