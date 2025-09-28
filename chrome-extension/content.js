@@ -176,7 +176,7 @@ async function extractProductData() {
   try {
     console.log(`Extracting product data using ${currentParser.siteName} parser...`);
 
-    // Check if parser has new parseProduct method (H&M and newer parsers)
+    // Check if parser has parseProduct method (for single-product extraction)
     if (typeof currentParser.parseProduct === 'function') {
       const productsArray = await currentParser.parseProduct();
 

@@ -1227,9 +1227,9 @@ class TommyHilfigerParser extends BaseParser {
 
 
   /**
-   * Основной метод парсинга
+   * Извлечение всех вариантов продукта (цвет + размеры) - создает отдельные продукты для каждого варианта
    */
-  async parseProduct() {
+  async extractAllVariants() {
     try {
       console.log('Starting TH product parsing...');
       

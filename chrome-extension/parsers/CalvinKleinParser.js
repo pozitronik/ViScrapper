@@ -1457,9 +1457,9 @@ class CalvinKleinParser extends BaseParser {
   }
 
   /**
-   * Основной метод парсинга - создает отдельные продукты для каждого варианта
+   * Извлечение всех вариантов продукта (цвет + размеры) - создает отдельные продукты для каждого варианта
    */
-  async parseProduct() {
+  async extractAllVariants() {
     try {
       console.log('Starting CK product parsing...');
       
