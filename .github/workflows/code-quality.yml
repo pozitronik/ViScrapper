@@ -214,7 +214,7 @@ jobs:
     
     steps:
       - name: Download analysis reports
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v6
         with:
           name: code-analysis-reports
           path: reports/
