@@ -34,8 +34,8 @@ jobs:
           
       - name: Run safety check for known vulnerabilities
         run: |
-          safety check --json --output safety-report.json
-          safety check --short-report
+          safety check --output json > safety-report.json || true
+          safety check --output text
           
       - name: Run bandit security analysis
         run: |
